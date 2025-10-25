@@ -21,36 +21,111 @@ export class AgendaServicio {
     return (horas * 60) + minutos;
   }
 
+  private formatearHora(fecha: Date): string {
+    return fecha.toLocaleTimeString('es-BO', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    });
+  }
+
+  private formatearFecha(fecha: Date): string {
+    return fecha.toLocaleDateString('es-BO', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric'
+    });
+  }
+
   async validarDisponibilidad(
     fecha: Date, 
     horas: number = 0, 
     minutos: number = 30, 
     cita_id_excluir?: number
-  ): Promise<{ disponible: boolean; citas_conflicto: Cita[] }> {
+  ): Promise<{ disponible: boolean; citas_conflicto: Cita[]; mensaje_detallado?: string }> {
+    const ahora = new Date();
+    const fecha_cita = new Date(fecha);
+    
+    if (fecha_cita < ahora) {
+      return {
+        disponible: false,
+        citas_conflicto: [],
+        mensaje_detallado: `No se pueden crear citas en el pasado. La fecha seleccionada (${this.formatearFecha(fecha_cita)} a las ${this.formatearHora(fecha_cita)}) ya pasó.`
+      };
+    }
+
     const duracion_total_minutos = this.calcularDuracionEnMinutos(horas, minutos);
     
-    const fecha_inicio = new Date(fecha);
-    fecha_inicio.setMinutes(fecha_inicio.getMinutes() - duracion_total_minutos);
+    const fecha_fin_nueva_cita = new Date(fecha_cita);
+    fecha_fin_nueva_cita.setMinutes(fecha_fin_nueva_cita.getMinutes() + duracion_total_minutos);
+
+    const fecha_inicio_busqueda = new Date(fecha_cita);
+    fecha_inicio_busqueda.setHours(0, 0, 0, 0);
     
-    const fecha_fin = new Date(fecha);
-    fecha_fin.setMinutes(fecha_fin.getMinutes() + duracion_total_minutos);
+    const fecha_fin_busqueda = new Date(fecha_cita);
+    fecha_fin_busqueda.setHours(23, 59, 59, 999);
 
     const condiciones: any = {
-      fecha: Between(fecha_inicio, fecha_fin)
+      fecha: Between(fecha_inicio_busqueda, fecha_fin_busqueda)
     };
 
     if (cita_id_excluir) {
       condiciones.id = Not(cita_id_excluir);
     }
 
-    const citas_conflicto = await this.cita_repositorio.find({
+    const citas_del_dia = await this.cita_repositorio.find({
       where: condiciones,
       relations: ['paciente', 'plan_tratamiento'],
     });
 
+    const citas_conflicto: Cita[] = [];
+    const conflictos_detallados: string[] = [];
+
+    for (const cita_existente of citas_del_dia) {
+      const fecha_inicio_existente = new Date(cita_existente.fecha);
+      const duracion_existente = this.calcularDuracionEnMinutos(
+        cita_existente.horas_aproximadas || 0,
+        cita_existente.minutos_aproximados || 30
+      );
+      const fecha_fin_existente = new Date(fecha_inicio_existente);
+      fecha_fin_existente.setMinutes(fecha_fin_existente.getMinutes() + duracion_existente);
+
+      const hay_solapamiento = 
+        (fecha_cita >= fecha_inicio_existente && fecha_cita < fecha_fin_existente) ||
+        (fecha_fin_nueva_cita > fecha_inicio_existente && fecha_fin_nueva_cita <= fecha_fin_existente) ||
+        (fecha_cita <= fecha_inicio_existente && fecha_fin_nueva_cita >= fecha_fin_existente);
+
+      if (hay_solapamiento) {
+        citas_conflicto.push(cita_existente);
+        
+        const hora_inicio_existente = this.formatearHora(fecha_inicio_existente);
+        const hora_fin_existente = this.formatearHora(fecha_fin_existente);
+        const descripcion = cita_existente.paciente 
+          ? `${cita_existente.paciente.nombre} ${cita_existente.paciente.apellidos} - ${cita_existente.descripcion}`
+          : cita_existente.descripcion;
+        
+        conflictos_detallados.push(
+          `• ${hora_inicio_existente} - ${hora_fin_existente}: ${descripcion}`
+        );
+      }
+    }
+
+    if (citas_conflicto.length > 0) {
+      const hora_inicio_nueva = this.formatearHora(fecha_cita);
+      const hora_fin_nueva = this.formatearHora(fecha_fin_nueva_cita);
+      
+      const mensaje = `La cita que intentas crear (${hora_inicio_nueva} - ${hora_fin_nueva}) se solapa con las siguientes citas:\n\n${conflictos_detallados.join('\n')}\n\nPor favor, elige un horario después de las ${this.formatearHora(fecha_fin_nueva_cita)} o antes del primer conflicto.`;
+      
+      return {
+        disponible: false,
+        citas_conflicto,
+        mensaje_detallado: mensaje
+      };
+    }
+
     return {
-      disponible: citas_conflicto.length === 0,
-      citas_conflicto,
+      disponible: true,
+      citas_conflicto: []
     };
   }
 
@@ -75,23 +150,7 @@ export class AgendaServicio {
     const validacion = await this.validarDisponibilidad(cita_data.fecha, horas, minutos);
     
     if (!validacion.disponible) {
-      const detalles_conflictos = validacion.citas_conflicto.map(cita => {
-        const fecha_formateada = new Date(cita.fecha).toLocaleString('es-BO', {
-          day: '2-digit',
-          month: 'long',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit'
-        });
-        const descripcion = cita.paciente 
-          ? `${cita.paciente.nombre} ${cita.paciente.apellidos} - ${cita.descripcion}`
-          : cita.descripcion;
-        return `${fecha_formateada}: ${descripcion}`;
-      }).join('; ');
-
-      throw new ConflictException(
-        `Ya existe${validacion.citas_conflicto.length > 1 ? 'n' : ''} ${validacion.citas_conflicto.length} cita${validacion.citas_conflicto.length > 1 ? 's' : ''} programada${validacion.citas_conflicto.length > 1 ? 's' : ''} en ese horario: ${detalles_conflictos}`
-      );
+      throw new ConflictException(validacion.mensaje_detallado || 'Conflicto de horario');
     }
 
     const nueva_cita = this.cita_repositorio.create({
@@ -160,23 +219,7 @@ export class AgendaServicio {
       const validacion = await this.validarDisponibilidad(nueva_fecha, nuevas_horas, nuevos_minutos, id);
       
       if (!validacion.disponible) {
-        const detalles_conflictos = validacion.citas_conflicto.map(cita => {
-          const fecha_formateada = new Date(cita.fecha).toLocaleString('es-BO', {
-            day: '2-digit',
-            month: 'long',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-          });
-          const descripcion = cita.paciente 
-            ? `${cita.paciente.nombre} ${cita.paciente.apellidos} - ${cita.descripcion}`
-            : cita.descripcion;
-          return `${fecha_formateada}: ${descripcion}`;
-        }).join('; ');
-
-        throw new ConflictException(
-          `Ya existe${validacion.citas_conflicto.length > 1 ? 'n' : ''} ${validacion.citas_conflicto.length} cita${validacion.citas_conflicto.length > 1 ? 's' : ''} programada${validacion.citas_conflicto.length > 1 ? 's' : ''} en ese horario: ${detalles_conflictos}`
-        );
+        throw new ConflictException(validacion.mensaje_detallado || 'Conflicto de horario');
       }
     }
 

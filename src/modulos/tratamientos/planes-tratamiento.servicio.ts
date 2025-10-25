@@ -18,15 +18,19 @@ export class PlanesTratamientoServicio {
     private readonly agenda_servicio: AgendaServicio,
   ) {}
 
+  private parsearFechaLocal(fecha_str: string, hora_str: string): Date {
+    const [anio, mes, dia] = fecha_str.split('-').map(Number);
+    const [horas, minutos] = hora_str.split(':').map(Number);
+    
+    return new Date(anio, mes - 1, dia, horas, minutos, 0, 0);
+  }
+
   async asignarPlan(asignar_plan_dto: AsignarPlanTratamientoDto): Promise<PlanTratamiento> {
     const { paciente_id, tratamiento_id, fecha_inicio, hora_inicio } = asignar_plan_dto;
     const paciente = await this.pacientes_servicio.encontrarPorId(paciente_id);
     const tratamiento_plantilla = await this.tratamientos_servicio.encontrarPorId(tratamiento_id);
 
-    const [horas, minutos] = hora_inicio.split(':').map(Number);
-    
-    const fecha_actual = new Date(fecha_inicio);
-    fecha_actual.setHours(horas, minutos, 0, 0);
+    const fecha_actual = this.parsearFechaLocal(fecha_inicio, hora_inicio);
     
     const intervalo_dias = tratamiento_plantilla.intervalo_dias || 0;
     const intervalo_semanas = tratamiento_plantilla.intervalo_semanas || 0;
@@ -38,14 +42,16 @@ export class PlanesTratamientoServicio {
     for (let i = 0; i < tratamiento_plantilla.numero_citas; i++) {
         const fecha_cita = new Date(fecha_actual);
         
-        fecha_cita.setMonth(fecha_cita.getMonth() + (i * intervalo_meses));
-        fecha_cita.setDate(fecha_cita.getDate() + (i * intervalo_semanas * 7));
-        fecha_cita.setDate(fecha_cita.getDate() + (i * intervalo_dias));
+        if (i > 0) {
+          fecha_cita.setMonth(fecha_cita.getMonth() + (i * intervalo_meses));
+          fecha_cita.setDate(fecha_cita.getDate() + (i * intervalo_semanas * 7));
+          fecha_cita.setDate(fecha_cita.getDate() + (i * intervalo_dias));
+        }
         
         fechas_citas.push(fecha_cita);
     }
 
-    const conflictos: Array<{ fecha: Date; citas_conflicto: Cita[] }> = [];
+    const conflictos: Array<{ fecha: Date; citas_conflicto: Cita[]; mensaje_detallado?: string }> = [];
     
     for (const fecha of fechas_citas) {
       const validacion = await this.agenda_servicio.validarDisponibilidad(fecha, horas_citas, minutos_citas);
@@ -53,12 +59,17 @@ export class PlanesTratamientoServicio {
         conflictos.push({
           fecha,
           citas_conflicto: validacion.citas_conflicto,
+          mensaje_detallado: validacion.mensaje_detallado
         });
       }
     }
 
     if (conflictos.length > 0) {
-      const detalles_conflictos = conflictos.map(conflicto => {
+      const mensajes_conflictos = conflictos.map(conflicto => {
+        if (conflicto.mensaje_detallado) {
+          return conflicto.mensaje_detallado;
+        }
+        
         const fecha_formateada = conflicto.fecha.toLocaleString('es-BO', {
           day: '2-digit',
           month: 'long',
@@ -74,11 +85,11 @@ export class PlanesTratamientoServicio {
           return descripcion;
         }).join(', ');
         
-        return `${fecha_formateada} (conflicto con: ${citas_str})`;
-      }).join('; ');
+        return `• ${fecha_formateada}: conflicto con ${citas_str}`;
+      }).join('\n\n');
 
       throw new ConflictException(
-        `No se puede asignar el plan de tratamiento. ${conflictos.length} fecha${conflictos.length > 1 ? 's' : ''} tiene${conflictos.length > 1 ? 'n' : ''} conflictos de horario: ${detalles_conflictos}`
+        `No se puede asignar el plan de tratamiento debido a conflictos de horario:\n\n${mensajes_conflictos}`
       );
     }
 
