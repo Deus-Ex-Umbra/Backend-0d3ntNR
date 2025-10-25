@@ -10,7 +10,7 @@ async function bootstrap() {
   app.setGlobalPrefix('api');
 
   app.enableCors({
-    origin: ['http://localhost:5173', 'http://localhost:3000', 'http://192.168.0.5:5173', 'http://192.168.0.5:3000', 'http://localhost:53336', 'http://192.168.0.5:64576', 'http://26.249.46.210:64576', 'http://localhost:61976'],
+    origin: ['http://localhost:5173', 'http://localhost:3000', 'https://0d3nt-frontend.vercel.app'],
     credentials: true,
   });
 
@@ -47,7 +47,7 @@ async function bootstrap() {
   SwaggerModule.setup('api/documentacion', app, document);
 
   const puerto = process.env.PORT ?? 3000;
-  await app.listen(puerto);
+  await app.listen(puerto, '0.0.0.0');
   console.log(`Servidor corriendo en http://localhost:${puerto}`);
   console.log(
     `Documentación disponible en http://localhost:${puerto}/api/documentacion`,
