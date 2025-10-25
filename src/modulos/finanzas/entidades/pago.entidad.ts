@@ -19,6 +19,6 @@ export class Pago {
   @ManyToOne(() => PlanTratamiento, (plan) => plan.pagos, { nullable: true, onDelete: 'CASCADE' })
   plan_tratamiento: PlanTratamiento;
 
-  @ManyToOne(() => Cita, { nullable: true, onDelete: 'CASCADE' })
+  @ManyToOne(() => Cita, { nullable: true, onDelete: 'SET NULL' })
   cita: Cita;
 }

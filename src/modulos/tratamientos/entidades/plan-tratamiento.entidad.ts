@@ -10,7 +10,7 @@ export class PlanTratamiento {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @ManyToOne(() => Paciente, (paciente) => paciente.planes_tratamiento)
+  @ManyToOne(() => Paciente, (paciente) => paciente.planes_tratamiento, { onDelete: 'CASCADE' })
   paciente: Paciente;
 
   @ManyToOne(() => Tratamiento)

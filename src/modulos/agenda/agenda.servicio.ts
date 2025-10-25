@@ -305,6 +305,13 @@ export class AgendaServicio {
   }
 
   async eliminar(id: number): Promise<void> {
+    const cita = await this.cita_repositorio.findOne({ where: { id } });
+    if (!cita) {
+      throw new NotFoundException(`Cita con ID "${id}" no encontrada.`);
+    }
+
+    await this.finanzas_servicio.eliminarPagosPorCita(id);
+
     const resultado = await this.cita_repositorio.delete(id);
     if (resultado.affected === 0) {
       throw new NotFoundException(`Cita con ID "${id}" no encontrada.`);
