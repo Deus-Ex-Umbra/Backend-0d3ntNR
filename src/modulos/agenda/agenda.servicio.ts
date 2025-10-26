@@ -83,12 +83,16 @@ export class AgendaServicio {
 
     for (const cita_existente of citas_del_dia) {
       const fecha_inicio_existente = new Date(cita_existente.fecha);
+      
       const duracion_existente = this.calcularDuracionEnMinutos(
-        cita_existente.horas_aproximadas || 0,
-        cita_existente.minutos_aproximados || 30
+        cita_existente.horas_aproximadas, 
+        cita_existente.minutos_aproximados 
       );
+
+      const duracion_existente_valida = Math.max(1, duracion_existente); 
+
       const fecha_fin_existente = new Date(fecha_inicio_existente);
-      fecha_fin_existente.setMinutes(fecha_fin_existente.getMinutes() + duracion_existente);
+      fecha_fin_existente.setMinutes(fecha_fin_existente.getMinutes() + duracion_existente_valida);
 
       const hay_solapamiento = 
         (fecha_cita >= fecha_inicio_existente && fecha_cita < fecha_fin_existente) ||
