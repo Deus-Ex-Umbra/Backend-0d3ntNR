@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Param, Get, UseGuards, Request } from '@nestjs/common';
+import { Controller, Post, Body, Param, Get, UseGuards, Request, Delete } from '@nestjs/common';
 import { PlanesTratamientoServicio } from './planes-tratamiento.servicio';
 import { AsignarPlanTratamientoDto } from './dto/asignar-plan-tratamiento.dto';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
@@ -24,5 +24,10 @@ export class PlanesTratamientoControlador {
   @Get('paciente/:paciente_id')
   obtenerPlanesPorPaciente(@Request() req, @Param('paciente_id') paciente_id: string) {
     return this.planes_servicio.obtenerPlanesPorPaciente(req.user.id, +paciente_id);
+  }
+
+  @Delete('eliminar/:id')
+  eliminarPlan(@Request() req, @Param('id') id: string) {
+    return this.planes_servicio.eliminarPlan(req.user.id, +id);
   }
 }

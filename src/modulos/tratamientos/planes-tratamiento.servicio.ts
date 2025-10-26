@@ -26,7 +26,7 @@ private parsearFechaLocal(fecha_str: string, hora_str: string): Date {
     return fechaLocal;
   }
 
-  async asignarPlan(usuario_id: number, asignar_plan_dto: AsignarPlanTratamientoDto): Promise<PlanTratamiento> {
+async asignarPlan(usuario_id: number, asignar_plan_dto: AsignarPlanTratamientoDto): Promise<PlanTratamiento> {
     const { paciente_id, tratamiento_id, fecha_inicio, hora_inicio } = asignar_plan_dto;
     const paciente = await this.pacientes_servicio.encontrarPorId(usuario_id, paciente_id);
     const tratamiento_plantilla = await this.tratamientos_servicio.encontrarPorId(tratamiento_id);
@@ -37,7 +37,7 @@ private parsearFechaLocal(fecha_str: string, hora_str: string): Date {
     const intervalo_semanas = tratamiento_plantilla.intervalo_semanas || 0;
     const intervalo_meses = tratamiento_plantilla.intervalo_meses || 0;
     const horas_citas = tratamiento_plantilla.horas_aproximadas_citas || 0;
-    const minutos_citas = tratamiento_plantilla.minutos_aproximados_citas || 30;
+    const minutos_citas = tratamiento_plantilla.minutos_aproximados_citas ?? 30;
     
     const fechas_citas: Date[] = [];
     for (let i = 0; i < tratamiento_plantilla.numero_citas; i++) {
@@ -161,5 +161,13 @@ private parsearFechaLocal(fecha_str: string, hora_str: string): Date {
     const plan = await this.encontrarPlanPorId(usuario_id, plan_id);
     plan.total_abonado = Math.max(0, Number(plan.total_abonado) - Number(monto));
     return this.plan_repositorio.save(plan);
+  }
+
+  async eliminarPlan(usuario_id: number, id: number): Promise<void> {
+    const resultado = await this.plan_repositorio.delete({ id, usuario: { id: usuario_id } });
+
+    if (resultado.affected === 0) {
+      throw new NotFoundException(`Plan de tratamiento con ID "${id}" no encontrado o no le pertenece.`);
+    }
   }
 }
