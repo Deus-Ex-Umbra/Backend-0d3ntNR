@@ -21,11 +21,12 @@ export class AgendaServicio {
     return (horas * 60) + minutos;
   }
 
-  private formatearHora(fecha: Date): string {
+private formatearHora(fecha: Date): string {
     return fecha.toLocaleTimeString('es-BO', {
       hour: '2-digit',
       minute: '2-digit',
-      hour12: false
+      hour12: false,
+      timeZone: 'America/La_Paz'
     });
   }
 
