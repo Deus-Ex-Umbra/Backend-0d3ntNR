@@ -1,11 +1,15 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, CreateDateColumn } from 'typeorm';
 import { Paciente } from '../../pacientes/entidades/paciente.entidad';
 import { PlanTratamiento } from '../../tratamientos/entidades/plan-tratamiento.entidad';
+import { Usuario } from '../../usuarios/entidades/usuario.entidad';
 
 @Entity()
 export class ArchivoAdjunto {
   @PrimaryGeneratedColumn()
   id: number;
+  
+  @ManyToOne(() => Usuario, { onDelete: 'CASCADE' })
+  usuario: Usuario;
 
   @Column()
   nombre_archivo: string;
@@ -28,4 +32,3 @@ export class ArchivoAdjunto {
   @ManyToOne(() => PlanTratamiento, (plan) => plan.archivos_adjuntos, { nullable: true, onDelete: 'SET NULL' })
   plan_tratamiento: PlanTratamiento | null;
 }
-

@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Param, Get, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, Param, Get, UseGuards, Request } from '@nestjs/common';
 import { PlanesTratamientoServicio } from './planes-tratamiento.servicio';
 import { AsignarPlanTratamientoDto } from './dto/asignar-plan-tratamiento.dto';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
@@ -12,17 +12,17 @@ export class PlanesTratamientoControlador {
   constructor(private readonly planes_servicio: PlanesTratamientoServicio) {}
 
   @Post()
-  asignarPlan(@Body() asignar_plan_dto: AsignarPlanTratamientoDto) {
-    return this.planes_servicio.asignarPlan(asignar_plan_dto);
+  asignarPlan(@Request() req, @Body() asignar_plan_dto: AsignarPlanTratamientoDto) {
+    return this.planes_servicio.asignarPlan(req.user.id, asignar_plan_dto);
   }
   
   @Get()
-  obtenerTodos() {
-    return this.planes_servicio.obtenerTodos();
+  obtenerTodos(@Request() req) {
+    return this.planes_servicio.obtenerTodos(req.user.id);
   }
   
   @Get('paciente/:paciente_id')
-  obtenerPlanesPorPaciente(@Param('paciente_id') paciente_id: string) {
-    return this.planes_servicio.obtenerPlanesPorPaciente(+paciente_id);
+  obtenerPlanesPorPaciente(@Request() req, @Param('paciente_id') paciente_id: string) {
+    return this.planes_servicio.obtenerPlanesPorPaciente(req.user.id, +paciente_id);
   }
 }

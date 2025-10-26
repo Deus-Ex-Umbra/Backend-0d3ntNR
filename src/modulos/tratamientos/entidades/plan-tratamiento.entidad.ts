@@ -4,11 +4,15 @@ import { Tratamiento } from './tratamiento.entidad';
 import { Cita } from '../../agenda/entidades/cita.entidad';
 import { Pago } from '../../finanzas/entidades/pago.entidad';
 import { ArchivoAdjunto } from '../../archivos-adjuntos/entidades/archivo-adjunto.entidad';
+import { Usuario } from '../../usuarios/entidades/usuario.entidad';
 
 @Entity()
 export class PlanTratamiento {
   @PrimaryGeneratedColumn()
   id: number;
+  
+  @ManyToOne(() => Usuario, { onDelete: 'CASCADE' })
+  usuario: Usuario;
 
   @ManyToOne(() => Paciente, (paciente) => paciente.planes_tratamiento, { onDelete: 'CASCADE' })
   paciente: Paciente;

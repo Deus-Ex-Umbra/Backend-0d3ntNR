@@ -20,14 +20,14 @@ export class EdicionesImagenesControlador {
 
   @Get('archivo/:archivo_id')
   @ApiOperation({ summary: 'Obtener todas las ediciones de un archivo' })
-  obtenerPorArchivo(@Param('archivo_id') archivo_id: string) {
-    return this.ediciones_servicio.obtenerPorArchivo(+archivo_id);
+  obtenerPorArchivo(@Request() req, @Param('archivo_id') archivo_id: string) {
+    return this.ediciones_servicio.obtenerPorArchivo(req.user.id, +archivo_id);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Obtener edición por ID' })
-  obtenerPorId(@Param('id') id: string) {
-    return this.ediciones_servicio.obtenerPorId(+id);
+  obtenerPorId(@Request() req, @Param('id') id: string) {
+    return this.ediciones_servicio.obtenerPorId(req.user.id, +id);
   }
 
   @Put(':id')

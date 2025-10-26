@@ -10,6 +10,7 @@ import { ActualizarEgresoDto } from './dto/actualizar-egreso.dto';
 import { PlanesTratamientoServicio } from '../tratamientos/planes-tratamiento.servicio';
 import { Cita } from '../agenda/entidades/cita.entidad';
 import { PlanTratamiento } from '../tratamientos/entidades/plan-tratamiento.entidad';
+import { Usuario } from '../usuarios/entidades/usuario.entidad';
 
 @Injectable()
 export class FinanzasServicio {
@@ -24,21 +25,22 @@ export class FinanzasServicio {
     private readonly planes_servicio: PlanesTratamientoServicio,
   ) {}
 
-  async registrarEgreso(registrar_egreso_dto: RegistrarEgresoDto): Promise<Egreso> {
+  async registrarEgreso(usuario_id: number, registrar_egreso_dto: RegistrarEgresoDto): Promise<Egreso> {
     const nuevo_egreso = this.egreso_repositorio.create({
       concepto: registrar_egreso_dto.concepto,
       fecha: registrar_egreso_dto.fecha,
       monto: registrar_egreso_dto.monto,
+      usuario: { id: usuario_id } as Usuario,
     });
 
     return this.egreso_repositorio.save(nuevo_egreso);
   }
 
-  async actualizarEgreso(id: number, actualizar_egreso_dto: ActualizarEgresoDto): Promise<Egreso> {
-    const egreso_existente = await this.egreso_repositorio.findOne({ where: { id } });
+  async actualizarEgreso(usuario_id: number, id: number, actualizar_egreso_dto: ActualizarEgresoDto): Promise<Egreso> {
+    const egreso_existente = await this.egreso_repositorio.findOne({ where: { id, usuario: { id: usuario_id } } });
 
     if (!egreso_existente) {
-      throw new NotFoundException('El egreso especificado no existe');
+      throw new NotFoundException('El egreso especificado no existe o no le pertenece.');
     }
 
     const datos_actualizacion: any = {};
@@ -63,28 +65,28 @@ export class FinanzasServicio {
     return updatedEgreso;
   }
 
-  async eliminarEgreso(id: number): Promise<void> {
-    const egreso = await this.egreso_repositorio.findOne({ where: { id } });
+  async eliminarEgreso(usuario_id: number, id: number): Promise<void> {
+    const egreso = await this.egreso_repositorio.findOne({ where: { id, usuario: { id: usuario_id } } });
 
     if (!egreso) {
-      throw new NotFoundException('El egreso especificado no existe');
+      throw new NotFoundException('El egreso especificado no existe o no le pertenece.');
     }
 
     await this.egreso_repositorio.remove(egreso);
   }
 
-  async registrarPago(registrar_pago_dto: RegistrarPagoDto): Promise<Pago> {
+  async registrarPago(usuario_id: number, registrar_pago_dto: RegistrarPagoDto): Promise<Pago> {
     let cita: Cita | null = null;
     let plan_tratamiento: PlanTratamiento | null = null;
 
     if (registrar_pago_dto.cita_id) {
       cita = await this.cita_repositorio.findOne({
-        where: { id: registrar_pago_dto.cita_id },
+        where: { id: registrar_pago_dto.cita_id, usuario: { id: usuario_id } },
         relations: ['paciente', 'plan_tratamiento'],
       });
 
       if (!cita) {
-        throw new NotFoundException('La cita especificada no existe');
+        throw new NotFoundException('La cita especificada no existe o no le pertenece.');
       }
 
       if (!cita.paciente) {
@@ -92,7 +94,7 @@ export class FinanzasServicio {
       }
 
       const pago_existente = await this.pago_repositorio.findOne({
-        where: { cita: { id: registrar_pago_dto.cita_id } },
+        where: { cita: { id: registrar_pago_dto.cita_id }, usuario: { id: usuario_id } },
       });
 
       if (pago_existente) {
@@ -111,6 +113,7 @@ export class FinanzasServicio {
       fecha: registrar_pago_dto.fecha,
       monto: registrar_pago_dto.monto,
       concepto: registrar_pago_dto.concepto,
+      usuario: { id: usuario_id } as Usuario,
     };
 
     if (plan_tratamiento) {
@@ -126,6 +129,7 @@ export class FinanzasServicio {
 
     if (plan_tratamiento) {
       await this.planes_servicio.registrarAbono(
+        usuario_id,
         plan_tratamiento.id,
         registrar_pago_dto.monto
       );
@@ -134,14 +138,14 @@ export class FinanzasServicio {
     return pago_guardado;
   }
 
-  async actualizarPago(id: number, actualizar_pago_dto: ActualizarPagoDto): Promise<Pago> {
+  async actualizarPago(usuario_id: number, id: number, actualizar_pago_dto: ActualizarPagoDto): Promise<Pago> {
     const pago_existente = await this.pago_repositorio.findOne({
-      where: { id },
+      where: { id, usuario: { id: usuario_id } },
       relations: ['plan_tratamiento', 'cita'],
     });
 
     if (!pago_existente) {
-      throw new NotFoundException('El pago especificado no existe');
+      throw new NotFoundException('El pago especificado no existe o no le pertenece.');
     }
 
     const monto_anterior = Number(pago_existente.monto);
@@ -150,8 +154,8 @@ export class FinanzasServicio {
       : monto_anterior;
 
     if (pago_existente.plan_tratamiento && monto_nuevo !== monto_anterior) {
-      await this.planes_servicio.descontarAbono(pago_existente.plan_tratamiento.id, monto_anterior);
-      await this.planes_servicio.registrarAbono(pago_existente.plan_tratamiento.id, monto_nuevo);
+      await this.planes_servicio.descontarAbono(usuario_id, pago_existente.plan_tratamiento.id, monto_anterior);
+      await this.planes_servicio.registrarAbono(usuario_id, pago_existente.plan_tratamiento.id, monto_nuevo);
     }
 
     if (pago_existente.cita && actualizar_pago_dto.monto !== undefined) {
@@ -185,18 +189,18 @@ export class FinanzasServicio {
     return updatedPago;
   }
 
-  async eliminarPago(id: number): Promise<void> {
+  async eliminarPago(usuario_id: number, id: number): Promise<void> {
     const pago = await this.pago_repositorio.findOne({
-      where: { id },
+      where: { id, usuario: { id: usuario_id } },
       relations: ['plan_tratamiento', 'cita'],
     });
 
     if (!pago) {
-      throw new NotFoundException('El pago especificado no existe');
+      throw new NotFoundException('El pago especificado no existe o no le pertenece.');
     }
 
     if (pago.plan_tratamiento) {
-      await this.planes_servicio.descontarAbono(pago.plan_tratamiento.id, Number(pago.monto));
+      await this.planes_servicio.descontarAbono(usuario_id, pago.plan_tratamiento.id, Number(pago.monto));
     }
 
     if (pago.cita) {
@@ -209,9 +213,9 @@ export class FinanzasServicio {
     await this.pago_repositorio.remove(pago);
   }
 
-  async eliminarPagosPorCita(cita_id: number): Promise<{ pagos_eliminados: number; monto_total: number }> {
+  async eliminarPagosPorCita(usuario_id: number, cita_id: number): Promise<{ pagos_eliminados: number; monto_total: number }> {
     const pagos = await this.pago_repositorio.find({
-      where: { cita: { id: cita_id } },
+      where: { cita: { id: cita_id }, usuario: { id: usuario_id } },
       relations: ['plan_tratamiento'],
     });
 
@@ -219,7 +223,7 @@ export class FinanzasServicio {
 
     for (const pago of pagos) {
       if (pago.plan_tratamiento) {
-        await this.planes_servicio.descontarAbono(pago.plan_tratamiento.id, Number(pago.monto));
+        await this.planes_servicio.descontarAbono(usuario_id, pago.plan_tratamiento.id, Number(pago.monto));
       }
       await this.pago_repositorio.remove(pago);
     }
@@ -230,17 +234,17 @@ export class FinanzasServicio {
     };
   }
 
-  async generarReporte(fecha_inicio_str?: string, fecha_fin_str?: string) {
+  async generarReporte(usuario_id: number, fecha_inicio_str?: string, fecha_fin_str?: string) {
     const fecha_inicio = fecha_inicio_str ? new Date(fecha_inicio_str) : new Date(0);
     const fecha_fin = fecha_fin_str ? new Date(fecha_fin_str) : new Date();
     fecha_fin.setHours(23, 59, 59, 999);
 
     const pagos = await this.pago_repositorio.find({
-      where: { fecha: Between(fecha_inicio, fecha_fin) },
+      where: { fecha: Between(fecha_inicio, fecha_fin), usuario: { id: usuario_id } },
       relations: ['plan_tratamiento', 'plan_tratamiento.paciente', 'cita', 'cita.paciente'],
     });
     const egresos = await this.egreso_repositorio.find({
-      where: { fecha: Between(fecha_inicio, fecha_fin) },
+      where: { fecha: Between(fecha_inicio, fecha_fin), usuario: { id: usuario_id } },
     });
 
     const total_ingresos = pagos.reduce((sum, p) => sum + Number(p.monto), 0);
@@ -274,7 +278,7 @@ export class FinanzasServicio {
     };
   }
 
-  async obtenerDatosGrafico(tipo: 'dia' | 'mes' | 'ano', fecha_referencia?: string) {
+  async obtenerDatosGrafico(usuario_id: number, tipo: 'dia' | 'mes' | 'ano', fecha_referencia?: string) {
     const fecha_ref = fecha_referencia ? new Date(fecha_referencia) : new Date();
     let fecha_inicio: Date;
     let fecha_fin: Date;
@@ -301,11 +305,11 @@ export class FinanzasServicio {
     }
 
     const pagos = await this.pago_repositorio.find({
-      where: { fecha: Between(fecha_inicio, fecha_fin) },
+      where: { fecha: Between(fecha_inicio, fecha_fin), usuario: { id: usuario_id } },
     });
 
     const egresos = await this.egreso_repositorio.find({
-      where: { fecha: Between(fecha_inicio, fecha_fin) },
+      where: { fecha: Between(fecha_inicio, fecha_fin), usuario: { id: usuario_id } },
     });
 
     const datos_agrupados = this.agruparDatos(pagos, egresos, tipo, fecha_inicio, fecha_fin);

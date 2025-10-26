@@ -22,7 +22,7 @@ export class EstadisticasServicio {
     private readonly egreso_repositorio: Repository<Egreso>,
   ) {}
 
-  async obtenerEstadisticasDashboard() {
+  async obtenerEstadisticasDashboard(usuario_id: number) {
     const hoy = new Date();
     hoy.setHours(0, 0, 0, 0);
     const manana = new Date(hoy);
@@ -41,29 +41,31 @@ export class EstadisticasServicio {
       pagos_recientes,
       egresos_recientes,
     ] = await Promise.all([
-      this.paciente_repositorio.count(),
+      this.paciente_repositorio.count({ where: { usuario: { id: usuario_id } } }),
       this.cita_repositorio.count({
-        where: { fecha: Between(hoy, manana) },
+        where: { fecha: Between(hoy, manana), usuario: { id: usuario_id } },
       }),
-      this.plan_repositorio.count(),
+      this.plan_repositorio.count({ where: { usuario: { id: usuario_id } } }),
       this.pago_repositorio.find({
-        where: { fecha: Between(primer_dia_mes, ultimo_dia_mes) },
+        where: { fecha: Between(primer_dia_mes, ultimo_dia_mes), usuario: { id: usuario_id } },
       }),
       this.egreso_repositorio.find({
-        where: { fecha: Between(primer_dia_mes, ultimo_dia_mes) },
+        where: { fecha: Between(primer_dia_mes, ultimo_dia_mes), usuario: { id: usuario_id } },
       }),
       this.cita_repositorio.find({
-        where: { fecha: MoreThanOrEqual(hoy) },
+        where: { fecha: MoreThanOrEqual(hoy), usuario: { id: usuario_id } },
         relations: ['paciente'],
         order: { fecha: 'DESC' },
         take: 5,
       }),
       this.pago_repositorio.find({
+        where: { usuario: { id: usuario_id } },
         relations: ['plan_tratamiento', 'plan_tratamiento.paciente', 'cita', 'cita.paciente'],
         order: { fecha: 'DESC' },
         take: 3,
       }),
       this.egreso_repositorio.find({
+        where: { usuario: { id: usuario_id } },
         order: { fecha: 'DESC' },
         take: 3,
       }),

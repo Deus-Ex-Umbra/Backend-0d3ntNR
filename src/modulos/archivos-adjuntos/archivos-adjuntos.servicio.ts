@@ -6,6 +6,7 @@ import { SubirArchivoDto } from './dto/subir-archivo.dto';
 import { ActualizarArchivoDto } from './dto/actualizar-archivo.dto';
 import { Paciente } from '../pacientes/entidades/paciente.entidad';
 import { PlanTratamiento } from '../tratamientos/entidades/plan-tratamiento.entidad';
+import { Usuario } from '../usuarios/entidades/usuario.entidad';
 
 @Injectable()
 export class ArchivosAdjuntosServicio {
@@ -14,42 +15,45 @@ export class ArchivosAdjuntosServicio {
     private readonly archivo_repositorio: Repository<ArchivoAdjunto>,
   ) {}
 
-  async subir(dto: SubirArchivoDto): Promise<ArchivoAdjunto> {
+  async subir(usuario_id: number, dto: SubirArchivoDto): Promise<ArchivoAdjunto> {
     const nuevo_archivo = this.archivo_repositorio.create({
       ...dto,
+      usuario: { id: usuario_id } as Usuario,
       paciente: { id: dto.paciente_id } as Paciente,
       plan_tratamiento: dto.plan_tratamiento_id ? { id: dto.plan_tratamiento_id } as PlanTratamiento : null,
     });
     return this.archivo_repositorio.save(nuevo_archivo);
   }
 
-  async obtenerPorPaciente(paciente_id: number): Promise<ArchivoAdjunto[]> {
+  async obtenerPorPaciente(usuario_id: number, paciente_id: number): Promise<ArchivoAdjunto[]> {
     return this.archivo_repositorio.find({
-      where: { paciente: { id: paciente_id } },
+      where: { paciente: { id: paciente_id }, usuario: { id: usuario_id } },
       order: { fecha_subida: 'DESC' },
     });
   }
 
-  async obtenerPorPlan(plan_id: number): Promise<ArchivoAdjunto[]> {
+  async obtenerPorPlan(usuario_id: number, plan_id: number): Promise<ArchivoAdjunto[]> {
     return this.archivo_repositorio.find({
-      where: { plan_tratamiento: { id: plan_id } },
+      where: { plan_tratamiento: { id: plan_id }, usuario: { id: usuario_id } },
       order: { fecha_subida: 'DESC' },
     });
   }
 
-  async actualizar(id: number, dto: ActualizarArchivoDto): Promise<ArchivoAdjunto> {
-    const archivo = await this.archivo_repositorio.preload({ id, ...dto });
+  async actualizar(usuario_id: number, id: number, dto: ActualizarArchivoDto): Promise<ArchivoAdjunto> {
+    const archivo = await this.archivo_repositorio.findOne({ where: { id, usuario: { id: usuario_id } } });
+    
     if (!archivo) {
-      throw new NotFoundException(`Archivo con ID "${id}" no encontrado.`);
+      throw new NotFoundException(`Archivo con ID "${id}" no encontrado o no le pertenece.`);
     }
+
+    Object.assign(archivo, dto);
     return this.archivo_repositorio.save(archivo);
   }
 
-  async eliminar(id: number): Promise<void> {
-    const resultado = await this.archivo_repositorio.delete(id);
+  async eliminar(usuario_id: number, id: number): Promise<void> {
+    const resultado = await this.archivo_repositorio.delete({ id, usuario: { id: usuario_id } });
     if (resultado.affected === 0) {
-      throw new NotFoundException(`Archivo con ID "${id}" no encontrado.`);
+      throw new NotFoundException(`Archivo con ID "${id}" no encontrado o no le pertenece.`);
     }
   }
 }
-

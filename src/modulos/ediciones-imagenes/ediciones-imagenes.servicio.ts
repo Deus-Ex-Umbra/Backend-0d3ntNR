@@ -18,12 +18,12 @@ export class EdicionesImagenesServicio {
 
   async crear(usuario_id: number, dto: CrearEdicionDto): Promise<EdicionImagen> {
     const archivo = await this.archivo_repositorio.findOne({
-      where: { id: dto.archivo_original_id },
+      where: { id: dto.archivo_original_id, usuario: { id: usuario_id } },
       relations: ['paciente'],
     });
 
     if (!archivo) {
-      throw new NotFoundException('Archivo no encontrado');
+      throw new NotFoundException('Archivo no encontrado o no le pertenece.');
     }
 
     let edicion_padre: EdicionImagen | null = null;
@@ -64,7 +64,12 @@ export class EdicionesImagenesServicio {
     return this.edicion_repositorio.save(nueva_edicion);
   }
 
-  async obtenerPorArchivo(archivo_id: number): Promise<EdicionImagen[]> {
+  async obtenerPorArchivo(usuario_id: number, archivo_id: number): Promise<EdicionImagen[]> {
+    const archivo = await this.archivo_repositorio.findOne({ where: { id: archivo_id, usuario: { id: usuario_id } } });
+    if (!archivo) {
+      throw new NotFoundException('Archivo no encontrado o no le pertenece.');
+    }
+    
     return this.edicion_repositorio.find({
       where: { archivo_original: { id: archivo_id } },
       relations: ['usuario', 'edicion_padre'],
@@ -72,14 +77,18 @@ export class EdicionesImagenesServicio {
     });
   }
 
-  async obtenerPorId(id: number): Promise<EdicionImagen> {
+  async obtenerPorId(usuario_id: number, id: number): Promise<EdicionImagen> {
     const edicion = await this.edicion_repositorio.findOne({
       where: { id },
-      relations: ['archivo_original', 'usuario', 'edicion_padre'],
+      relations: ['archivo_original', 'usuario', 'edicion_padre', 'archivo_original.usuario'],
     });
 
     if (!edicion) {
       throw new NotFoundException('Edición no encontrada');
+    }
+
+    if (edicion.archivo_original.usuario.id !== usuario_id) {
+      throw new ForbiddenException('No tienes permiso para ver esta edición.');
     }
 
     return edicion;
@@ -121,7 +130,7 @@ export class EdicionesImagenesServicio {
   }
 
   async duplicar(id: number, usuario_id: number): Promise<EdicionImagen> {
-    const edicion_original = await this.obtenerPorId(id);
+    const edicion_original = await this.obtenerPorId(usuario_id, id);
 
     const nueva_edicion = this.edicion_repositorio.create({
       archivo_original: edicion_original.archivo_original,

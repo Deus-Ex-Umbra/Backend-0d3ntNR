@@ -7,6 +7,7 @@ import { ActualizarCitaDto } from './dto/actualizar-cita.dto';
 import { Paciente } from '../pacientes/entidades/paciente.entidad';
 import { PlanTratamiento } from '../tratamientos/entidades/plan-tratamiento.entidad';
 import { FinanzasServicio } from '../finanzas/finanzas.servicio';
+import { Usuario } from '../usuarios/entidades/usuario.entidad';
 
 @Injectable()
 export class AgendaServicio {
@@ -39,6 +40,7 @@ private formatearHora(fecha: Date): string {
   }
 
   async validarDisponibilidad(
+    usuario_id: number,
     fecha: Date, 
     horas: number = 0, 
     minutos: number = 30, 
@@ -67,7 +69,8 @@ private formatearHora(fecha: Date): string {
     fecha_fin_busqueda.setHours(23, 59, 59, 999);
 
     const condiciones: any = {
-      fecha: Between(fecha_inicio_busqueda, fecha_fin_busqueda)
+      fecha: Between(fecha_inicio_busqueda, fecha_fin_busqueda),
+      usuario: { id: usuario_id }
     };
 
     if (cita_id_excluir) {
@@ -134,7 +137,7 @@ private formatearHora(fecha: Date): string {
     };
   }
 
-  async crear(crear_cita_dto: CrearCitaDto): Promise<Cita> {
+  async crear(usuario_id: number, crear_cita_dto: CrearCitaDto): Promise<Cita> {
     const { 
       paciente_id, 
       plan_tratamiento_id, 
@@ -152,7 +155,7 @@ private formatearHora(fecha: Date): string {
     const horas = horas_aproximadas !== undefined ? horas_aproximadas : 0;
     const minutos = minutos_aproximados !== undefined ? minutos_aproximados : 30;
 
-    const validacion = await this.validarDisponibilidad(cita_data.fecha, horas, minutos);
+    const validacion = await this.validarDisponibilidad(usuario_id, cita_data.fecha, horas, minutos);
     
     if (!validacion.disponible) {
       throw new ConflictException(validacion.mensaje_detallado || 'Conflicto de horario');
@@ -162,6 +165,7 @@ private formatearHora(fecha: Date): string {
       ...cita_data,
       horas_aproximadas: horas,
       minutos_aproximados: minutos,
+      usuario: { id: usuario_id } as Usuario,
     });
 
     if (paciente_id) {
@@ -177,12 +181,13 @@ private formatearHora(fecha: Date): string {
     return this.cita_repositorio.save(nueva_cita);
   }
 
-  async obtenerCitasPorMes(mes: number, ano: number): Promise<Cita[]> {
+  async obtenerCitasPorMes(usuario_id: number, mes: number, ano: number): Promise<Cita[]> {
     const primer_dia = new Date(ano, mes - 1, 1);
     const ultimo_dia = new Date(ano, mes, 0, 23, 59, 59);
 
     const where_condition: FindOptionsWhere<Cita> = {
-        fecha: Between(primer_dia, ultimo_dia)
+        fecha: Between(primer_dia, ultimo_dia),
+        usuario: { id: usuario_id }
     };
 
     return this.cita_repositorio.find({
@@ -192,14 +197,14 @@ private formatearHora(fecha: Date): string {
     });
   }
 
-  async actualizar(id: number, actualizar_cita_dto: ActualizarCitaDto): Promise<Cita> {
+  async actualizar(usuario_id: number, id: number, actualizar_cita_dto: ActualizarCitaDto): Promise<Cita> {
     const cita_actual = await this.cita_repositorio.findOne({
-      where: { id },
+      where: { id, usuario: { id: usuario_id } },
       relations: ['plan_tratamiento', 'paciente'],
     });
 
     if (!cita_actual) {
-      throw new NotFoundException(`Cita con ID "${id}" no encontrada.`);
+      throw new NotFoundException(`Cita con ID "${id}" no encontrada o no le pertenece.`);
     }
 
     if (!actualizar_cita_dto.paciente_id && cita_actual.paciente === null) {
@@ -221,7 +226,7 @@ private formatearHora(fecha: Date): string {
         ? actualizar_cita_dto.minutos_aproximados 
         : cita_actual.minutos_aproximados;
       
-      const validacion = await this.validarDisponibilidad(nueva_fecha, nuevas_horas, nuevos_minutos, id);
+      const validacion = await this.validarDisponibilidad(usuario_id, nueva_fecha, nuevas_horas, nuevos_minutos, id);
       
       if (!validacion.disponible) {
         throw new ConflictException(validacion.mensaje_detallado || 'Conflicto de horario');
@@ -285,7 +290,7 @@ private formatearHora(fecha: Date): string {
     const tiene_monto = cita_guardada.monto_esperado && cita_guardada.monto_esperado > 0;
 
     if (cambio_a_pagado && tiene_paciente && tiene_monto) {
-      await this.finanzas_servicio.registrarPago({
+      await this.finanzas_servicio.registrarPago(usuario_id, {
         cita_id: id,
         fecha: new Date(),
         monto: Number(cita_guardada.monto_esperado),
@@ -294,11 +299,11 @@ private formatearHora(fecha: Date): string {
     }
 
     if (cambio_desde_pagado && tiene_paciente) {
-      await this.finanzas_servicio.eliminarPagosPorCita(id);
+      await this.finanzas_servicio.eliminarPagosPorCita(usuario_id, id);
     }
 
     const cita_actualizada = await this.cita_repositorio.findOne({
-      where: { id },
+      where: { id, usuario: { id: usuario_id } },
       relations: ['paciente', 'plan_tratamiento', 'plan_tratamiento.paciente'],
     });
 
@@ -309,38 +314,39 @@ private formatearHora(fecha: Date): string {
     return cita_actualizada;
   }
 
-  async eliminar(id: number): Promise<void> {
-    const cita = await this.cita_repositorio.findOne({ where: { id } });
+  async eliminar(usuario_id: number, id: number): Promise<void> {
+    const cita = await this.cita_repositorio.findOne({ where: { id, usuario: { id: usuario_id } } });
     if (!cita) {
-      throw new NotFoundException(`Cita con ID "${id}" no encontrada.`);
+      throw new NotFoundException(`Cita con ID "${id}" no encontrada o no le pertenece.`);
     }
 
-    await this.finanzas_servicio.eliminarPagosPorCita(id);
+    await this.finanzas_servicio.eliminarPagosPorCita(usuario_id, id);
 
-    const resultado = await this.cita_repositorio.delete(id);
+    const resultado = await this.cita_repositorio.delete({ id, usuario: { id: usuario_id } });
     if (resultado.affected === 0) {
       throw new NotFoundException(`Cita con ID "${id}" no encontrada.`);
     }
   }
 
-  async obtenerCitasSinPagar(): Promise<Cita[]> {
+  async obtenerCitasSinPagar(usuario_id: number): Promise<Cita[]> {
     return this.cita_repositorio.find({
       where: [
-        { estado_pago: 'pendiente' },
-        { estado_pago: 'cancelado' }
+        { estado_pago: 'pendiente', usuario: { id: usuario_id } },
+        { estado_pago: 'cancelado', usuario: { id: usuario_id } }
       ],
       relations: ['paciente', 'plan_tratamiento'],
       order: { fecha: 'DESC' }
     });
   }
 
-  async obtenerCitasSinPago(): Promise<Cita[]> {
+  async obtenerCitasSinPago(usuario_id: number): Promise<Cita[]> {
     return this.cita_repositorio
       .createQueryBuilder('cita')
       .leftJoinAndSelect('cita.paciente', 'paciente')
       .leftJoinAndSelect('cita.plan_tratamiento', 'plan_tratamiento')
       .where('cita.paciente IS NOT NULL')
       .andWhere('cita.estado_pago != :estado', { estado: 'pagado' })
+      .andWhere('cita.usuario.id = :usuario_id', { usuario_id })
       .orderBy('cita.fecha', 'DESC')
       .getMany();
   }

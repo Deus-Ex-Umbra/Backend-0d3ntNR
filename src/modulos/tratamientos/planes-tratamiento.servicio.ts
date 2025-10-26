@@ -7,6 +7,7 @@ import { PacientesServicio } from '../pacientes/pacientes.servicio';
 import { TratamientosServicio } from './tratamientos.servicio';
 import { AgendaServicio } from '../agenda/agenda.servicio';
 import { Cita } from '../agenda/entidades/cita.entidad';
+import { Usuario } from '../usuarios/entidades/usuario.entidad';
 
 @Injectable()
 export class PlanesTratamientoServicio {
@@ -25,9 +26,9 @@ private parsearFechaLocal(fecha_str: string, hora_str: string): Date {
     return fechaLocal;
   }
 
-  async asignarPlan(asignar_plan_dto: AsignarPlanTratamientoDto): Promise<PlanTratamiento> {
+  async asignarPlan(usuario_id: number, asignar_plan_dto: AsignarPlanTratamientoDto): Promise<PlanTratamiento> {
     const { paciente_id, tratamiento_id, fecha_inicio, hora_inicio } = asignar_plan_dto;
-    const paciente = await this.pacientes_servicio.encontrarPorId(paciente_id);
+    const paciente = await this.pacientes_servicio.encontrarPorId(usuario_id, paciente_id);
     const tratamiento_plantilla = await this.tratamientos_servicio.encontrarPorId(tratamiento_id);
 
     const fecha_actual = this.parsearFechaLocal(fecha_inicio, hora_inicio);
@@ -54,7 +55,7 @@ private parsearFechaLocal(fecha_str: string, hora_str: string): Date {
     const conflictos: Array<{ fecha: Date; citas_conflicto: Cita[]; mensaje_detallado?: string }> = [];
     
     for (const fecha of fechas_citas) {
-      const validacion = await this.agenda_servicio.validarDisponibilidad(fecha, horas_citas, minutos_citas);
+      const validacion = await this.agenda_servicio.validarDisponibilidad(usuario_id, fecha, horas_citas, minutos_citas);
       if (!validacion.disponible) {
         conflictos.push({
           fecha,
@@ -98,6 +99,7 @@ private parsearFechaLocal(fecha_str: string, hora_str: string): Date {
       tratamiento: tratamiento_plantilla,
       costo_total: tratamiento_plantilla.costo_total,
       total_abonado: 0,
+      usuario: { id: usuario_id } as Usuario,
     });
 
     const plan_guardado = await this.plan_repositorio.save(nuevo_plan);
@@ -106,7 +108,7 @@ private parsearFechaLocal(fecha_str: string, hora_str: string): Date {
     
     for (let i = 0; i < tratamiento_plantilla.numero_citas; i++) {
         citas_promesas.push(
-            this.agenda_servicio.crear({
+            this.agenda_servicio.crear(usuario_id, {
                 paciente_id: paciente.id,
                 plan_tratamiento_id: plan_guardado.id,
                 fecha: fechas_citas[i],
@@ -119,43 +121,44 @@ private parsearFechaLocal(fecha_str: string, hora_str: string): Date {
     }
     await Promise.all(citas_promesas);
 
-    return this.encontrarPlanPorId(plan_guardado.id);
+    return this.encontrarPlanPorId(usuario_id, plan_guardado.id);
   }
 
-  async obtenerTodos(): Promise<PlanTratamiento[]> {
+  async obtenerTodos(usuario_id: number): Promise<PlanTratamiento[]> {
     return this.plan_repositorio.find({
+      where: { usuario: { id: usuario_id } },
       relations: ['paciente', 'tratamiento', 'citas', 'pagos'],
       order: { id: 'DESC' },
     });
   }
 
-  async encontrarPlanPorId(id: number): Promise<PlanTratamiento> {
+  async encontrarPlanPorId(usuario_id: number, id: number): Promise<PlanTratamiento> {
     const plan = await this.plan_repositorio.findOne({
-      where: { id },
+      where: { id, usuario: { id: usuario_id } },
       relations: ['paciente', 'tratamiento', 'citas', 'pagos']
     });
     if (!plan) {
-        throw new NotFoundException(`Plan de tratamiento con ID "${id}" no encontrado.`);
+        throw new NotFoundException(`Plan de tratamiento con ID "${id}" no encontrado o no le pertenece.`);
     }
     return plan;
   }
 
-  async obtenerPlanesPorPaciente(paciente_id: number): Promise<PlanTratamiento[]> {
+  async obtenerPlanesPorPaciente(usuario_id: number, paciente_id: number): Promise<PlanTratamiento[]> {
     return this.plan_repositorio.find({
-      where: { paciente: { id: paciente_id } },
+      where: { paciente: { id: paciente_id }, usuario: { id: usuario_id } },
       relations: ['tratamiento', 'citas', 'pagos'],
       order: { id: 'DESC' },
     });
   }
 
-  async registrarAbono(plan_id: number, monto: number): Promise<PlanTratamiento> {
-    const plan = await this.encontrarPlanPorId(plan_id);
+  async registrarAbono(usuario_id: number, plan_id: number, monto: number): Promise<PlanTratamiento> {
+    const plan = await this.encontrarPlanPorId(usuario_id, plan_id);
     plan.total_abonado = Number(plan.total_abonado) + Number(monto);
     return this.plan_repositorio.save(plan);
   }
 
-  async descontarAbono(plan_id: number, monto: number): Promise<PlanTratamiento> {
-    const plan = await this.encontrarPlanPorId(plan_id);
+  async descontarAbono(usuario_id: number, plan_id: number, monto: number): Promise<PlanTratamiento> {
+    const plan = await this.encontrarPlanPorId(usuario_id, plan_id);
     plan.total_abonado = Math.max(0, Number(plan.total_abonado) - Number(monto));
     return this.plan_repositorio.save(plan);
   }

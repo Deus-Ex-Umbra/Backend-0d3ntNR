@@ -1,9 +1,13 @@
-import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne } from 'typeorm';
+import { Usuario } from '../../usuarios/entidades/usuario.entidad';
 
 @Entity()
 export class Egreso {
   @PrimaryGeneratedColumn()
   id: number;
+  
+  @ManyToOne(() => Usuario, { onDelete: 'CASCADE' })
+  usuario: Usuario;
 
   @Column()
   concepto: string;

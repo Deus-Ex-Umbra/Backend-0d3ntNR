@@ -11,6 +11,7 @@ import { Medicamento } from '../catalogo/entidades/medicamento.entidad';
 import { CrearPacienteDto } from './dto/crear-paciente.dto';
 import { ActualizarPacienteDto } from './dto/actualizar-paciente.dto';
 import { RespuestaAnamnesisDto } from './dto/respuesta-anamnesis.dto';
+import { Usuario } from '../usuarios/entidades/usuario.entidad';
 
 @Injectable()
 export class PacientesServicio {
@@ -31,10 +32,13 @@ export class PacientesServicio {
     private readonly medicamento_repositorio: Repository<Medicamento>,
   ) {}
 
-  async crear(crear_paciente_dto: CrearPacienteDto): Promise<Paciente> {
+  async crear(usuario_id: number, crear_paciente_dto: CrearPacienteDto): Promise<Paciente> {
     const { alergias_ids, enfermedades_ids, medicamentos_ids, ...datos_paciente } = crear_paciente_dto;
 
-    const nuevo_paciente = this.paciente_repositorio.create(datos_paciente);
+    const nuevo_paciente = this.paciente_repositorio.create({
+      ...datos_paciente,
+      usuario: { id: usuario_id } as Usuario,
+    });
     const paciente_guardado = await this.paciente_repositorio.save(nuevo_paciente);
 
     if (alergias_ids && alergias_ids.length > 0) {
@@ -49,27 +53,29 @@ export class PacientesServicio {
       await this.asignarMedicamentos(paciente_guardado.id, medicamentos_ids);
     }
 
-    return this.encontrarPorId(paciente_guardado.id);
+    return this.encontrarPorId(usuario_id, paciente_guardado.id);
   }
 
-  async encontrarTodos(termino_busqueda?: string): Promise<Paciente[]> {
+  async encontrarTodos(usuario_id: number, termino_busqueda?: string): Promise<Paciente[]> {
+    const base_where = { usuario: { id: usuario_id } };
+    
     if (termino_busqueda) {
       const id_busqueda = parseInt(termino_busqueda, 10);
       const where_conditions: any[] = [
-        { nombre: ILike(`%${termino_busqueda}%`) },
-        { apellidos: ILike(`%${termino_busqueda}%`) },
+        { ...base_where, nombre: ILike(`%${termino_busqueda}%`) },
+        { ...base_where, apellidos: ILike(`%${termino_busqueda}%`) },
       ];
       if (!isNaN(id_busqueda)) {
-        where_conditions.push({ id: id_busqueda });
+        where_conditions.push({ ...base_where, id: id_busqueda });
       }
       return this.paciente_repositorio.find({ where: where_conditions });
     }
-    return this.paciente_repositorio.find();
+    return this.paciente_repositorio.find({ where: base_where });
   }
 
- async encontrarPorId(id: number): Promise<any> {
+ async encontrarPorId(usuario_id: number, id: number): Promise<any> {
   const paciente = await this.paciente_repositorio.findOne({
-    where: { id },
+    where: { id, usuario: { id: usuario_id } },
     relations: [
       'odontogramas',
       'planes_tratamiento',
@@ -85,7 +91,7 @@ export class PacientesServicio {
   });
   
   if (!paciente) {
-    throw new NotFoundException(`Paciente con ID "${id}" no encontrado.`);
+    throw new NotFoundException(`Paciente con ID "${id}" no encontrado o no le pertenece.`);
   }
   
     return {
@@ -95,7 +101,7 @@ export class PacientesServicio {
     medicamentos: paciente.paciente_medicamentos?.map(pm => pm.medicamento.id) || [],
   };
 }
-  async actualizar(id: number, actualizar_paciente_dto: ActualizarPacienteDto): Promise<Paciente> {
+  async actualizar(usuario_id: number, id: number, actualizar_paciente_dto: ActualizarPacienteDto): Promise<Paciente> {
     const { alergias_ids, enfermedades_ids, medicamentos_ids, ...datos_paciente } = actualizar_paciente_dto;
 
     const paciente = await this.paciente_repositorio.preload({
@@ -105,6 +111,11 @@ export class PacientesServicio {
 
     if (!paciente) {
       throw new NotFoundException(`Paciente con ID "${id}" no encontrado.`);
+    }
+
+    const paciente_existente = await this.encontrarPorId(usuario_id, id);
+    if (!paciente_existente) {
+      throw new NotFoundException(`Paciente con ID "${id}" no encontrado o no le pertenece.`);
     }
 
     await this.paciente_repositorio.save(paciente);
@@ -130,19 +141,19 @@ export class PacientesServicio {
       }
     }
 
-    return this.encontrarPorId(id);
+    return this.encontrarPorId(usuario_id, id);
   }
 
-  async eliminar(id: number): Promise<void> {
-    const resultado = await this.paciente_repositorio.delete(id);
+  async eliminar(usuario_id: number, id: number): Promise<void> {
+    const resultado = await this.paciente_repositorio.delete({ id, usuario: { id: usuario_id } });
     if (resultado.affected === 0) {
-      throw new NotFoundException(`Paciente con ID "${id}" no encontrado.`);
+      throw new NotFoundException(`Paciente con ID "${id}" no encontrado o no le pertenece.`);
     }
   }
 
-  async obtenerAnamnesisPorPaciente(id: number): Promise<RespuestaAnamnesisDto> {
+  async obtenerAnamnesisPorPaciente(usuario_id: number, id: number): Promise<RespuestaAnamnesisDto> {
     const paciente = await this.paciente_repositorio.findOne({
-      where: { id },
+      where: { id, usuario: { id: usuario_id } },
       relations: [
         'paciente_alergias',
         'paciente_alergias.alergia',
@@ -154,7 +165,7 @@ export class PacientesServicio {
     });
 
     if (!paciente) {
-      throw new NotFoundException(`Paciente con ID "${id}" no encontrado.`);
+      throw new NotFoundException(`Paciente con ID "${id}" no encontrado o no le pertenece.`);
     }
 
     const alergias = paciente.paciente_alergias.map(pa => pa.alergia).filter(Boolean);

@@ -1,15 +1,19 @@
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, OneToMany, ManyToOne } from 'typeorm';
 import { Odontograma } from '../../odontograma/entidades/odontograma.entidad';
 import { PlanTratamiento } from '../../tratamientos/entidades/plan-tratamiento.entidad';
 import { ArchivoAdjunto } from '../../archivos-adjuntos/entidades/archivo-adjunto.entidad';
 import { PacienteAlergia } from './paciente-alergia.entidad';
 import { PacienteEnfermedad } from './paciente-enfermedad.entidad';
 import { PacienteMedicamento } from './paciente-medicamento.entidad';
+import { Usuario } from '../../usuarios/entidades/usuario.entidad';
 
 @Entity()
 export class Paciente {
   @PrimaryGeneratedColumn()
   id: number;
+
+  @ManyToOne(() => Usuario, { onDelete: 'CASCADE' })
+  usuario: Usuario;
 
   @Column()
   nombre: string;
