@@ -43,6 +43,6 @@ export class CrearCitaDto {
   @ApiProperty({ required: false, description: 'Minutos aproximados de duración', default: 30 })
   @IsOptional()
   @IsInt()
-  @Min(1)
+  @Min(0)
   minutos_aproximados?: number;
 }

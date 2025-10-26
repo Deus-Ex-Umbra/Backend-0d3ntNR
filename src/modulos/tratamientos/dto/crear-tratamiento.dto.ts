@@ -43,6 +43,6 @@ export class CrearTratamientoDto {
   @ApiProperty({ description: 'Minutos aproximados de cada cita', default: 30 })
   @IsOptional()
   @IsInt()
-  @Min(1)
+  @Min(0)
   minutos_aproximados_citas?: number;
 }
