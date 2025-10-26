@@ -10,8 +10,12 @@ async function bootstrap() {
   app.setGlobalPrefix('api');
 
   app.enableCors({
-    origin: ['http://localhost:5173', 'http://localhost:3000', 'https://0d3nt-frontend.vercel.app'],
-    credentials: true,
+        origin: [
+                  'http://localhost:5173',
+                  'https://demo-0d3nt-nr.vercel.app',
+                  'https://backend-0d3nt.ddns.net'
+                ],
+        credentials: true,
   });
 
   app.use(express.json({ limit: '15mb' }));
