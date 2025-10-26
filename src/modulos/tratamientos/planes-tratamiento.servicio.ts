@@ -19,10 +19,9 @@ export class PlanesTratamientoServicio {
   ) {}
 
   private parsearFechaLocal(fecha_str: string, hora_str: string): Date {
-    const [anio, mes, dia] = fecha_str.split('-').map(Number);
-    const [horas, minutos] = hora_str.split(':').map(Number);
-    
-    return new Date(anio, mes - 1, dia, horas, minutos, 0, 0);
+    const iso_local_str = `${fecha_str}T${hora_str}:00`;
+    const fecha = new Date(iso_local_str);
+    return fecha;
   }
 
   async asignarPlan(asignar_plan_dto: AsignarPlanTratamientoDto): Promise<PlanTratamiento> {
