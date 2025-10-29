@@ -16,7 +16,9 @@ import { EstadisticasModule } from './modulos/estadisticas/estadisticas.modulo';
 import { CatalogoModule } from './modulos/catalogo/catalogo.modulo';
 import { ArchivosAdjuntosModule } from './modulos/archivos-adjuntos/archivos-adjuntos.modulo';
 import { EdicionesImagenesModule } from './modulos/ediciones-imagenes/ediciones-imagenes.modulo';
-import { OdontogramaModule } from './modulos/odontograma/odontograma.modulo';
+import { PlantillasConsentimientoModule } from './modulos/plantillas-consentimiento/plantillas-consentimiento.modulo';
+import { InventarioModule } from './modulos/inventario/inventario.modulo';
+import { AlmacenamientoModule } from './modulos/almacenamiento/almacenamiento.modulo';
 import { Paciente } from './modulos/pacientes/entidades/paciente.entidad';
 import { PacienteAlergia } from './modulos/pacientes/entidades/paciente-alergia.entidad';
 import { PacienteEnfermedad } from './modulos/pacientes/entidades/paciente-enfermedad.entidad';
@@ -32,10 +34,19 @@ import { Alergia } from './modulos/catalogo/entidades/alergia.entidad';
 import { Enfermedad } from './modulos/catalogo/entidades/enfermedad.entidad';
 import { Medicamento } from './modulos/catalogo/entidades/medicamento.entidad';
 import { ColorCategoria } from './modulos/catalogo/entidades/color-categoria.entidad';
-import { Simbologia } from './modulos/catalogo/entidades/simbologia.entidad';
 import { ArchivoAdjunto } from './modulos/archivos-adjuntos/entidades/archivo-adjunto.entidad';
 import { EdicionImagen } from './modulos/ediciones-imagenes/entidades/edicion-imagen.entidad';
-import { Odontograma } from './modulos/odontograma/entidades/odontograma.entidad';
+import { PlantillaConsentimiento } from './modulos/plantillas-consentimiento/entidades/plantilla-consentimiento.entidad';
+import { Inventario } from './modulos/inventario/entidades/inventario.entidad';
+import { PermisoInventario } from './modulos/inventario/entidades/permiso-inventario.entidad';
+import { Producto } from './modulos/inventario/entidades/producto.entidad';
+import { Lote } from './modulos/inventario/entidades/lote.entidad';
+import { Activo } from './modulos/inventario/entidades/activo.entidad';
+import { CitaConsumible } from './modulos/inventario/entidades/cita-consumible.entidad';
+import { ActivoHistorial } from './modulos/inventario/entidades/activo-historial.entidad';
+import { MaterialCita } from './modulos/inventario/entidades/material-cita.entidad';
+import { MaterialTratamiento } from './modulos/inventario/entidades/material-tratamiento.entidad';
+import { MovimientoInventario } from './modulos/inventario/entidades/movimiento-inventario.entidad';
 
 @Module({
   imports: [
@@ -59,10 +70,19 @@ import { Odontograma } from './modulos/odontograma/entidades/odontograma.entidad
         Enfermedad,
         Medicamento,
         ColorCategoria,
-        Simbologia,
         ArchivoAdjunto,
         EdicionImagen,
-        Odontograma,
+        PlantillaConsentimiento,
+        Inventario,
+        PermisoInventario,
+        Producto,
+        Lote,
+        Activo,
+        CitaConsumible,
+        ActivoHistorial,
+        MaterialCita,
+        MaterialTratamiento,
+        MovimientoInventario,
       ],
       synchronize: true,
     }),
@@ -79,7 +99,9 @@ import { Odontograma } from './modulos/odontograma/entidades/odontograma.entidad
     CatalogoModule,
     ArchivosAdjuntosModule,
     EdicionesImagenesModule,
-    OdontogramaModule,
+    PlantillasConsentimientoModule,
+    InventarioModule,
+    AlmacenamientoModule,
   ],
   controllers: [AppControlador],
   providers: [AppServicio],

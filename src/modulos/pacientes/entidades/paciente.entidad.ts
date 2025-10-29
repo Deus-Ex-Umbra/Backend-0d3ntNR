@@ -1,5 +1,4 @@
 import { Entity, PrimaryGeneratedColumn, Column, OneToMany, ManyToOne } from 'typeorm';
-import { Odontograma } from '../../odontograma/entidades/odontograma.entidad';
 import { PlanTratamiento } from '../../tratamientos/entidades/plan-tratamiento.entidad';
 import { ArchivoAdjunto } from '../../archivos-adjuntos/entidades/archivo-adjunto.entidad';
 import { PacienteAlergia } from './paciente-alergia.entidad';
@@ -38,9 +37,6 @@ export class Paciente {
 
   @Column({ nullable: true })
   color_categoria: string;
-
-  @OneToMany(() => Odontograma, (odontograma) => odontograma.paciente)
-  odontogramas: Odontograma[];
 
   @OneToMany(() => PlanTratamiento, (plan) => plan.paciente)
   planes_tratamiento: PlanTratamiento[];

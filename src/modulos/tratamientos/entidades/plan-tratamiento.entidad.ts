@@ -26,6 +26,15 @@ export class PlanTratamiento {
   @Column('decimal', { precision: 10, scale: 2 })
   total_abonado: number;
 
+  @Column({ default: false })
+  materiales_inicio_confirmados: boolean;
+
+  @Column({ default: false })
+  materiales_finales_confirmados: boolean;
+
+  @Column({ default: false })
+  finalizado: boolean;
+
   @OneToMany(() => Cita, (cita) => cita.plan_tratamiento)
   citas: Cita[];
   

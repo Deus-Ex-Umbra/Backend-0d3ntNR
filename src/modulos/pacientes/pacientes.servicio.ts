@@ -73,34 +73,34 @@ export class PacientesServicio {
     return this.paciente_repositorio.find({ where: base_where });
   }
 
- async encontrarPorId(usuario_id: number, id: number): Promise<any> {
-  const paciente = await this.paciente_repositorio.findOne({
-    where: { id, usuario: { id: usuario_id } },
-    relations: [
-      'odontogramas',
-      'planes_tratamiento',
-      'planes_tratamiento.citas',
-      'planes_tratamiento.pagos',
-      'paciente_alergias',
-      'paciente_alergias.alergia',
-      'paciente_enfermedades',
-      'paciente_enfermedades.enfermedad',
-      'paciente_medicamentos',
-      'paciente_medicamentos.medicamento',
-    ],
-  });
-  
-  if (!paciente) {
-    throw new NotFoundException(`Paciente con ID "${id}" no encontrado o no le pertenece.`);
-  }
-  
+  async encontrarPorId(usuario_id: number, id: number): Promise<any> {
+    const paciente = await this.paciente_repositorio.findOne({
+      where: { id, usuario: { id: usuario_id } },
+      relations: [
+        'planes_tratamiento',
+        'planes_tratamiento.citas',
+        'planes_tratamiento.pagos',
+        'paciente_alergias',
+        'paciente_alergias.alergia',
+        'paciente_enfermedades',
+        'paciente_enfermedades.enfermedad',
+        'paciente_medicamentos',
+        'paciente_medicamentos.medicamento',
+      ],
+    });
+    
+    if (!paciente) {
+      throw new NotFoundException(`Paciente con ID "${id}" no encontrado o no le pertenece.`);
+    }
+    
     return {
-    ...paciente,
-    alergias: paciente.paciente_alergias?.map(pa => pa.alergia.id) || [],
-    enfermedades: paciente.paciente_enfermedades?.map(pe => pe.enfermedad.id) || [],
-    medicamentos: paciente.paciente_medicamentos?.map(pm => pm.medicamento.id) || [],
-  };
-}
+      ...paciente,
+      alergias: paciente.paciente_alergias?.map(pa => pa.alergia.id) || [],
+      enfermedades: paciente.paciente_enfermedades?.map(pe => pe.enfermedad.id) || [],
+      medicamentos: paciente.paciente_medicamentos?.map(pm => pm.medicamento.id) || [],
+    };
+  }
+
   async actualizar(usuario_id: number, id: number, actualizar_paciente_dto: ActualizarPacienteDto): Promise<Paciente> {
     const { alergias_ids, enfermedades_ids, medicamentos_ids, ...datos_paciente } = actualizar_paciente_dto;
 

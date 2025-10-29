@@ -29,6 +29,9 @@ export class Cita {
   @Column({ default: 30 })
   minutos_aproximados: number;
 
+  @Column({ default: false })
+  materiales_confirmados: boolean;
+
   @ManyToOne(() => Paciente, { nullable: true, onDelete: 'SET NULL' })
   paciente: Paciente;
 

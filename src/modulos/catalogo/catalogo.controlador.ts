@@ -6,12 +6,10 @@ import { CrearAlergiaDto } from './dto/crear-alergia.dto';
 import { CrearEnfermedadDto } from './dto/crear-enfermedad.dto';
 import { CrearMedicamentoDto } from './dto/crear-medicamento.dto';
 import { CrearColorCategoriaDto } from './dto/crear-color-categoria.dto';
-import { CrearSimbologiaDto } from './dto/crear-simbologia.dto';
 import { ActualizarAlergiaDto } from './dto/actualizar-alergia.dto';
 import { ActualizarEnfermedadDto } from './dto/actualizar-enfermedad.dto';
 import { ActualizarMedicamentoDto } from './dto/actualizar-medicamento.dto';
 import { ActualizarColorCategoriaDto } from './dto/actualizar-color-categoria.dto';
-import { ActualizarSimbologiaDto } from './dto/actualizar-simbologia.dto';
 
 @ApiTags('Catálogo')
 @ApiBearerAuth('JWT-auth')
@@ -98,25 +96,5 @@ export class CatalogoControlador {
   @Delete('colores/:id')
   eliminarColor(@Param('id') id: string) {
     return this.catalogo_servicio.eliminarColor(+id);
-  }
-
-  @Post('simbologia')
-  crearSimbologia(@Body() dto: CrearSimbologiaDto) {
-    return this.catalogo_servicio.crearSimbologia(dto);
-  }
-
-  @Get('simbologia')
-  obtenerSimbologias() {
-    return this.catalogo_servicio.obtenerSimbologias();
-  }
-
-  @Put('simbologia/:id')
-  actualizarSimbologia(@Param('id') id: string, @Body() dto: ActualizarSimbologiaDto) {
-    return this.catalogo_servicio.actualizarSimbologia(+id, dto);
-  }
-
-  @Delete('simbologia/:id')
-  eliminarSimbologia(@Param('id') id: string) {
-    return this.catalogo_servicio.eliminarSimbologia(+id);
   }
 }

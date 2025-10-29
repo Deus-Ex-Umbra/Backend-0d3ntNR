@@ -5,17 +5,14 @@ import { Alergia } from './entidades/alergia.entidad';
 import { Enfermedad } from './entidades/enfermedad.entidad';
 import { Medicamento } from './entidades/medicamento.entidad';
 import { ColorCategoria } from './entidades/color-categoria.entidad';
-import { Simbologia } from './entidades/simbologia.entidad';
 import { CrearAlergiaDto } from './dto/crear-alergia.dto';
 import { CrearEnfermedadDto } from './dto/crear-enfermedad.dto';
 import { CrearMedicamentoDto } from './dto/crear-medicamento.dto';
 import { CrearColorCategoriaDto } from './dto/crear-color-categoria.dto';
-import { CrearSimbologiaDto } from './dto/crear-simbologia.dto';
 import { ActualizarAlergiaDto } from './dto/actualizar-alergia.dto';
 import { ActualizarEnfermedadDto } from './dto/actualizar-enfermedad.dto';
 import { ActualizarMedicamentoDto } from './dto/actualizar-medicamento.dto';
 import { ActualizarColorCategoriaDto } from './dto/actualizar-color-categoria.dto';
-import { ActualizarSimbologiaDto } from './dto/actualizar-simbologia.dto';
 
 @Injectable()
 export class CatalogoServicio {
@@ -28,8 +25,6 @@ export class CatalogoServicio {
     private readonly medicamento_repositorio: Repository<Medicamento>,
     @InjectRepository(ColorCategoria)
     private readonly color_repositorio: Repository<ColorCategoria>,
-    @InjectRepository(Simbologia)
-    private readonly simbologia_repositorio: Repository<Simbologia>,
   ) {}
 
   async crearAlergia(dto: CrearAlergiaDto): Promise<Alergia> {
@@ -137,34 +132,6 @@ export class CatalogoServicio {
     const resultado = await this.color_repositorio.update(id, { activo: false });
     if (resultado.affected === 0) {
       throw new NotFoundException('Color no encontrado');
-    }
-  }
-
-  async crearSimbologia(dto: CrearSimbologiaDto): Promise<Simbologia> {
-    const existe = await this.simbologia_repositorio.findOne({ where: { nombre: dto.nombre } });
-    if (existe) {
-      throw new ConflictException('Ya existe un símbolo con este nombre');
-    }
-    const simbolo = this.simbologia_repositorio.create(dto);
-    return this.simbologia_repositorio.save(simbolo);
-  }
-
-  async obtenerSimbologias(): Promise<Simbologia[]> {
-    return this.simbologia_repositorio.find({ where: { activo: true }, order: { nombre: 'ASC' } });
-  }
-
-  async actualizarSimbologia(id: number, dto: ActualizarSimbologiaDto): Promise<Simbologia> {
-    const simbolo = await this.simbologia_repositorio.preload({ id, ...dto });
-    if (!simbolo) {
-      throw new NotFoundException('Símbolo no encontrado');
-    }
-    return this.simbologia_repositorio.save(simbolo);
-  }
-
-  async eliminarSimbologia(id: number): Promise<void> {
-    const resultado = await this.simbologia_repositorio.update(id, { activo: false });
-    if (resultado.affected === 0) {
-      throw new NotFoundException('Símbolo no encontrado');
     }
   }
 }

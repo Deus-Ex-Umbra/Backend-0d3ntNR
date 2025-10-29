@@ -350,4 +350,94 @@ private formatearHora(fecha: Date): string {
       .orderBy('cita.fecha', 'DESC')
       .getMany();
   }
+
+  async obtenerEspaciosLibres(usuario_id: number, mes: number, ano: number): Promise<any[]> {
+    const primer_dia = new Date(ano, mes - 1, 1);
+    const ultimo_dia = new Date(ano, mes, 0, 23, 59, 59);
+    
+    const citas_mes = await this.cita_repositorio.find({
+      where: {
+        fecha: Between(primer_dia, ultimo_dia),
+        usuario: { id: usuario_id }
+      },
+      order: { fecha: 'ASC' }
+    });
+  
+    const espacios_libres: any[] = [];
+    let fecha_actual = new Date(primer_dia);
+    fecha_actual.setHours(8, 0, 0, 0);
+  
+    while (fecha_actual <= ultimo_dia) {
+      const dia_semana = fecha_actual.getDay();
+      
+      if (dia_semana !== 0) {
+        const hora_inicio_dia = dia_semana === 6 ? 8 : 8;
+        const hora_fin_dia = dia_semana === 6 ? 13 : 18;
+        
+        let hora_busqueda = new Date(fecha_actual);
+        hora_busqueda.setHours(hora_inicio_dia, 0, 0, 0);
+        
+        const fin_dia = new Date(fecha_actual);
+        fin_dia.setHours(hora_fin_dia, 0, 0, 0);
+      
+        while (hora_busqueda < fin_dia) {
+          const hora_siguiente = new Date(hora_busqueda.getTime() + 30 * 60000);
+          
+          const hay_cita = citas_mes.some(cita => {
+            const fecha_inicio_cita = new Date(cita.fecha);
+            const duracion_cita = this.calcularDuracionEnMinutos(
+              cita.horas_aproximadas,
+              cita.minutos_aproximados
+            );
+            const fecha_fin_cita = new Date(fecha_inicio_cita.getTime() + duracion_cita * 60000);
+            
+            return (
+              (hora_busqueda >= fecha_inicio_cita && hora_busqueda < fecha_fin_cita) ||
+              (hora_siguiente > fecha_inicio_cita && hora_siguiente <= fecha_fin_cita)
+            );
+          });
+        
+          if (!hay_cita) {
+            let duracion_minutos = 30;
+            let hora_temp = new Date(hora_siguiente);
+            
+            while (hora_temp < fin_dia) {
+              const hay_conflicto = citas_mes.some(cita => {
+                const fecha_inicio_cita = new Date(cita.fecha);
+                const duracion_cita = this.calcularDuracionEnMinutos(
+                  cita.horas_aproximadas,
+                  cita.minutos_aproximados
+                );
+                const fecha_fin_cita = new Date(fecha_inicio_cita.getTime() + duracion_cita * 60000);
+                
+                return hora_temp >= fecha_inicio_cita && hora_temp < fecha_fin_cita;
+              });
+              
+              if (hay_conflicto) break;
+              
+              duracion_minutos += 30;
+              hora_temp = new Date(hora_temp.getTime() + 30 * 60000);
+            }
+          
+            espacios_libres.push({
+              fecha: hora_busqueda,
+              duracion_minutos: duracion_minutos,
+              horas_aproximadas: Math.floor(duracion_minutos / 60),
+              minutos_aproximados: duracion_minutos % 60,
+              descripcion: `Espacio libre - ${Math.floor(duracion_minutos / 60)}h ${duracion_minutos % 60}m`,
+            });
+            
+            hora_busqueda = new Date(hora_busqueda.getTime() + duracion_minutos * 60000);
+          } else {
+            hora_busqueda = new Date(hora_busqueda.getTime() + 30 * 60000);
+          }
+        }
+      }
+      
+      fecha_actual.setDate(fecha_actual.getDate() + 1);
+      fecha_actual.setHours(8, 0, 0, 0);
+    }
+  
+    return espacios_libres;
+  }
 }

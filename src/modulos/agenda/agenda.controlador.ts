@@ -43,4 +43,11 @@ export class AgendaControlador {
   eliminar(@Request() req, @Param('id') id: string) {
     return this.agenda_servicio.eliminar(req.user.id, +id);
   }
+
+  @Get('espacios-libres')
+  @ApiQuery({ name: 'mes', required: true, type: Number, description: 'Mes a consultar (1-12)' })
+  @ApiQuery({ name: 'ano', required: true, type: Number, description: 'Año a consultar' })
+  obtenerEspaciosLibres(@Request() req, @Query('mes') mes: string, @Query('ano') ano: string) {
+    return this.agenda_servicio.obtenerEspaciosLibres(req.user.id, +mes, +ano);
+  }
 }

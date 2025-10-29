@@ -7,21 +7,30 @@ import { ActualizarArchivoDto } from './dto/actualizar-archivo.dto';
 import { Paciente } from '../pacientes/entidades/paciente.entidad';
 import { PlanTratamiento } from '../tratamientos/entidades/plan-tratamiento.entidad';
 import { Usuario } from '../usuarios/entidades/usuario.entidad';
+import { AlmacenamientoServicio } from '../almacenamiento/almacenamiento.servicio';
 
 @Injectable()
 export class ArchivosAdjuntosServicio {
   constructor(
     @InjectRepository(ArchivoAdjunto)
     private readonly archivo_repositorio: Repository<ArchivoAdjunto>,
+    private readonly almacenamiento_servicio: AlmacenamientoServicio,
   ) {}
 
   async subir(usuario_id: number, dto: SubirArchivoDto): Promise<ArchivoAdjunto> {
+    const extension = dto.nombre_archivo.split('.').pop() || 'bin';
+    const ruta_archivo = await this.almacenamiento_servicio.guardarArchivo(dto.contenido_base64, extension);
+
     const nuevo_archivo = this.archivo_repositorio.create({
-      ...dto,
+      nombre_archivo: dto.nombre_archivo,
+      tipo_mime: dto.tipo_mime,
+      descripcion: dto.descripcion,
+      ruta_archivo: ruta_archivo,
       usuario: { id: usuario_id } as Usuario,
       paciente: { id: dto.paciente_id } as Paciente,
       plan_tratamiento: dto.plan_tratamiento_id ? { id: dto.plan_tratamiento_id } as PlanTratamiento : null,
     });
+    
     return this.archivo_repositorio.save(nuevo_archivo);
   }
 
@@ -39,6 +48,16 @@ export class ArchivosAdjuntosServicio {
     });
   }
 
+  async obtenerContenido(usuario_id: number, id: number): Promise<string> {
+    const archivo = await this.archivo_repositorio.findOne({ where: { id, usuario: { id: usuario_id } } });
+    
+    if (!archivo) {
+      throw new NotFoundException(`Archivo con ID "${id}" no encontrado o no le pertenece.`);
+    }
+
+    return this.almacenamiento_servicio.leerArchivo(archivo.ruta_archivo);
+  }
+
   async actualizar(usuario_id: number, id: number, dto: ActualizarArchivoDto): Promise<ArchivoAdjunto> {
     const archivo = await this.archivo_repositorio.findOne({ where: { id, usuario: { id: usuario_id } } });
     
@@ -51,9 +70,13 @@ export class ArchivosAdjuntosServicio {
   }
 
   async eliminar(usuario_id: number, id: number): Promise<void> {
-    const resultado = await this.archivo_repositorio.delete({ id, usuario: { id: usuario_id } });
-    if (resultado.affected === 0) {
+    const archivo = await this.archivo_repositorio.findOne({ where: { id, usuario: { id: usuario_id } } });
+    
+    if (!archivo) {
       throw new NotFoundException(`Archivo con ID "${id}" no encontrado o no le pertenece.`);
     }
+
+    await this.almacenamiento_servicio.eliminarArchivo(archivo.ruta_archivo);
+    await this.archivo_repositorio.remove(archivo);
   }
 }

@@ -20,8 +20,8 @@ export class ArchivoAdjunto {
   @Column({ nullable: true })
   descripcion: string;
 
-  @Column('text')
-  contenido_base64: string;
+  @Column()
+  ruta_archivo: string;
 
   @CreateDateColumn()
   fecha_subida: Date;

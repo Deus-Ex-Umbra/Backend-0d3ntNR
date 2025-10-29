@@ -30,6 +30,12 @@ export class ArchivosAdjuntosControlador {
     return this.archivos_servicio.obtenerPorPlan(req.user.id, +id);
   }
 
+  @Get(':id/contenido')
+  @ApiOperation({ summary: 'Obtener contenido de un archivo en Base64' })
+  obtenerContenido(@Request() req, @Param('id') id: string) {
+    return this.archivos_servicio.obtenerContenido(req.user.id, +id);
+  }
+
   @Put(':id')
   @ApiOperation({ summary: 'Actualizar metadatos de un archivo' })
   actualizar(@Request() req, @Param('id') id: string, @Body() dto: ActualizarArchivoDto) {
