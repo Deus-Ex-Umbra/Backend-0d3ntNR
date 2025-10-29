@@ -27,7 +27,7 @@ export class PermisoInventarioGuardia implements CanActivate {
     }
 
     const inventario = await this.inventario_repositorio.findOne({
-      where: { id: inventario_id },
+      where: { id: inventario_id, activo: true },
       relations: ['propietario'],
     });
 

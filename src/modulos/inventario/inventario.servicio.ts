@@ -59,76 +59,79 @@ export class InventarioServicio {
 ) {}
 
   async crearInventario(usuario_id: number, dto: CrearInventarioDto): Promise<Inventario> {
-    const nuevo_inventario = this.inventario_repositorio.create({
-      ...dto,
-      propietario: { id: usuario_id } as Usuario,
-    });
-    return this.inventario_repositorio.save(nuevo_inventario);
-  }
+  const nuevo_inventario = this.inventario_repositorio.create({
+    ...dto,
+    activo: true,
+    propietario: { id: usuario_id } as Usuario,
+  });
+  return this.inventario_repositorio.save(nuevo_inventario);
+}
 
-  async obtenerInventarios(usuario_id: number): Promise<Inventario[]> {
-    const inventarios_propios = await this.inventario_repositorio.find({
-      where: { propietario: { id: usuario_id } },
-      relations: ['propietario'],
-    });
+async obtenerInventarios(usuario_id: number): Promise<Inventario[]> {
+  const inventarios_propios = await this.inventario_repositorio.find({
+    where: { propietario: { id: usuario_id }, activo: true },
+    relations: ['propietario'],
+  });
 
-    const permisos = await this.permiso_repositorio.find({
-      where: { usuario_invitado: { id: usuario_id } },
-      relations: ['inventario', 'inventario.propietario'],
-    });
+  const permisos = await this.permiso_repositorio.find({
+    where: { usuario_invitado: { id: usuario_id } },
+    relations: ['inventario', 'inventario.propietario'],
+  });
 
-    const inventarios_compartidos = permisos.map(p => ({
+  const inventarios_compartidos = permisos
+    .filter(p => p.inventario.activo)
+    .map(p => ({
       ...p.inventario,
       rol_usuario: p.rol,
       es_propietario: false,
     }));
 
-    const inventarios_propios_marcados = inventarios_propios.map(inv => ({
-      ...inv,
-      rol_usuario: 'propietario',
-      es_propietario: true,
-    }));
+  const inventarios_propios_marcados = inventarios_propios.map(inv => ({
+    ...inv,
+    rol_usuario: 'propietario',
+    es_propietario: true,
+  }));
 
-    return [...inventarios_propios_marcados, ...inventarios_compartidos];
+  return [...inventarios_propios_marcados, ...inventarios_compartidos];
+}
+
+async obtenerInventarioPorId(usuario_id: number, inventario_id: number): Promise<any> {
+  const inventario = await this.inventario_repositorio.findOne({
+    where: { id: inventario_id, activo: true },
+    relations: ['propietario', 'permisos', 'permisos.usuario_invitado'],
+  });
+
+  if (!inventario) {
+    throw new NotFoundException('Inventario no encontrado');
   }
 
-  async obtenerInventarioPorId(usuario_id: number, inventario_id: number): Promise<any> {
-    const inventario = await this.inventario_repositorio.findOne({
-      where: { id: inventario_id },
-      relations: ['propietario', 'permisos', 'permisos.usuario_invitado'],
+  const es_propietario = inventario.propietario.id === usuario_id;
+
+  if (!es_propietario) {
+    const permiso = await this.permiso_repositorio.findOne({
+      where: {
+        inventario: { id: inventario_id },
+        usuario_invitado: { id: usuario_id },
+      },
     });
 
-    if (!inventario) {
-      throw new NotFoundException('Inventario no encontrado');
-    }
-
-    const es_propietario = inventario.propietario.id === usuario_id;
-
-    if (!es_propietario) {
-      const permiso = await this.permiso_repositorio.findOne({
-        where: {
-          inventario: { id: inventario_id },
-          usuario_invitado: { id: usuario_id },
-        },
-      });
-
-      if (!permiso) {
-        throw new ForbiddenException('No tienes acceso a este inventario');
-      }
-
-      return {
-        ...inventario,
-        rol_usuario: permiso.rol,
-        es_propietario: false,
-      };
+    if (!permiso) {
+      throw new ForbiddenException('No tienes acceso a este inventario');
     }
 
     return {
       ...inventario,
-      rol_usuario: 'propietario',
-      es_propietario: true,
+      rol_usuario: permiso.rol,
+      es_propietario: false,
     };
   }
+
+  return {
+    ...inventario,
+    rol_usuario: 'propietario',
+    es_propietario: true,
+  };
+}
 
   async invitarUsuario(
     usuario_id: number,
@@ -194,35 +197,37 @@ export class InventarioServicio {
   }
 
   async eliminarInventario(usuario_id: number, inventario_id: number): Promise<void> {
-    const inventario = await this.inventario_repositorio.findOne({
-      where: { id: inventario_id },
-      relations: ['propietario'],
-    });
+  const inventario = await this.inventario_repositorio.findOne({
+    where: { id: inventario_id, activo: true },
+    relations: ['propietario'],
+  });
 
-    if (!inventario) {
-      throw new NotFoundException('Inventario no encontrado');
-    }
-
-    if (inventario.propietario.id !== usuario_id) {
-      throw new ForbiddenException('Solo el propietario puede eliminar el inventario');
-    }
-
-    await this.inventario_repositorio.remove(inventario);
+  if (!inventario) {
+    throw new NotFoundException('Inventario no encontrado');
   }
+
+  if (inventario.propietario.id !== usuario_id) {
+    throw new ForbiddenException('Solo el propietario puede eliminar el inventario');
+  }
+
+  inventario.activo = false;
+  await this.inventario_repositorio.save(inventario);
+}
 
   async crearProducto(usuario_id: number, dto: CrearProductoDto): Promise<Producto> {
-    const inventario = await this.obtenerInventarioPorId(usuario_id, dto.inventario_id);
+  const inventario = await this.obtenerInventarioPorId(usuario_id, dto.inventario_id);
 
-    const nuevo_producto = this.producto_repositorio.create({
-      nombre: dto.nombre,
-      tipo_gestion: dto.tipo_gestion,
-      stock_minimo: dto.stock_minimo || 0,
-      unidad_medida: dto.unidad_medida || 'unidad',
-      inventario: { id: dto.inventario_id } as Inventario,
-    });
+  const nuevo_producto = this.producto_repositorio.create({
+    nombre: dto.nombre,
+    tipo_gestion: dto.tipo_gestion,
+    stock_minimo: dto.stock_minimo || 0,
+    unidad_medida: dto.unidad_medida || 'unidad',
+    activo: true,
+    inventario: { id: dto.inventario_id } as Inventario,
+  });
 
-    return this.producto_repositorio.save(nuevo_producto);
-  }
+  return this.producto_repositorio.save(nuevo_producto);
+}
 
   async obtenerProductos(usuario_id: number, inventario_id: number): Promise<Producto[]> {
     await this.obtenerInventarioPorId(usuario_id, inventario_id);
@@ -271,7 +276,7 @@ export class InventarioServicio {
   await this.obtenerInventarioPorId(usuario_id, inventario_id);
 
   const producto = await this.producto_repositorio.findOne({
-    where: { id: dto.producto_id, inventario: { id: inventario_id } },
+    where: { id: dto.producto_id, inventario: { id: inventario_id }, activo: true },
   });
 
   if (!producto) {
@@ -292,38 +297,39 @@ export class InventarioServicio {
       fecha_vencimiento: new Date(dto.fecha_vencimiento),
       cantidad_actual: dto.cantidad,
       costo_unitario_compra: costo_unitario,
+      activo: true,
       producto: producto,
     });
 
     resultado = await this.lote_repositorio.save(nuevo_lote);
   } else {
-  const num_activos = Math.floor(dto.cantidad);
-  const activos_creados: Activo[] = [];
+    const num_activos = Math.floor(dto.cantidad);
+    const activos_creados: Activo[] = [];
 
-  for (let i = 0; i < num_activos; i++) {
-    const datos_activo: Partial<Activo> = {
-      costo_compra: dto.costo_total / num_activos,
-      fecha_compra: new Date(dto.fecha_compra),
-      estado: EstadoActivo.DISPONIBLE,
-      producto: producto,
+    for (let i = 0; i < num_activos; i++) {
+      const datos_activo: Partial<Activo> = {
+        costo_compra: dto.costo_total / num_activos,
+        fecha_compra: new Date(dto.fecha_compra),
+        estado: EstadoActivo.DISPONIBLE,
+        producto: producto,
+      };
+
+      if (producto.tipo_gestion === TipoGestion.ACTIVO_SERIALIZADO) {
+        datos_activo.nro_serie = dto.nro_serie;
+      }
+
+      if (dto.nombre_asignado) {
+        datos_activo.nombre_asignado = `${dto.nombre_asignado} ${i + 1}`;
+      }
+      const [activo_guardado] = await this.activo_repositorio.save([datos_activo]);
+      activos_creados.push(activo_guardado);
+    }
+
+    resultado = { 
+      mensaje: `Se registraron ${num_activos} activos`,
+      activos: activos_creados,
     };
-
-    if (producto.tipo_gestion === TipoGestion.ACTIVO_SERIALIZADO) {
-      datos_activo.nro_serie = dto.nro_serie;
-    }
-
-    if (dto.nombre_asignado) {
-      datos_activo.nombre_asignado = `${dto.nombre_asignado} ${i + 1}`;
-    }
-    const [activo_guardado] = await this.activo_repositorio.save([datos_activo]);
-    activos_creados.push(activo_guardado);
   }
-
-  resultado = { 
-    mensaje: `Se registraron ${num_activos} activos`,
-    activos: activos_creados,
-  };
-}
 
   if (dto.generar_egreso) {
     await this.finanzas_servicio.registrarEgreso(usuario_id, {
@@ -337,80 +343,80 @@ export class InventarioServicio {
 }
 
   async confirmarConsumiblesCita(
-    usuario_id: number,
-    cita_id: number,
-    dto: ConfirmarConsumiblesCitaDto,
-  ): Promise<any> {
-    const cita = await this.cita_repositorio.findOne({
-      where: { id: cita_id, usuario: { id: usuario_id } },
+  usuario_id: number,
+  cita_id: number,
+  dto: ConfirmarConsumiblesCitaDto,
+): Promise<any> {
+  const cita = await this.cita_repositorio.findOne({
+    where: { id: cita_id, usuario: { id: usuario_id } },
+  });
+
+  if (!cita) {
+    throw new NotFoundException('Cita no encontrada o no le pertenece');
+  }
+
+  const resultados: Array<{
+    producto_id: number;
+    producto_nombre: string;
+    cantidad_descontada: number;
+  }> = [];
+
+  for (const consumible of dto.consumibles) {
+    const producto = await this.producto_repositorio.findOne({
+      where: { id: consumible.producto_id, activo: true },
     });
 
-    if (!cita) {
-      throw new NotFoundException('Cita no encontrada o no le pertenece');
+    if (!producto || producto.tipo_gestion !== TipoGestion.CONSUMIBLE) {
+      throw new BadRequestException(`El producto ${consumible.producto_id} no es un consumible`);
     }
 
-    const resultados: Array<{
-  producto_id: number;
-  producto_nombre: string;
-  cantidad_descontada: number;
-}> = [];
+    const lotes = await this.lote_repositorio.find({
+      where: { producto: { id: consumible.producto_id }, activo: true },
+      order: { fecha_vencimiento: 'ASC' },
+    });
 
-    for (const consumible of dto.consumibles) {
-      const producto = await this.producto_repositorio.findOne({
-        where: { id: consumible.producto_id },
-      });
+    let cantidad_restante = consumible.cantidad;
 
-      if (!producto || producto.tipo_gestion !== TipoGestion.CONSUMIBLE) {
-        throw new BadRequestException(`El producto ${consumible.producto_id} no es un consumible`);
+    for (const lote of lotes) {
+      if (cantidad_restante <= 0) break;
+
+      const cantidad_a_descontar = Math.min(cantidad_restante, Number(lote.cantidad_actual));
+
+      if (cantidad_a_descontar > 0) {
+        lote.cantidad_actual = Number(lote.cantidad_actual) - cantidad_a_descontar;
+        await this.lote_repositorio.save(lote);
+
+        const cita_consumible = this.cita_consumible_repositorio.create({
+          cantidad_usada: cantidad_a_descontar,
+          cita: cita,
+          lote: lote,
+        });
+
+        await this.cita_consumible_repositorio.save(cita_consumible);
+
+        cantidad_restante -= cantidad_a_descontar;
       }
-
-      const lotes = await this.lote_repositorio.find({
-        where: { producto: { id: consumible.producto_id } },
-        order: { fecha_vencimiento: 'ASC' },
-      });
-
-      let cantidad_restante = consumible.cantidad;
-
-      for (const lote of lotes) {
-        if (cantidad_restante <= 0) break;
-
-        const cantidad_a_descontar = Math.min(cantidad_restante, Number(lote.cantidad_actual));
-
-        if (cantidad_a_descontar > 0) {
-          lote.cantidad_actual = Number(lote.cantidad_actual) - cantidad_a_descontar;
-          await this.lote_repositorio.save(lote);
-
-          const cita_consumible = this.cita_consumible_repositorio.create({
-            cantidad_usada: cantidad_a_descontar,
-            cita: cita,
-            lote: lote,
-          });
-
-          await this.cita_consumible_repositorio.save(cita_consumible);
-
-          cantidad_restante -= cantidad_a_descontar;
-        }
-      }
-
-      if (cantidad_restante > 0) {
-        throw new BadRequestException(
-          `No hay suficiente stock de ${producto.nombre}. Faltan ${cantidad_restante} ${producto.unidad_medida}`,
-        );
-      }
-
-      resultados.push({
-        producto_id: consumible.producto_id,
-        producto_nombre: producto.nombre,
-        cantidad_descontada: consumible.cantidad,
-      });
     }
 
-    return {
-      mensaje: 'Consumibles confirmados exitosamente',
-      cita_id: cita_id,
-      consumibles_procesados: resultados,
-    };
+    if (cantidad_restante > 0) {
+      throw new BadRequestException(
+        `No hay suficiente stock de ${producto.nombre}. Faltan ${cantidad_restante} ${producto.unidad_medida}`,
+      );
+    }
+
+    resultados.push({
+      producto_id: consumible.producto_id,
+      producto_nombre: producto.nombre,
+      cantidad_descontada: consumible.cantidad,
+    });
   }
+
+  return {
+    mensaje: 'Consumibles confirmados exitosamente',
+    cita_id: cita_id,
+    consumibles_procesados: resultados,
+  };
+}
 
   async cambiarEstadoActivo(
     usuario_id: number,
@@ -468,46 +474,47 @@ export class InventarioServicio {
   }
 
   async obtenerReporteValorInventario(usuario_id: number, inventario_id: number): Promise<any> {
-    await this.obtenerInventarioPorId(usuario_id, inventario_id);
+  await this.obtenerInventarioPorId(usuario_id, inventario_id);
 
-    const lotes = await this.lote_repositorio
-      .createQueryBuilder('lote')
-      .innerJoin('lote.producto', 'producto')
-      .where('producto.inventario_id = :inventario_id', { inventario_id })
-      .getMany();
+  const lotes = await this.lote_repositorio
+    .createQueryBuilder('lote')
+    .innerJoin('lote.producto', 'producto')
+    .where('producto.inventario_id = :inventario_id', { inventario_id })
+    .andWhere('lote.activo = :activo', { activo: true })
+    .getMany();
 
-    const valor_consumibles = lotes.reduce((total, lote) => {
-      return total + Number(lote.cantidad_actual) * Number(lote.costo_unitario_compra);
-    }, 0);
+  const valor_consumibles = lotes.reduce((total, lote) => {
+    return total + Number(lote.cantidad_actual) * Number(lote.costo_unitario_compra);
+  }, 0);
 
-    const activos = await this.activo_repositorio
-      .createQueryBuilder('activo')
-      .innerJoin('activo.producto', 'producto')
-      .where('producto.inventario_id = :inventario_id', { inventario_id })
-      .andWhere('activo.estado != :estado', { estado: EstadoActivo.DESECHADO })
-      .getMany();
+  const activos = await this.activo_repositorio
+    .createQueryBuilder('activo')
+    .innerJoin('activo.producto', 'producto')
+    .where('producto.inventario_id = :inventario_id', { inventario_id })
+    .andWhere('activo.estado != :estado', { estado: EstadoActivo.DESECHADO })
+    .getMany();
 
-    const valor_activos = activos.reduce((total, activo) => {
-      return total + Number(activo.costo_compra);
-    }, 0);
+  const valor_activos = activos.reduce((total, activo) => {
+    return total + Number(activo.costo_compra);
+  }, 0);
 
-    const valor_total = valor_consumibles + valor_activos;
+  const valor_total = valor_consumibles + valor_activos;
 
-    return {
-      inventario_id,
-      valor_consumibles: Math.round(valor_consumibles * 100) / 100,
-      valor_activos: Math.round(valor_activos * 100) / 100,
-      valor_total: Math.round(valor_total * 100) / 100,
-      cantidad_lotes: lotes.length,
-      cantidad_activos: activos.length,
-      desglose_activos_por_estado: {
-        disponible: activos.filter(a => a.estado === EstadoActivo.DISPONIBLE).length,
-        en_uso: activos.filter(a => a.estado === EstadoActivo.EN_USO).length,
-        en_mantenimiento: activos.filter(a => a.estado === EstadoActivo.EN_MANTENIMIENTO).length,
-        roto: activos.filter(a => a.estado === EstadoActivo.ROTO).length,
-      },
-    };
-  }
+  return {
+    inventario_id,
+    valor_consumibles: Math.round(valor_consumibles * 100) / 100,
+    valor_activos: Math.round(valor_activos * 100) / 100,
+    valor_total: Math.round(valor_total * 100) / 100,
+    cantidad_lotes: lotes.length,
+    cantidad_activos: activos.length,
+    desglose_activos_por_estado: {
+      disponible: activos.filter(a => a.estado === EstadoActivo.DISPONIBLE).length,
+      en_uso: activos.filter(a => a.estado === EstadoActivo.EN_USO).length,
+      en_mantenimiento: activos.filter(a => a.estado === EstadoActivo.EN_MANTENIMIENTO).length,
+      roto: activos.filter(a => a.estado === EstadoActivo.ROTO).length,
+    },
+  };
+}
 
   private async registrarMovimiento(
   producto: Producto,
@@ -535,7 +542,7 @@ export class InventarioServicio {
 
 private async verificarStockDisponible(producto_id: number, cantidad_requerida: number): Promise<boolean> {
   const producto = await this.producto_repositorio.findOne({
-    where: { id: producto_id },
+    where: { id: producto_id, activo: true },
     relations: ['lotes'],
   });
 
@@ -554,7 +561,8 @@ private async verificarStockDisponible(producto_id: number, cantidad_requerida: 
     return activos_disponibles >= cantidad_requerida;
   }
 
-  const stock_total = producto.lotes.reduce((total, lote) => {
+  const lotes_activos = producto.lotes.filter(l => l.activo);
+  const stock_total = lotes_activos.reduce((total, lote) => {
     return total + Number(lote.cantidad_actual);
   }, 0);
 
@@ -565,7 +573,7 @@ async obtenerStockProducto(usuario_id: number, inventario_id: number, producto_i
   await this.obtenerInventarioPorId(usuario_id, inventario_id);
 
   const producto = await this.producto_repositorio.findOne({
-    where: { id: producto_id, inventario: { id: inventario_id } },
+    where: { id: producto_id, inventario: { id: inventario_id }, activo: true },
     relations: ['lotes', 'activos'],
   });
 
@@ -574,7 +582,8 @@ async obtenerStockProducto(usuario_id: number, inventario_id: number, producto_i
   }
 
   if (producto.tipo_gestion === TipoGestion.CONSUMIBLE) {
-    const stock_total = producto.lotes.reduce((total, lote) => {
+    const lotes_activos = producto.lotes.filter(l => l.activo);
+    const stock_total = lotes_activos.reduce((total, lote) => {
       return total + Number(lote.cantidad_actual);
     }, 0);
 
@@ -586,7 +595,7 @@ async obtenerStockProducto(usuario_id: number, inventario_id: number, producto_i
       stock_actual: stock_total,
       stock_minimo: producto.stock_minimo,
       alerta_stock_bajo: stock_total < producto.stock_minimo,
-      lotes: producto.lotes.map(l => ({
+      lotes: lotes_activos.map(l => ({
         id: l.id,
         nro_lote: l.nro_lote,
         cantidad: Number(l.cantidad_actual),
@@ -709,7 +718,7 @@ async confirmarMaterialesCita(
 
     if (material.producto.tipo_gestion === TipoGestion.CONSUMIBLE) {
       const lotes = await this.lote_repositorio.find({
-        where: { producto: { id: material.producto.id } },
+        where: { producto: { id: material.producto.id }, activo: true },
         order: { fecha_vencimiento: 'ASC' },
       });
 
@@ -851,7 +860,7 @@ async actualizarInventario(
   dto: ActualizarInventarioDto,
 ): Promise<Inventario> {
   const inventario = await this.inventario_repositorio.findOne({
-    where: { id: inventario_id },
+    where: { id: inventario_id, activo: true },
     relations: ['propietario'],
   });
 

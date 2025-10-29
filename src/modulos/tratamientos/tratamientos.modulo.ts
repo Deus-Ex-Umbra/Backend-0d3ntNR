@@ -17,6 +17,6 @@ import { AgendaModule } from '../agenda/agenda.modulo';
   ],
   controllers: [TratamientosControlador, PlanesTratamientoControlador],
   providers: [TratamientosServicio, PlanesTratamientoServicio],
-  exports: [PlanesTratamientoServicio],
+  exports: [TratamientosServicio, PlanesTratamientoServicio],
 })
 export class TratamientosModule {}

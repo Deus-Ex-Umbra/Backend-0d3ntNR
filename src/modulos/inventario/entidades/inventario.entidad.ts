@@ -23,6 +23,9 @@ export class Inventario {
   })
   visibilidad: VisibilidadInventario;
 
+  @Column({ default: true })
+  activo: boolean;
+
   @ManyToOne(() => Usuario, { onDelete: 'CASCADE' })
   propietario: Usuario;
 

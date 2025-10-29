@@ -19,6 +19,9 @@ export class Lote {
   @Column('decimal', { precision: 10, scale: 2 })
   costo_unitario_compra: number;
 
+  @Column({ default: true })
+  activo: boolean;
+
   @ManyToOne(() => Producto, (producto) => producto.lotes, { onDelete: 'CASCADE' })
   producto: Producto;
 
