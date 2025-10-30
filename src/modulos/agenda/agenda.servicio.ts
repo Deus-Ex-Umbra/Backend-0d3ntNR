@@ -351,9 +351,26 @@ private formatearHora(fecha: Date): string {
       .getMany();
   }
 
-  async obtenerEspaciosLibres(usuario_id: number, mes: number, ano: number): Promise<any[]> {
+async obtenerEspaciosLibres(
+    usuario_id: number, 
+    mes: number, 
+    ano: number,
+    fecha_inicio_filtro?: Date,
+    fecha_fin_filtro?: Date
+  ): Promise<any[]> {
+    const ahora = new Date();
+    ahora.setHours(0, 0, 0, 0);
+    
     const primer_dia = new Date(ano, mes - 1, 1);
     const ultimo_dia = new Date(ano, mes, 0, 23, 59, 59);
+    
+    let fecha_inicio_busqueda: Date;
+    
+    if (fecha_inicio_filtro && fecha_fin_filtro) {
+      fecha_inicio_busqueda = fecha_inicio_filtro < primer_dia ? primer_dia : fecha_inicio_filtro;
+    } else {
+      fecha_inicio_busqueda = primer_dia < ahora ? ahora : primer_dia;
+    }
     
     const citas_mes = await this.cita_repositorio.find({
       where: {
@@ -364,78 +381,259 @@ private formatearHora(fecha: Date): string {
     });
   
     const espacios_libres: any[] = [];
-    let fecha_actual = new Date(primer_dia);
-    fecha_actual.setHours(8, 0, 0, 0);
+    let fecha_actual = new Date(fecha_inicio_busqueda);
+    fecha_actual.setHours(0, 0, 0, 0);
   
     while (fecha_actual <= ultimo_dia) {
-      const dia_semana = fecha_actual.getDay();
+      const inicio_dia = new Date(fecha_actual);
+      inicio_dia.setHours(0, 0, 0, 0);
       
-      if (dia_semana !== 0) {
-        const hora_inicio_dia = dia_semana === 6 ? 8 : 8;
-        const hora_fin_dia = dia_semana === 6 ? 13 : 18;
-        
-        let hora_busqueda = new Date(fecha_actual);
-        hora_busqueda.setHours(hora_inicio_dia, 0, 0, 0);
-        
-        const fin_dia = new Date(fecha_actual);
-        fin_dia.setHours(hora_fin_dia, 0, 0, 0);
+      const fin_dia = new Date(fecha_actual);
+      fin_dia.setHours(23, 59, 59, 999);
       
-        while (hora_busqueda < fin_dia) {
-          const hora_siguiente = new Date(hora_busqueda.getTime() + 30 * 60000);
-          
-          const hay_cita = citas_mes.some(cita => {
-            const fecha_inicio_cita = new Date(cita.fecha);
-            const duracion_cita = this.calcularDuracionEnMinutos(
-              cita.horas_aproximadas,
-              cita.minutos_aproximados
-            );
-            const fecha_fin_cita = new Date(fecha_inicio_cita.getTime() + duracion_cita * 60000);
-            
-            return (
-              (hora_busqueda >= fecha_inicio_cita && hora_busqueda < fecha_fin_cita) ||
-              (hora_siguiente > fecha_inicio_cita && hora_siguiente <= fecha_fin_cita)
-            );
+      const citas_del_dia = citas_mes.filter(cita => {
+        const fecha_cita = new Date(cita.fecha);
+        return fecha_cita.toDateString() === fecha_actual.toDateString();
+      });
+      
+      if (citas_del_dia.length === 0) {
+        const duracion_ms = fin_dia.getTime() - inicio_dia.getTime();
+        const duracion_minutos = Math.floor(duracion_ms / 60000);
+        
+        if (duracion_minutos > 0) {
+          espacios_libres.push({
+            fecha: new Date(inicio_dia),
+            duracion_minutos: duracion_minutos,
+            horas_aproximadas: Math.floor(duracion_minutos / 60),
+            minutos_aproximados: duracion_minutos % 60,
+            descripcion: `Espacio libre - ${Math.floor(duracion_minutos / 60)}h ${duracion_minutos % 60}m`,
           });
+        }
+      } else {
+        const eventos: Array<{ fecha: Date; tipo: 'inicio' | 'fin'; cita_id: number }> = [];
         
-          if (!hay_cita) {
-            let duracion_minutos = 30;
-            let hora_temp = new Date(hora_siguiente);
-            
-            while (hora_temp < fin_dia) {
-              const hay_conflicto = citas_mes.some(cita => {
-                const fecha_inicio_cita = new Date(cita.fecha);
-                const duracion_cita = this.calcularDuracionEnMinutos(
-                  cita.horas_aproximadas,
-                  cita.minutos_aproximados
-                );
-                const fecha_fin_cita = new Date(fecha_inicio_cita.getTime() + duracion_cita * 60000);
-                
-                return hora_temp >= fecha_inicio_cita && hora_temp < fecha_fin_cita;
-              });
-              
-              if (hay_conflicto) break;
-              
-              duracion_minutos += 30;
-              hora_temp = new Date(hora_temp.getTime() + 30 * 60000);
-            }
+        citas_del_dia.forEach(cita => {
+          const fecha_inicio = new Date(cita.fecha);
+          const duracion_cita = this.calcularDuracionEnMinutos(
+            cita.horas_aproximadas,
+            cita.minutos_aproximados
+          );
+          const fecha_fin = new Date(fecha_inicio.getTime() + duracion_cita * 60000);
           
+          eventos.push({ fecha: fecha_inicio, tipo: 'inicio', cita_id: cita.id });
+          eventos.push({ fecha: fecha_fin, tipo: 'fin', cita_id: cita.id });
+        });
+        
+        eventos.sort((a, b) => a.fecha.getTime() - b.fecha.getTime());
+        
+        let hora_libre_inicio = new Date(inicio_dia);
+        
+        if (hora_libre_inicio < eventos[0].fecha) {
+          const duracion_ms = eventos[0].fecha.getTime() - hora_libre_inicio.getTime();
+          const duracion_minutos = Math.floor(duracion_ms / 60000);
+          
+          if (duracion_minutos > 0) {
             espacios_libres.push({
-              fecha: hora_busqueda,
+              fecha: new Date(hora_libre_inicio),
               duracion_minutos: duracion_minutos,
               horas_aproximadas: Math.floor(duracion_minutos / 60),
               minutos_aproximados: duracion_minutos % 60,
               descripcion: `Espacio libre - ${Math.floor(duracion_minutos / 60)}h ${duracion_minutos % 60}m`,
             });
-            
-            hora_busqueda = new Date(hora_busqueda.getTime() + duracion_minutos * 60000);
+          }
+        }
+        
+        let citas_activas = 0;
+        let ultima_hora_fin: Date | null = null;
+        
+        for (let i = 0; i < eventos.length; i++) {
+          const evento = eventos[i];
+          
+          if (evento.tipo === 'inicio') {
+            citas_activas++;
           } else {
-            hora_busqueda = new Date(hora_busqueda.getTime() + 30 * 60000);
+            citas_activas--;
+            ultima_hora_fin = evento.fecha;
+          }
+          
+          if (citas_activas === 0 && ultima_hora_fin) {
+            const siguiente_evento = eventos[i + 1];
+            
+            if (siguiente_evento) {
+              const duracion_ms = siguiente_evento.fecha.getTime() - ultima_hora_fin.getTime();
+              const duracion_minutos = Math.floor(duracion_ms / 60000);
+              
+              if (duracion_minutos > 0) {
+                espacios_libres.push({
+                  fecha: new Date(ultima_hora_fin),
+                  duracion_minutos: duracion_minutos,
+                  horas_aproximadas: Math.floor(duracion_minutos / 60),
+                  minutos_aproximados: duracion_minutos % 60,
+                  descripcion: `Espacio libre - ${Math.floor(duracion_minutos / 60)}h ${duracion_minutos % 60}m`,
+                });
+              }
+            } else {
+              const duracion_ms = fin_dia.getTime() - ultima_hora_fin.getTime();
+              const duracion_minutos = Math.floor(duracion_ms / 60000);
+              
+              if (duracion_minutos > 0) {
+                espacios_libres.push({
+                  fecha: new Date(ultima_hora_fin),
+                  duracion_minutos: duracion_minutos,
+                  horas_aproximadas: Math.floor(duracion_minutos / 60),
+                  minutos_aproximados: duracion_minutos % 60,
+                  descripcion: `Espacio libre - ${Math.floor(duracion_minutos / 60)}h ${duracion_minutos % 60}m`,
+                });
+              }
+            }
           }
         }
       }
       
       fecha_actual.setDate(fecha_actual.getDate() + 1);
-      fecha_actual.setHours(8, 0, 0, 0);
+      fecha_actual.setHours(0, 0, 0, 0);
+    }
+  
+    return espacios_libres;
+  }
+
+  async filtrarCitas(usuario_id: number, fecha_inicio: Date, fecha_fin: Date): Promise<Cita[]> {
+    const where_condition: FindOptionsWhere<Cita> = {
+        fecha: Between(fecha_inicio, fecha_fin),
+        usuario: { id: usuario_id }
+    };
+
+    return this.cita_repositorio.find({
+        where: where_condition,
+        relations: ['paciente', 'plan_tratamiento', 'plan_tratamiento.paciente'],
+        order: { fecha: 'ASC' }
+    });
+  }
+
+  async filtrarEspaciosLibres(usuario_id: number, fecha_inicio: Date, fecha_fin: Date): Promise<any[]> {
+    const citas_rango = await this.cita_repositorio.find({
+      where: {
+        fecha: Between(fecha_inicio, fecha_fin),
+        usuario: { id: usuario_id }
+      },
+      order: { fecha: 'ASC' }
+    });
+  
+    const espacios_libres: any[] = [];
+    let fecha_actual = new Date(fecha_inicio);
+    fecha_actual.setHours(0, 0, 0, 0);
+    
+    const fecha_fin_normalizada = new Date(fecha_fin);
+    fecha_fin_normalizada.setHours(23, 59, 59, 999);
+  
+    while (fecha_actual <= fecha_fin_normalizada) {
+      const inicio_dia = new Date(fecha_actual);
+      inicio_dia.setHours(0, 0, 0, 0);
+      
+      const fin_dia = new Date(fecha_actual);
+      fin_dia.setHours(23, 59, 59, 999);
+      
+      const citas_del_dia = citas_rango.filter(cita => {
+        const fecha_cita = new Date(cita.fecha);
+        return fecha_cita.toDateString() === fecha_actual.toDateString();
+      });
+      
+      if (citas_del_dia.length === 0) {
+        const duracion_ms = fin_dia.getTime() - inicio_dia.getTime();
+        const duracion_minutos = Math.floor(duracion_ms / 60000);
+        
+        if (duracion_minutos > 0) {
+          espacios_libres.push({
+            fecha: new Date(inicio_dia),
+            duracion_minutos: duracion_minutos,
+            horas_aproximadas: Math.floor(duracion_minutos / 60),
+            minutos_aproximados: duracion_minutos % 60,
+            descripcion: `Espacio libre - ${Math.floor(duracion_minutos / 60)}h ${duracion_minutos % 60}m`,
+          });
+        }
+      } else {
+        const eventos: Array<{ fecha: Date; tipo: 'inicio' | 'fin'; cita_id: number }> = [];
+        
+        citas_del_dia.forEach(cita => {
+          const fecha_inicio_cita = new Date(cita.fecha);
+          const duracion_cita = this.calcularDuracionEnMinutos(
+            cita.horas_aproximadas,
+            cita.minutos_aproximados
+          );
+          const fecha_fin_cita = new Date(fecha_inicio_cita.getTime() + duracion_cita * 60000);
+          
+          eventos.push({ fecha: fecha_inicio_cita, tipo: 'inicio', cita_id: cita.id });
+          eventos.push({ fecha: fecha_fin_cita, tipo: 'fin', cita_id: cita.id });
+        });
+        
+        eventos.sort((a, b) => a.fecha.getTime() - b.fecha.getTime());
+        
+        let hora_libre_inicio = new Date(inicio_dia);
+        
+        if (hora_libre_inicio < eventos[0].fecha) {
+          const duracion_ms = eventos[0].fecha.getTime() - hora_libre_inicio.getTime();
+          const duracion_minutos = Math.floor(duracion_ms / 60000);
+          
+          if (duracion_minutos > 0) {
+            espacios_libres.push({
+              fecha: new Date(hora_libre_inicio),
+              duracion_minutos: duracion_minutos,
+              horas_aproximadas: Math.floor(duracion_minutos / 60),
+              minutos_aproximados: duracion_minutos % 60,
+              descripcion: `Espacio libre - ${Math.floor(duracion_minutos / 60)}h ${duracion_minutos % 60}m`,
+            });
+          }
+        }
+        
+        let citas_activas = 0;
+        let ultima_hora_fin: Date | null = null;
+        
+        for (let i = 0; i < eventos.length; i++) {
+          const evento = eventos[i];
+          
+          if (evento.tipo === 'inicio') {
+            citas_activas++;
+          } else {
+            citas_activas--;
+            ultima_hora_fin = evento.fecha;
+          }
+          
+          if (citas_activas === 0 && ultima_hora_fin) {
+            const siguiente_evento = eventos[i + 1];
+            
+            if (siguiente_evento) {
+              const duracion_ms = siguiente_evento.fecha.getTime() - ultima_hora_fin.getTime();
+              const duracion_minutos = Math.floor(duracion_ms / 60000);
+              
+              if (duracion_minutos > 0) {
+                espacios_libres.push({
+                  fecha: new Date(ultima_hora_fin),
+                  duracion_minutos: duracion_minutos,
+                  horas_aproximadas: Math.floor(duracion_minutos / 60),
+                  minutos_aproximados: duracion_minutos % 60,
+                  descripcion: `Espacio libre - ${Math.floor(duracion_minutos / 60)}h ${duracion_minutos % 60}m`,
+                });
+              }
+            } else {
+              const duracion_ms = fin_dia.getTime() - ultima_hora_fin.getTime();
+              const duracion_minutos = Math.floor(duracion_ms / 60000);
+              
+              if (duracion_minutos > 0) {
+                espacios_libres.push({
+                  fecha: new Date(ultima_hora_fin),
+                  duracion_minutos: duracion_minutos,
+                  horas_aproximadas: Math.floor(duracion_minutos / 60),
+                  minutos_aproximados: duracion_minutos % 60,
+                  descripcion: `Espacio libre - ${Math.floor(duracion_minutos / 60)}h ${duracion_minutos % 60}m`,
+                });
+              }
+            }
+          }
+        }
+      }
+      
+      fecha_actual.setDate(fecha_actual.getDate() + 1);
+      fecha_actual.setHours(0, 0, 0, 0);
     }
   
     return espacios_libres;

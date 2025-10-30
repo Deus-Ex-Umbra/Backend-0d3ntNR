@@ -24,6 +24,19 @@ export class AgendaControlador {
     return this.agenda_servicio.obtenerCitasPorMes(req.user.id, +mes, +ano);
   }
 
+  @Get('filtrar')
+  @ApiQuery({ name: 'fecha_inicio', required: true, type: String, description: 'Fecha de inicio para filtrar (ISO)' })
+  @ApiQuery({ name: 'fecha_fin', required: true, type: String, description: 'Fecha de fin para filtrar (ISO)' })
+  filtrarCitas(
+    @Request() req, 
+    @Query('fecha_inicio') fecha_inicio: string,
+    @Query('fecha_fin') fecha_fin: string
+  ) {
+    const fecha_inicio_date = new Date(fecha_inicio);
+    const fecha_fin_date = new Date(fecha_fin);
+    return this.agenda_servicio.filtrarCitas(req.user.id, fecha_inicio_date, fecha_fin_date);
+  }
+
   @Get('sin-pagar')
   obtenerCitasSinPagar(@Request() req) {
     return this.agenda_servicio.obtenerCitasSinPagar(req.user.id);
@@ -47,7 +60,24 @@ export class AgendaControlador {
   @Get('espacios-libres')
   @ApiQuery({ name: 'mes', required: true, type: Number, description: 'Mes a consultar (1-12)' })
   @ApiQuery({ name: 'ano', required: true, type: Number, description: 'Año a consultar' })
-  obtenerEspaciosLibres(@Request() req, @Query('mes') mes: string, @Query('ano') ano: string) {
+  obtenerEspaciosLibres(
+    @Request() req, 
+    @Query('mes') mes: string, 
+    @Query('ano') ano: string
+  ) {
     return this.agenda_servicio.obtenerEspaciosLibres(req.user.id, +mes, +ano);
+  }
+
+  @Get('espacios-libres-filtrar')
+  @ApiQuery({ name: 'fecha_inicio', required: true, type: String, description: 'Fecha de inicio para filtrar (ISO)' })
+  @ApiQuery({ name: 'fecha_fin', required: true, type: String, description: 'Fecha de fin para filtrar (ISO)' })
+  filtrarEspaciosLibres(
+    @Request() req, 
+    @Query('fecha_inicio') fecha_inicio: string,
+    @Query('fecha_fin') fecha_fin: string
+  ) {
+    const fecha_inicio_date = new Date(fecha_inicio);
+    const fecha_fin_date = new Date(fecha_fin);
+    return this.agenda_servicio.filtrarEspaciosLibres(req.user.id, fecha_inicio_date, fecha_fin_date);
   }
 }
