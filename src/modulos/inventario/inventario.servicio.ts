@@ -26,6 +26,8 @@ import { Usuario } from '../usuarios/entidades/usuario.entidad';
 import { Cita } from '../agenda/entidades/cita.entidad';
 import { PlanTratamiento } from '../tratamientos/entidades/plan-tratamiento.entidad';
 import { FinanzasServicio } from '../finanzas/finanzas.servicio';
+import { ActualizarActivoDto } from './dto/actualizar-activo.dto';
+import { AjustarStockDto, TipoAjuste } from './dto/ajustar-stock.dto';
 
 
 @Injectable()
@@ -874,5 +876,113 @@ async actualizarInventario(
 
   Object.assign(inventario, dto);
   return this.inventario_repositorio.save(inventario);
+}
+
+async eliminarLote(usuario_id: number, inventario_id: number, lote_id: number): Promise<void> {
+  await this.obtenerInventarioPorId(usuario_id, inventario_id);
+
+  const lote = await this.lote_repositorio.findOne({
+    where: { id: lote_id },
+    relations: ['producto', 'producto.inventario'],
+  });
+
+  if (!lote || lote.producto.inventario.id !== inventario_id) {
+    throw new NotFoundException('Lote no encontrado en este inventario');
+  }
+
+  await this.lote_repositorio.remove(lote);
+}
+
+async actualizarActivo(
+  usuario_id: number,
+  inventario_id: number,
+  activo_id: number,
+  dto: ActualizarActivoDto,
+): Promise<Activo> {
+  await this.obtenerInventarioPorId(usuario_id, inventario_id);
+
+  const activo = await this.activo_repositorio.findOne({
+    where: { id: activo_id },
+    relations: ['producto', 'producto.inventario'],
+  });
+
+  if (!activo || activo.producto.inventario.id !== inventario_id) {
+    throw new NotFoundException('Activo no encontrado en este inventario');
+  }
+
+  if (dto.estado && dto.estado !== activo.estado) {
+    const historial = this.activo_historial_repositorio.create({
+      estado_anterior: activo.estado,
+      estado_nuevo: dto.estado,
+      activo: activo,
+      usuario: { id: usuario_id } as Usuario,
+    });
+    await this.activo_historial_repositorio.save(historial);
+    activo.estado = dto.estado;
+  }
+
+  if (dto.ubicacion !== undefined) {
+    activo.ubicacion = dto.ubicacion;
+  }
+
+  if (dto.nombre_asignado !== undefined) {
+    activo.nombre_asignado = dto.nombre_asignado;
+  }
+
+  return this.activo_repositorio.save(activo);
+}
+
+async eliminarActivo(usuario_id: number, inventario_id: number, activo_id: number): Promise<void> {
+  await this.obtenerInventarioPorId(usuario_id, inventario_id);
+
+  const activo = await this.activo_repositorio.findOne({
+    where: { id: activo_id },
+    relations: ['producto', 'producto.inventario'],
+  });
+
+  if (!activo || activo.producto.inventario.id !== inventario_id) {
+    throw new NotFoundException('Activo no encontrado en este inventario');
+  }
+
+  await this.activo_repositorio.remove(activo);
+}
+
+async ajustarStock(usuario_id: number, inventario_id: number, dto: AjustarStockDto): Promise<any> {
+  await this.obtenerInventarioPorId(usuario_id, inventario_id);
+
+  const producto = await this.producto_repositorio.findOne({
+    where: { id: dto.producto_id, inventario: { id: inventario_id }, activo: true },
+  });
+
+  if (!producto) {
+    throw new NotFoundException('Producto no encontrado');
+  }
+
+  const stock_anterior = await this.obtenerStockProducto(usuario_id, inventario_id, dto.producto_id);
+  const stock_nuevo =
+    dto.tipo === TipoAjuste.ENTRADA ? stock_anterior + dto.cantidad : stock_anterior - dto.cantidad;
+
+  if (stock_nuevo < 0) {
+    throw new BadRequestException('El stock no puede ser negativo');
+  }
+
+  const movimiento = this.movimiento_repositorio.create({
+    tipo: dto.tipo === TipoAjuste.ENTRADA ? TipoMovimiento.ENTRADA : TipoMovimiento.SALIDA,
+    cantidad: dto.cantidad,
+    stock_anterior: stock_anterior,
+    stock_nuevo: stock_nuevo,
+    observaciones: dto.observaciones,
+    producto: producto,
+    usuario: { id: usuario_id } as Usuario,
+  });
+
+  await this.movimiento_repositorio.save(movimiento);
+
+  return {
+    mensaje: 'Ajuste de stock registrado correctamente',
+    stock_anterior,
+    stock_nuevo,
+    movimiento_id: movimiento.id,
+  };
 }
 }

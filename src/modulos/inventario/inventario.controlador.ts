@@ -27,6 +27,8 @@ import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger'
 import { JwtAuthGuard } from '../autenticacion/guardias/jwt-auth.guardia';
 import { PermisoInventarioGuardia } from './guardias/permiso-inventario.guardia';
 import { RolInventario } from './entidades/permiso-inventario.entidad';
+import { AjustarStockDto } from './dto/ajustar-stock.dto';
+import { ActualizarActivoDto } from './dto/actualizar-activo.dto';
 
 export const RolInventarioDecorador = (rol: RolInventario) => SetMetadata('rol_inventario', rol);
 
@@ -234,5 +236,54 @@ export class InventarioControlador {
   @RolInventarioDecorador(RolInventario.LECTOR)
   obtenerReporteValor(@Request() req, @Param('inventario_id') inventario_id: string) {
     return this.inventario_servicio.obtenerReporteValorInventario(req.user.id, +inventario_id);
+  }
+
+  @Delete(':inventario_id/lotes/:lote_id')
+  @ApiOperation({ summary: 'Eliminar lote' })
+  @UseGuards(PermisoInventarioGuardia)
+  @RolInventarioDecorador(RolInventario.EDITOR)
+  eliminarLote(
+    @Request() req,
+    @Param('inventario_id') inventario_id: string,
+    @Param('lote_id') lote_id: string,
+  ) {
+    return this.inventario_servicio.eliminarLote(req.user.id, +inventario_id, +lote_id);
+  }
+
+  @Put(':inventario_id/activos/:activo_id')
+  @ApiOperation({ summary: 'Actualizar activo' })
+  @UseGuards(PermisoInventarioGuardia)
+  @RolInventarioDecorador(RolInventario.EDITOR)
+  actualizarActivo(
+    @Request() req,
+    @Param('inventario_id') inventario_id: string,
+    @Param('activo_id') activo_id: string,
+    @Body() dto: ActualizarActivoDto,
+  ) {
+    return this.inventario_servicio.actualizarActivo(req.user.id, +inventario_id, +activo_id, dto);
+  }
+
+  @Delete(':inventario_id/activos/:activo_id')
+  @ApiOperation({ summary: 'Eliminar activo' })
+  @UseGuards(PermisoInventarioGuardia)
+  @RolInventarioDecorador(RolInventario.EDITOR)
+  eliminarActivo(
+    @Request() req,
+    @Param('inventario_id') inventario_id: string,
+    @Param('activo_id') activo_id: string,
+  ) {
+    return this.inventario_servicio.eliminarActivo(req.user.id, +inventario_id, +activo_id);
+  }
+
+  @Post(':inventario_id/ajustar-stock')
+  @ApiOperation({ summary: 'Ajuste manual de stock' })
+  @UseGuards(PermisoInventarioGuardia)
+  @RolInventarioDecorador(RolInventario.EDITOR)
+  ajustarStock(
+    @Request() req,
+    @Param('inventario_id') inventario_id: string,
+    @Body() dto: AjustarStockDto,
+  ) {
+    return this.inventario_servicio.ajustarStock(req.user.id, +inventario_id, dto);
   }
 }
