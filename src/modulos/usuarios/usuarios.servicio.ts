@@ -89,4 +89,11 @@ export class UsuariosServicio {
 
     await this.usuario_repositorio.save(usuario);
   }
+
+  async obtenerTodos(): Promise<Usuario[]> {
+    return this.usuario_repositorio.find({
+      select: ['id', 'nombre', 'correo'],
+      order: { nombre: 'ASC' },
+    });
+  }
 }

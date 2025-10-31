@@ -60,4 +60,10 @@ export class UsuariosControlador {
   ) {
     await this.usuarios_servicio.cambiarContrasena(req.user.id, cambiar_contrasena_dto);
   }
+
+  @Get()
+  @ApiOperation({ summary: 'Obtener todos los usuarios' })
+  obtenerTodos() {
+    return this.usuarios_servicio.obtenerTodos();
+  }
 }
