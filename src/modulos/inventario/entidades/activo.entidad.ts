@@ -26,6 +26,9 @@ export class Activo {
 
   @Column({ type: 'date' })
   fecha_compra: Date;
+  
+  @Column({ nullable: true })
+  ubicacion: string;
 
   @Column({
     type: 'simple-enum',

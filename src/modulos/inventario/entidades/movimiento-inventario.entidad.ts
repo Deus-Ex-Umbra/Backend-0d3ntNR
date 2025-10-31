@@ -8,6 +8,8 @@ export enum TipoMovimiento {
   USO_CITA = 'uso_cita',
   USO_TRATAMIENTO = 'uso_tratamiento',
   DEVOLUCION = 'devolucion',
+  ENTRADA = 'entrada',
+  SALIDA = 'salida',
 }
 
 @Entity()
