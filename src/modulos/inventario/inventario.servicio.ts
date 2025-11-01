@@ -476,47 +476,49 @@ async obtenerInventarioPorId(usuario_id: number, inventario_id: number): Promise
   }
 
   async obtenerReporteValorInventario(usuario_id: number, inventario_id: number): Promise<any> {
-    await this.obtenerInventarioPorId(usuario_id, inventario_id);
+  await this.obtenerInventarioPorId(usuario_id, inventario_id);
 
-    const lotes = await this.lote_repositorio
-      .createQueryBuilder('lote')
-      .innerJoin('lote.producto', 'producto')
-      .where('producto.inventario = :inventario_id', { inventario_id }) // <-- CORREGIDO
-      .andWhere('lote.activo = :activo', { activo: true })
-      .getMany();
+  const lotes = await this.lote_repositorio
+    .createQueryBuilder('lote')
+    .innerJoin('lote.producto', 'producto')
+    .where('producto.inventario = :inventario_id', { inventario_id })
+    .andWhere('producto.activo = :producto_activo', { producto_activo: true })
+    .andWhere('lote.activo = :activo', { activo: true })
+    .getMany();
 
-    const valor_consumibles = lotes.reduce((total, lote) => {
-      return total + Number(lote.cantidad_actual) * Number(lote.costo_unitario_compra);
-    }, 0);
+  const valor_consumibles = lotes.reduce((total, lote) => {
+    return total + Number(lote.cantidad_actual) * Number(lote.costo_unitario_compra);
+  }, 0);
 
-    const activos = await this.activo_repositorio
-      .createQueryBuilder('activo')
-      .innerJoin('activo.producto', 'producto')
-      .where('producto.inventario = :inventario_id', { inventario_id }) // <-- CORREGIDO
-      .andWhere('activo.estado != :estado', { estado: EstadoActivo.DESECHADO })
-      .getMany();
+  const activos = await this.activo_repositorio
+    .createQueryBuilder('activo')
+    .innerJoin('activo.producto', 'producto')
+    .where('producto.inventario = :inventario_id', { inventario_id })
+    .andWhere('producto.activo = :producto_activo', { producto_activo: true })
+    .andWhere('activo.estado != :estado', { estado: EstadoActivo.DESECHADO })
+    .getMany();
 
-    const valor_activos = activos.reduce((total, activo) => {
-      return total + Number(activo.costo_compra);
-    }, 0);
+  const valor_activos = activos.reduce((total, activo) => {
+    return total + Number(activo.costo_compra);
+  }, 0);
 
-    const valor_total = valor_consumibles + valor_activos;
+  const valor_total = valor_consumibles + valor_activos;
 
-    return {
-      inventario_id,
-      valor_consumibles: Math.round(valor_consumibles * 100) / 100,
-      valor_activos: Math.round(valor_activos * 100) / 100,
-      valor_total: Math.round(valor_total * 100) / 100,
-      cantidad_lotes: lotes.length,
-      cantidad_activos: activos.length,
-      desglose_activos_por_estado: {
-        disponible: activos.filter(a => a.estado === EstadoActivo.DISPONIBLE).length,
-        en_uso: activos.filter(a => a.estado === EstadoActivo.EN_USO).length,
-        en_mantenimiento: activos.filter(a => a.estado === EstadoActivo.EN_MANTENIMIENTO).length,
-        roto: activos.filter(a => a.estado === EstadoActivo.ROTO).length,
-      },
-    };
-  }
+  return {
+    inventario_id,
+    valor_consumibles: Math.round(valor_consumibles * 100) / 100,
+    valor_activos: Math.round(valor_activos * 100) / 100,
+    valor_total: Math.round(valor_total * 100) / 100,
+    cantidad_lotes: lotes.length,
+    cantidad_activos: activos.length,
+    desglose_activos_por_estado: {
+      disponible: activos.filter(a => a.estado === EstadoActivo.DISPONIBLE).length,
+      en_uso: activos.filter(a => a.estado === EstadoActivo.EN_USO).length,
+      en_mantenimiento: activos.filter(a => a.estado === EstadoActivo.EN_MANTENIMIENTO).length,
+      roto: activos.filter(a => a.estado === EstadoActivo.ROTO).length,
+    },
+  };
+}
 
   private async registrarMovimiento(
   producto: Producto,
