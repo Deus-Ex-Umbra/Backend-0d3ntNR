@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEnum, IsInt, IsNumber, IsString, Min } from 'class-validator';
+import { IsEnum, IsInt, IsNumber, IsString, Min, IsBoolean, IsOptional } from 'class-validator';
 
 export enum TipoAjuste {
   ENTRADA = 'entrada',
@@ -23,4 +23,15 @@ export class AjustarStockDto {
   @ApiProperty()
   @IsString()
   observaciones: string;
+
+  @ApiProperty({ description: 'Generar movimiento en finanzas', default: true })
+  @IsOptional()
+  @IsBoolean()
+  generar_movimiento_financiero?: boolean;
+
+  @ApiProperty({ description: 'Monto del movimiento financiero' })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  monto?: number;
 }

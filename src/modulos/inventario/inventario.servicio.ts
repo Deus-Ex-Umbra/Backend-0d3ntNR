@@ -69,15 +69,15 @@ export class InventarioServicio {
   return this.inventario_repositorio.save(nuevo_inventario);
 }
 
-async obtenerInventarios(usuario_id: number): Promise<Inventario[]> {
+async obtenerInventarios(usuario_id: number): Promise<any[]> {
   const inventarios_propios = await this.inventario_repositorio.find({
     where: { propietario: { id: usuario_id }, activo: true },
-    relations: ['propietario'],
+    relations: ['propietario', 'productos', 'productos.lotes', 'productos.activos'],
   });
 
   const permisos = await this.permiso_repositorio.find({
     where: { usuario_invitado: { id: usuario_id } },
-    relations: ['inventario', 'inventario.propietario'],
+    relations: ['inventario', 'inventario.propietario', 'inventario.productos', 'inventario.productos.lotes', 'inventario.productos.activos'],
   });
 
   const inventarios_compartidos = permisos
@@ -94,7 +94,56 @@ async obtenerInventarios(usuario_id: number): Promise<Inventario[]> {
     es_propietario: true,
   }));
 
-  return [...inventarios_propios_marcados, ...inventarios_compartidos];
+  const todos_inventarios = [...inventarios_propios_marcados, ...inventarios_compartidos];
+
+  return todos_inventarios.map(inv => ({
+    ...inv,
+    resumen: this.calcularResumenInventario(inv),
+  }));
+}
+
+private calcularResumenInventario(inventario: any): any {
+  if (!inventario.productos) {
+    return {
+      valor_total: 0,
+      total_productos: 0,
+      total_consumibles: 0,
+      total_activos: 0,
+    };
+  }
+
+  let valor_total = 0;
+  let total_consumibles = 0;
+  let total_activos = 0;
+
+  inventario.productos.forEach(producto => {
+    if (producto.tipo_gestion === TipoGestion.CONSUMIBLE) {
+      if (producto.lotes) {
+        producto.lotes.forEach(lote => {
+          if (lote.activo) {
+            const cantidad = Number(lote.cantidad_actual);
+            const costo = Number(lote.costo_unitario_compra);
+            total_consumibles += cantidad;
+            valor_total += cantidad * costo;
+          }
+        });
+      }
+    } else {
+      if (producto.activos) {
+        producto.activos.forEach(activo => {
+          total_activos += 1;
+          valor_total += Number(activo.costo_compra);
+        });
+      }
+    }
+  });
+
+  return {
+    valor_total,
+    total_productos: inventario.productos.length,
+    total_consumibles,
+    total_activos,
+  };
 }
 
 async obtenerInventarioPorId(usuario_id: number, inventario_id: number): Promise<any> {
@@ -217,19 +266,21 @@ async obtenerInventarioPorId(usuario_id: number, inventario_id: number): Promise
 }
 
   async crearProducto(usuario_id: number, dto: CrearProductoDto): Promise<Producto> {
-  const inventario = await this.obtenerInventarioPorId(usuario_id, dto.inventario_id);
+    const inventario = await this.obtenerInventarioPorId(usuario_id, dto.inventario_id);
 
-  const nuevo_producto = this.producto_repositorio.create({
-    nombre: dto.nombre,
-    tipo_gestion: dto.tipo_gestion,
-    stock_minimo: dto.stock_minimo || 0,
-    unidad_medida: dto.unidad_medida || 'unidad',
-    activo: true,
-    inventario: { id: dto.inventario_id } as Inventario,
-  });
+    const nuevo_producto = this.producto_repositorio.create({
+      nombre: dto.nombre,
+      tipo_gestion: dto.tipo_gestion,
+      stock_minimo: dto.stock_minimo || 0,
+      unidad_medida: dto.unidad_medida || 'unidad',
+      descripcion: dto.descripcion,
+      notificar_stock_bajo: dto.notificar_stock_bajo !== undefined ? dto.notificar_stock_bajo : true,
+      activo: true,
+      inventario: { id: dto.inventario_id } as Inventario,
+    });
 
-  return this.producto_repositorio.save(nuevo_producto);
-}
+    return this.producto_repositorio.save(nuevo_producto);
+  }
 
   async obtenerProductos(usuario_id: number, inventario_id: number): Promise<Producto[]> {
     await this.obtenerInventarioPorId(usuario_id, inventario_id);
@@ -949,29 +1000,92 @@ async eliminarActivo(usuario_id: number, inventario_id: number, activo_id: numbe
   await this.activo_repositorio.remove(activo);
 }
 
+async venderActivo(usuario_id: number, inventario_id: number, activo_id: number, monto_venta: number, registrar_pago: boolean = true): Promise<any> {
+  await this.obtenerInventarioPorId(usuario_id, inventario_id);
+
+  const activo = await this.activo_repositorio.findOne({
+    where: { id: activo_id },
+    relations: ['producto', 'producto.inventario'],
+  });
+
+  if (!activo || activo.producto.inventario.id !== inventario_id) {
+    throw new NotFoundException('Activo no encontrado en este inventario');
+  }
+
+  activo.estado = EstadoActivo.DESECHADO;
+  await this.activo_repositorio.save(activo);
+
+  if (registrar_pago) {
+    await this.finanzas_servicio.registrarPago(usuario_id, {
+      concepto: `Venta: ${activo.producto.nombre} - ${activo.nombre_asignado || activo.nro_serie || 'Activo'}`,
+      monto: monto_venta,
+      fecha: new Date(),
+    });
+  }
+
+  return {
+    mensaje: 'Activo vendido correctamente',
+    activo_id: activo.id,
+    monto_venta,
+    pago_registrado: registrar_pago,
+  };
+}
+
 async ajustarStock(usuario_id: number, inventario_id: number, dto: AjustarStockDto): Promise<any> {
   await this.obtenerInventarioPorId(usuario_id, inventario_id);
 
   const producto = await this.producto_repositorio.findOne({
     where: { id: dto.producto_id, inventario: { id: inventario_id }, activo: true },
+    relations: ['lotes'],
   });
 
   if (!producto) {
     throw new NotFoundException('Producto no encontrado');
   }
 
-  const stock_anterior = await this.obtenerStockProducto(usuario_id, inventario_id, dto.producto_id);
-  const stock_nuevo =
-    dto.tipo === TipoAjuste.ENTRADA ? stock_anterior + dto.cantidad : stock_anterior - dto.cantidad;
-
-  if (stock_nuevo < 0) {
-    throw new BadRequestException('El stock no puede ser negativo');
+  if (producto.tipo_gestion !== TipoGestion.CONSUMIBLE) {
+    throw new BadRequestException('Solo se puede ajustar stock de productos consumibles');
   }
+
+  const stock_anterior = await this.obtenerStockProducto(usuario_id, inventario_id, dto.producto_id);
+  const lotes_activos = producto.lotes
+    .filter(l => l.activo && l.cantidad_actual > 0)
+    .sort((a, b) => a.fecha_vencimiento.getTime() - b.fecha_vencimiento.getTime());
+
+  if (dto.tipo === TipoAjuste.ENTRADA) {
+    if (lotes_activos.length === 0) {
+      throw new BadRequestException('No hay lotes disponibles. Registra un nuevo lote para agregar stock.');
+    }
+    const lote_mas_reciente = lotes_activos[lotes_activos.length - 1];
+    lote_mas_reciente.cantidad_actual = Number(lote_mas_reciente.cantidad_actual) + dto.cantidad;
+    await this.lote_repositorio.save(lote_mas_reciente);
+  } else {
+    let cantidad_restante = dto.cantidad;
+    
+    for (const lote of lotes_activos) {
+      if (cantidad_restante <= 0) break;
+      
+      const cantidad_lote = Number(lote.cantidad_actual);
+      const cantidad_a_descontar = Math.min(cantidad_restante, cantidad_lote);
+      
+      lote.cantidad_actual = cantidad_lote - cantidad_a_descontar;
+      await this.lote_repositorio.save(lote);
+      
+      cantidad_restante -= cantidad_a_descontar;
+    }
+
+    if (cantidad_restante > 0) {
+      throw new BadRequestException(`No hay suficiente stock. Stock disponible: ${stock_anterior.stock_actual}`);
+    }
+  }
+
+  const stock_nuevo_data = await this.obtenerStockProducto(usuario_id, inventario_id, dto.producto_id);
+  const stock_nuevo = stock_nuevo_data.stock_actual;
 
   const movimiento = this.movimiento_repositorio.create({
     tipo: dto.tipo === TipoAjuste.ENTRADA ? TipoMovimiento.ENTRADA : TipoMovimiento.SALIDA,
     cantidad: dto.cantidad,
-    stock_anterior: stock_anterior,
+    stock_anterior: stock_anterior.stock_actual,
     stock_nuevo: stock_nuevo,
     observaciones: dto.observaciones,
     producto: producto,
@@ -980,11 +1094,31 @@ async ajustarStock(usuario_id: number, inventario_id: number, dto: AjustarStockD
 
   await this.movimiento_repositorio.save(movimiento);
 
+  // Registrar movimiento financiero
+  if (dto.generar_movimiento_financiero && dto.monto) {
+    if (dto.tipo === TipoAjuste.ENTRADA) {
+      // Entrada = Compra = Egreso en finanzas
+      await this.finanzas_servicio.registrarEgreso(usuario_id, {
+        concepto: `Compra: ${producto.nombre} (${dto.cantidad} ${producto.unidad_medida})`,
+        monto: dto.monto,
+        fecha: new Date(),
+      });
+    } else {
+      // Salida = Venta/Uso = Ingreso en finanzas
+      await this.finanzas_servicio.registrarPago(usuario_id, {
+        concepto: `Venta: ${producto.nombre} (${dto.cantidad} ${producto.unidad_medida})`,
+        monto: dto.monto,
+        fecha: new Date(),
+      });
+    }
+  }
+
   return {
     mensaje: 'Ajuste de stock registrado correctamente',
-    stock_anterior,
-    stock_nuevo,
+    stock_anterior: stock_anterior.stock_actual,
+    stock_nuevo: stock_nuevo,
     movimiento_id: movimiento.id,
+    movimiento_financiero_registrado: dto.generar_movimiento_financiero && dto.monto ? true : false,
   };
 }
 }

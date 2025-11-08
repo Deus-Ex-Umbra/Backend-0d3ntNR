@@ -279,7 +279,8 @@ export class FinanzasServicio {
   }
 
   async obtenerDatosGrafico(usuario_id: number, tipo: 'dia' | 'mes' | 'ano', fecha_referencia?: string) {
-    const fecha_ref = fecha_referencia ? new Date(fecha_referencia) : new Date();
+    // Parsear la fecha sin convertir a UTC - mantener hora local
+    const fecha_ref = fecha_referencia ? this.parsearFechaLocal(fecha_referencia) : new Date();
     let fecha_inicio: Date;
     let fecha_fin: Date;
     let formato_agrupacion: string;
@@ -315,6 +316,16 @@ export class FinanzasServicio {
     const datos_agrupados = this.agruparDatos(pagos, egresos, tipo, fecha_inicio, fecha_fin);
 
     return datos_agrupados;
+  }
+
+  // Función auxiliar para parsear fecha sin convertir a UTC
+  private parsearFechaLocal(fecha_string: string): Date {
+    // Formato esperado: "YYYY-MM-DDTHH:mm:ss"
+    const [fecha_parte, hora_parte] = fecha_string.split('T');
+    const [anio, mes, dia] = fecha_parte.split('-').map(Number);
+    const [hora, minuto, segundo] = (hora_parte || '00:00:00').split(':').map(Number);
+    
+    return new Date(anio, mes - 1, dia, hora || 0, minuto || 0, segundo || 0);
   }
 
   private agruparDatos(pagos: Pago[], egresos: Egreso[], tipo: string, fecha_inicio: Date, fecha_fin: Date) {

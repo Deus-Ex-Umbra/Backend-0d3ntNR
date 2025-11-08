@@ -29,6 +29,12 @@ export class Producto {
   @Column({ default: 'unidad' })
   unidad_medida: string;
 
+  @Column({ type: 'text', nullable: true })
+  descripcion: string;
+
+  @Column({ default: true })
+  notificar_stock_bajo: boolean;
+
   @Column({ default: true })
   activo: boolean;
 

@@ -29,6 +29,7 @@ import { PermisoInventarioGuardia } from './guardias/permiso-inventario.guardia'
 import { RolInventario } from './entidades/permiso-inventario.entidad';
 import { AjustarStockDto } from './dto/ajustar-stock.dto';
 import { ActualizarActivoDto } from './dto/actualizar-activo.dto';
+import { VenderActivoDto } from './dto/vender-activo.dto';
 
 export const RolInventarioDecorador = (rol: RolInventario) => SetMetadata('rol_inventario', rol);
 
@@ -273,6 +274,19 @@ export class InventarioControlador {
     @Param('activo_id') activo_id: string,
   ) {
     return this.inventario_servicio.eliminarActivo(req.user.id, +inventario_id, +activo_id);
+  }
+
+  @Post(':inventario_id/activos/:activo_id/vender')
+  @ApiOperation({ summary: 'Vender activo' })
+  @UseGuards(PermisoInventarioGuardia)
+  @RolInventarioDecorador(RolInventario.EDITOR)
+  venderActivo(
+    @Request() req,
+    @Param('inventario_id') inventario_id: string,
+    @Param('activo_id') activo_id: string,
+    @Body() dto: VenderActivoDto,
+  ) {
+    return this.inventario_servicio.venderActivo(req.user.id, +inventario_id, +activo_id, dto.monto_venta, dto.registrar_pago);
   }
 
   @Post(':inventario_id/ajustar-stock')

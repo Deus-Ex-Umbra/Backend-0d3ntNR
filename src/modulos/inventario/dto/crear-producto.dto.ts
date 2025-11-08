@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, IsEnum, IsInt, Min, IsOptional } from 'class-validator';
+import { IsString, IsNotEmpty, IsEnum, IsInt, Min, IsOptional, IsBoolean } from 'class-validator';
 import { TipoGestion } from '../entidades/producto.entidad';
 
 export class CrearProductoDto {
@@ -26,4 +26,14 @@ export class CrearProductoDto {
   @IsOptional()
   @IsString()
   unidad_medida?: string;
+
+  @ApiProperty({ description: 'Descripción del producto', required: false })
+  @IsOptional()
+  @IsString()
+  descripcion?: string;
+
+  @ApiProperty({ description: 'Notificar cuando el stock esté bajo', default: true })
+  @IsOptional()
+  @IsBoolean()
+  notificar_stock_bajo?: boolean;
 }
