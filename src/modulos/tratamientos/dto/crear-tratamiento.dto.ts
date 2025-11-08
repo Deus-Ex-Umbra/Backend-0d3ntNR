@@ -1,5 +1,22 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsInt, IsNumber, Min, IsOptional } from 'class-validator';
+import { IsString, IsInt, IsNumber, Min, IsOptional, IsArray, ValidateNested, IsEnum } from 'class-validator';
+import { Type } from 'class-transformer';
+import { TipoMaterialPlantilla } from '../entidades/material-plantilla.entidad';
+
+export class MaterialPlantillaDto {
+  @ApiProperty()
+  @IsInt()
+  producto_id: number;
+
+  @ApiProperty({ enum: TipoMaterialPlantilla })
+  @IsEnum(TipoMaterialPlantilla)
+  tipo: TipoMaterialPlantilla;
+
+  @ApiProperty()
+  @IsNumber()
+  @Min(0)
+  cantidad: number;
+}
 
 export class CrearTratamientoDto {
   @ApiProperty()
@@ -45,4 +62,11 @@ export class CrearTratamientoDto {
   @IsInt()
   @Min(0)
   minutos_aproximados_citas?: number;
+
+  @ApiProperty({ description: 'Materiales de la plantilla', type: [MaterialPlantillaDto], required: false })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => MaterialPlantillaDto)
+  materiales?: MaterialPlantillaDto[];
 }

@@ -28,4 +28,7 @@ export class Tratamiento {
 
   @Column({ default: 30 })
   minutos_aproximados_citas: number;
+
+  @Column({ default: true })
+  activo: boolean;
 }

@@ -26,6 +26,9 @@ export class Inventario {
   @Column({ default: true })
   activo: boolean;
 
+  @Column({ default: false })
+  modo_estricto: boolean;
+
   @ManyToOne(() => Usuario, { onDelete: 'CASCADE' })
   propietario: Usuario;
 

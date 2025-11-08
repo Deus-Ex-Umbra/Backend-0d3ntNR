@@ -27,6 +27,11 @@ export class TratamientosControlador {
     return this.tratamientos_servicio.encontrarPorId(+id);
   }
 
+  @Get(':id/materiales')
+  obtenerMaterialesPlantilla(@Param('id') id: string) {
+    return this.tratamientos_servicio.obtenerMaterialesPlantilla(+id);
+  }
+
   @Put(':id')
   actualizar(@Param('id') id: string, @Body() actualizar_tratamiento_dto: ActualizarTratamientoDto) {
     return this.tratamientos_servicio.actualizar(+id, actualizar_tratamiento_dto);

@@ -9,7 +9,7 @@ import { Activo, EstadoActivo } from './entidades/activo.entidad';
 import { CitaConsumible } from './entidades/cita-consumible.entidad';
 import { ActivoHistorial } from './entidades/activo-historial.entidad';
 import { MaterialCita } from './entidades/material-cita.entidad';
-import { MaterialTratamiento } from './entidades/material-tratamiento.entidad';
+import { MaterialTratamiento, TipoMaterialTratamiento } from './entidades/material-tratamiento.entidad';
 import { MovimientoInventario, TipoMovimiento } from './entidades/movimiento-inventario.entidad';
 import { CrearInventarioDto } from './dto/crear-inventario.dto';
 import { ActualizarInventarioDto } from './dto/actualizar-inventario.dto';
@@ -22,6 +22,7 @@ import { CambiarEstadoActivoDto } from './dto/cambiar-estado-activo.dto';
 import { AsignarMaterialesCitaDto } from './dto/asignar-materiales-cita.dto';
 import { ConfirmarMaterialesCitaDto } from './dto/confirmar-materiales-cita.dto';
 import { AsignarMaterialesTratamientoDto } from './dto/asignar-materiales-tratamiento.dto';
+import { ConfirmarMaterialesTratamientoDto } from './dto/confirmar-materiales-tratamiento.dto';
 import { Usuario } from '../usuarios/entidades/usuario.entidad';
 import { Cita } from '../agenda/entidades/cita.entidad';
 import { PlanTratamiento } from '../tratamientos/entidades/plan-tratamiento.entidad';
@@ -823,7 +824,7 @@ async confirmarMaterialesCita(
   };
 }
 
-async obtenerMaterialesCita(usuario_id: number, cita_id: number): Promise<any[]> {
+async obtenerMaterialesCita(usuario_id: number, cita_id: number): Promise<any> {
   const cita = await this.cita_repositorio.findOne({
     where: { id: cita_id, usuario: { id: usuario_id } },
   });
@@ -832,10 +833,28 @@ async obtenerMaterialesCita(usuario_id: number, cita_id: number): Promise<any[]>
     throw new NotFoundException('Cita no encontrada');
   }
 
-  return this.material_cita_repositorio.find({
+  const materiales = await this.material_cita_repositorio.find({
     where: { cita: { id: cita_id } },
-    relations: ['producto'],
+    relations: ['producto', 'producto.inventario', 'producto.lotes', 'producto.activos'],
   });
+
+  const materiales_formateados = materiales.map(material => ({
+    id: material.id,
+    producto_id: material.producto.id,
+    inventario_id: material.producto.inventario.id,
+    inventario_nombre: material.producto.inventario.nombre,
+    producto_nombre: material.producto.nombre,
+    tipo_gestion: material.producto.tipo_gestion,
+    unidad_medida: material.producto.unidad_medida,
+    cantidad_planeada: material.cantidad_planeada,
+    cantidad_usada: material.cantidad_usada,
+    confirmado: material.confirmado,
+  }));
+
+  return {
+    materiales: materiales_formateados,
+    confirmados: cita.materiales_confirmados,
+  };
 }
 
 async asignarMaterialesTratamiento(
@@ -884,6 +903,175 @@ async asignarMaterialesTratamiento(
     mensaje: 'Materiales asignados al tratamiento',
     plan_tratamiento_id: plan_tratamiento_id,
     materiales: materiales_asignados,
+  };
+}
+
+async obtenerMaterialesTratamiento(usuario_id: number, plan_tratamiento_id: number): Promise<any> {
+  const plan = await this.plan_tratamiento_repositorio.findOne({
+    where: { id: plan_tratamiento_id, usuario: { id: usuario_id } },
+  });
+
+  if (!plan) {
+    throw new NotFoundException('Plan de tratamiento no encontrado');
+  }
+
+  const materiales = await this.material_tratamiento_repositorio.find({
+    where: { plan_tratamiento: { id: plan_tratamiento_id } },
+    relations: ['producto', 'producto.inventario', 'producto.lotes', 'producto.activos'],
+  });
+
+  const materiales_formateados = materiales.map(material => ({
+    id: material.id,
+    producto_id: material.producto.id,
+    inventario_id: material.producto.inventario.id,
+    inventario_nombre: material.producto.inventario.nombre,
+    producto_nombre: material.producto.nombre,
+    tipo_gestion: material.producto.tipo_gestion,
+    unidad_medida: material.producto.unidad_medida,
+    tipo: material.tipo,
+    cantidad_planeada: material.cantidad_planeada,
+    cantidad_usada: material.cantidad_usada,
+    confirmado: material.confirmado,
+  }));
+
+  return {
+    materiales: materiales_formateados,
+  };
+}
+
+async confirmarMaterialesGenerales(
+  usuario_id: number,
+  plan_tratamiento_id: number,
+  dto: ConfirmarMaterialesTratamientoDto,
+): Promise<any> {
+  // Obtener el plan de tratamiento
+  const plan = await this.plan_tratamiento_repositorio.findOne({
+    where: { id: plan_tratamiento_id, usuario: { id: usuario_id } },
+    relations: ['paciente', 'tratamiento'],
+  });
+
+  if (!plan) {
+    throw new NotFoundException('Plan de tratamiento no encontrado');
+  }
+
+  // Verificar que los materiales no hayan sido confirmados previamente
+  if (plan.materiales_inicio_confirmados) {
+    throw new BadRequestException('Los materiales generales ya fueron confirmados');
+  }
+
+  const materiales_confirmados: MaterialTratamiento[] = [];
+
+  // Procesar cada material del DTO
+  for (const material_dto of dto.materiales) {
+    const material = await this.material_tratamiento_repositorio.findOne({
+      where: { id: material_dto.material_tratamiento_id },
+      relations: ['producto', 'producto.lotes'],
+    });
+
+    if (!material) {
+      throw new NotFoundException(`Material con ID ${material_dto.material_tratamiento_id} no encontrado`);
+    }
+
+    // Verificar que sea material de tipo 'inicio'
+    if (material.tipo !== TipoMaterialTratamiento.INICIO) {
+      throw new BadRequestException(
+        `El material ${material.producto.nombre} no es de tipo general (inicio)`,
+      );
+    }
+
+    // Verificar stock disponible
+    const puede_usar = await this.verificarStockDisponible(
+      material.producto.id,
+      material_dto.cantidad_usada,
+    );
+
+    if (!puede_usar) {
+      throw new BadRequestException(
+        `Stock insuficiente para ${material.producto.nombre}. ` +
+        `Cantidad requerida: ${material_dto.cantidad_usada}`,
+      );
+    }
+
+    // Si es consumible, reducir stock del inventario
+    if (material.producto.tipo_gestion === TipoGestion.CONSUMIBLE) {
+      const lotes = await this.lote_repositorio.find({
+        where: { producto: { id: material.producto.id }, activo: true },
+        order: { fecha_vencimiento: 'ASC' },
+      });
+
+      let cantidad_restante = material_dto.cantidad_usada;
+      const stock_anterior = lotes.reduce((total, lote) => total + Number(lote.cantidad_actual), 0);
+
+      for (const lote of lotes) {
+        if (cantidad_restante <= 0) break;
+
+        const cantidad_a_descontar = Math.min(cantidad_restante, Number(lote.cantidad_actual));
+
+        if (cantidad_a_descontar > 0) {
+          lote.cantidad_actual = Number(lote.cantidad_actual) - cantidad_a_descontar;
+          await this.lote_repositorio.save(lote);
+          cantidad_restante -= cantidad_a_descontar;
+        }
+      }
+
+      const stock_nuevo = lotes.reduce((total, lote) => total + Number(lote.cantidad_actual), 0);
+
+      // Registrar movimiento de inventario
+      await this.registrarMovimiento(
+        material.producto,
+        TipoMovimiento.USO_TRATAMIENTO,
+        material_dto.cantidad_usada,
+        stock_anterior,
+        stock_nuevo,
+        usuario_id,
+        `Plan Tratamiento ID: ${plan_tratamiento_id}`,
+        `Materiales generales confirmados manualmente`,
+      );
+    }
+
+    // Marcar material como confirmado
+    material.cantidad_usada = material_dto.cantidad_usada;
+    material.confirmado = true;
+    await this.material_tratamiento_repositorio.save(material);
+
+    materiales_confirmados.push(material);
+  }
+
+  // Marcar materiales como confirmados en el plan
+  plan.materiales_inicio_confirmados = true;
+
+  // Si se incluye información de pago, actualizar el plan
+  if (dto.estado_pago) {
+    // Si hay un monto de pago, registrar en finanzas
+    if (dto.monto_pago && dto.monto_pago > 0) {
+      const monto_anterior = plan.total_abonado || 0;
+      plan.total_abonado = monto_anterior + dto.monto_pago;
+
+      const nombre_tratamiento = plan.tratamiento?.nombre || 'Tratamiento';
+      
+      // Registrar pago en finanzas usando el método existente
+      await this.finanzas_servicio.registrarPago(usuario_id, {
+        fecha: new Date(),
+        monto: dto.monto_pago,
+        concepto: `Pago de tratamiento: ${nombre_tratamiento} - Confirmación de materiales generales (${dto.estado_pago})`,
+      });
+    }
+  }
+
+  await this.plan_tratamiento_repositorio.save(plan);
+
+  return {
+    mensaje: 'Materiales generales confirmados exitosamente',
+    plan_tratamiento_id: plan_tratamiento_id,
+    materiales_confirmados: materiales_confirmados.length,
+    estado_pago: dto.estado_pago,
+    monto_pago: dto.monto_pago,
+    total_abonado: plan.total_abonado,
+    detalles: materiales_confirmados.map(m => ({
+      producto: m.producto.nombre,
+      cantidad_planeada: m.cantidad_planeada,
+      cantidad_usada: m.cantidad_usada,
+    })),
   };
 }
 
@@ -1104,7 +1292,6 @@ async ajustarStock(usuario_id: number, inventario_id: number, dto: AjustarStockD
         fecha: new Date(),
       });
     } else {
-      // Salida = Venta/Uso = Ingreso en finanzas
       await this.finanzas_servicio.registrarPago(usuario_id, {
         concepto: `Venta: ${producto.nombre} (${dto.cantidad} ${producto.unidad_medida})`,
         monto: dto.monto,

@@ -48,8 +48,7 @@ private formatearHora(fecha: Date): string {
   ): Promise<{ disponible: boolean; citas_conflicto: Cita[]; mensaje_detallado?: string }> {
     const ahora = new Date();
     const fecha_cita = new Date(fecha);
-    
-    if (fecha_cita < ahora) {
+    if (!cita_id_excluir && fecha_cita < ahora) {
       return {
         disponible: false,
         citas_conflicto: [],

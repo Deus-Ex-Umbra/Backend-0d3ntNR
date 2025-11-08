@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsArray, ValidateNested, IsInt, IsNumber, Min } from 'class-validator';
+import { IsArray, ValidateNested, IsInt, IsNumber, Min, IsOptional, IsEnum, IsString } from 'class-validator';
 import { Type } from 'class-transformer';
 
 class MaterialTratamientoUsadoDto {
@@ -19,4 +19,30 @@ export class ConfirmarMaterialesTratamientoDto {
   @ValidateNested({ each: true })
   @Type(() => MaterialTratamientoUsadoDto)
   materiales: MaterialTratamientoUsadoDto[];
+
+  @ApiProperty({ 
+    description: 'Estado de pago del tratamiento',
+    enum: ['pendiente', 'parcial', 'pagado'],
+    required: false
+  })
+  @IsOptional()
+  @IsEnum(['pendiente', 'parcial', 'pagado'])
+  estado_pago?: string;
+
+  @ApiProperty({ 
+    description: 'Monto del pago realizado',
+    required: false
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  monto_pago?: number;
+
+  @ApiProperty({ 
+    description: 'Método de pago utilizado',
+    required: false
+  })
+  @IsOptional()
+  @IsString()
+  metodo_pago?: string;
 }

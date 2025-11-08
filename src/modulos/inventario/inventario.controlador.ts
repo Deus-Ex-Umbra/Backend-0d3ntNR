@@ -23,6 +23,7 @@ import { CambiarEstadoActivoDto } from './dto/cambiar-estado-activo.dto';
 import { AsignarMaterialesCitaDto } from './dto/asignar-materiales-cita.dto';
 import { ConfirmarMaterialesCitaDto } from './dto/confirmar-materiales-cita.dto';
 import { AsignarMaterialesTratamientoDto } from './dto/asignar-materiales-tratamiento.dto';
+import { ConfirmarMaterialesTratamientoDto } from './dto/confirmar-materiales-tratamiento.dto';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../autenticacion/guardias/jwt-auth.guardia';
 import { PermisoInventarioGuardia } from './guardias/permiso-inventario.guardia';
@@ -187,6 +188,22 @@ export class InventarioControlador {
     @Body() dto: AsignarMaterialesTratamientoDto,
   ) {
     return this.inventario_servicio.asignarMaterialesTratamiento(req.user.id, +plan_tratamiento_id, dto);
+  }
+
+  @Get('tratamientos/:plan_tratamiento_id/materiales')
+  @ApiOperation({ summary: 'Obtener materiales asignados a un plan de tratamiento' })
+  obtenerMaterialesTratamiento(@Request() req, @Param('plan_tratamiento_id') plan_tratamiento_id: string) {
+    return this.inventario_servicio.obtenerMaterialesTratamiento(req.user.id, +plan_tratamiento_id);
+  }
+
+  @Post('tratamientos/:plan_tratamiento_id/confirmar-materiales-generales')
+  @ApiOperation({ summary: 'Confirmar materiales generales de un plan de tratamiento manualmente' })
+  confirmarMaterialesGenerales(
+    @Request() req, 
+    @Param('plan_tratamiento_id') plan_tratamiento_id: string,
+    @Body() dto: ConfirmarMaterialesTratamientoDto,
+  ) {
+    return this.inventario_servicio.confirmarMaterialesGenerales(req.user.id, +plan_tratamiento_id, dto);
   }
 
   @Put(':inventario_id/activos/:activo_id/estado')
