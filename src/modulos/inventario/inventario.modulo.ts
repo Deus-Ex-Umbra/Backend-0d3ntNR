@@ -10,6 +10,8 @@ import { ActivoHistorial } from './entidades/activo-historial.entidad';
 import { MaterialCita } from './entidades/material-cita.entidad';
 import { MaterialTratamiento } from './entidades/material-tratamiento.entidad';
 import { MovimientoInventario } from './entidades/movimiento-inventario.entidad';
+import { PromesaUsoLote } from './entidades/promesa-uso-lote.entidad';
+import { PromesaUsoActivo } from './entidades/promesa-uso-activo.entidad';
 import { Cita } from '../agenda/entidades/cita.entidad';
 import { PlanTratamiento } from '../tratamientos/entidades/plan-tratamiento.entidad';
 import { InventarioControlador } from './inventario.controlador';
@@ -31,6 +33,8 @@ import { FinanzasModule } from '../finanzas/finanzas.modulo';
       MaterialCita,
       MaterialTratamiento,
       MovimientoInventario,
+      PromesaUsoLote,
+      PromesaUsoActivo,
       Cita,
       PlanTratamiento,
     ]),

@@ -26,6 +26,7 @@ import { PacienteEnfermedad } from './modulos/pacientes/entidades/paciente-enfer
 import { PacienteMedicamento } from './modulos/pacientes/entidades/paciente-medicamento.entidad';
 import { Tratamiento } from './modulos/tratamientos/entidades/tratamiento.entidad';
 import { PlanTratamiento } from './modulos/tratamientos/entidades/plan-tratamiento.entidad';
+import { MaterialPlantilla } from './modulos/tratamientos/entidades/material-plantilla.entidad';
 import { Cita } from './modulos/agenda/entidades/cita.entidad';
 import { Egreso } from './modulos/finanzas/entidades/egreso.entidad';
 import { Usuario } from './modulos/usuarios/entidades/usuario.entidad';
@@ -48,6 +49,10 @@ import { ActivoHistorial } from './modulos/inventario/entidades/activo-historial
 import { MaterialCita } from './modulos/inventario/entidades/material-cita.entidad';
 import { MaterialTratamiento } from './modulos/inventario/entidades/material-tratamiento.entidad';
 import { MovimientoInventario } from './modulos/inventario/entidades/movimiento-inventario.entidad';
+import { PromesaUsoLote } from './modulos/inventario/entidades/promesa-uso-lote.entidad';
+import { PromesaUsoActivo } from './modulos/inventario/entidades/promesa-uso-activo.entidad';
+import { Reporte } from './modulos/reportes/entidades/reporte.entidad';
+import { ConsentimientoInformado } from './modulos/pacientes/entidades/consentimiento-informado.entidad';
 
 @Module({
   imports: [
@@ -62,6 +67,7 @@ import { MovimientoInventario } from './modulos/inventario/entidades/movimiento-
         PacienteMedicamento,
         Tratamiento,
         PlanTratamiento,
+        MaterialPlantilla,
         Cita,
         Egreso,
         Usuario,
@@ -84,6 +90,10 @@ import { MovimientoInventario } from './modulos/inventario/entidades/movimiento-
         MaterialCita,
         MaterialTratamiento,
         MovimientoInventario,
+        PromesaUsoLote,
+        PromesaUsoActivo,
+        Reporte,
+        ConsentimientoInformado,
       ],
       synchronize: true,
     }),

@@ -5,15 +5,22 @@ import { Paciente } from './entidades/paciente.entidad';
 import { PacienteAlergia } from './entidades/paciente-alergia.entidad';
 import { PacienteEnfermedad } from './entidades/paciente-enfermedad.entidad';
 import { PacienteMedicamento } from './entidades/paciente-medicamento.entidad';
+import { ConsentimientoInformado } from './entidades/consentimiento-informado.entidad';
 import { Alergia } from '../catalogo/entidades/alergia.entidad';
 import { Enfermedad } from '../catalogo/entidades/enfermedad.entidad';
 import { Medicamento } from '../catalogo/entidades/medicamento.entidad';
 import { Cita } from '../agenda/entidades/cita.entidad';
 import { PlanTratamiento } from '../tratamientos/entidades/plan-tratamiento.entidad';
+import { PlantillaConsentimiento } from '../plantillas-consentimiento/entidades/plantilla-consentimiento.entidad';
 import { CrearPacienteDto } from './dto/crear-paciente.dto';
 import { ActualizarPacienteDto } from './dto/actualizar-paciente.dto';
 import { RespuestaAnamnesisDto } from './dto/respuesta-anamnesis.dto';
 import { Usuario } from '../usuarios/entidades/usuario.entidad';
+import PDFDocument from 'pdfkit';
+import * as fs from 'fs/promises';
+import * as path from 'path';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 @Injectable()
 export class PacientesServicio {
@@ -26,6 +33,10 @@ export class PacientesServicio {
     private readonly paciente_enfermedad_repositorio: Repository<PacienteEnfermedad>,
     @InjectRepository(PacienteMedicamento)
     private readonly paciente_medicamento_repositorio: Repository<PacienteMedicamento>,
+    @InjectRepository(ConsentimientoInformado)
+    private readonly consentimiento_repositorio: Repository<ConsentimientoInformado>,
+    @InjectRepository(PlantillaConsentimiento)
+    private readonly plantilla_repositorio: Repository<PlantillaConsentimiento>,
     @InjectRepository(Alergia)
     private readonly alergia_repositorio: Repository<Alergia>,
     @InjectRepository(Enfermedad)
@@ -310,5 +321,177 @@ export class PacientesServicio {
         estado_pago: cita.estado_pago,
       })),
     };
+  }
+
+  // ==================== CONSENTIMIENTOS INFORMADOS ====================
+
+  async crearConsentimientoInformado(
+    paciente_id: number,
+    plantilla_id: number,
+    nombre: string,
+    usuario_id: number,
+  ): Promise<ConsentimientoInformado> {
+    // Verificar que el paciente existe
+    const paciente = await this.paciente_repositorio.findOne({
+      where: { id: paciente_id },
+    });
+
+    if (!paciente) {
+      throw new NotFoundException(`Paciente con ID ${paciente_id} no encontrado`);
+    }
+
+    // Obtener la plantilla
+    const plantilla = await this.plantilla_repositorio.findOne({
+      where: { id: plantilla_id },
+    });
+
+    if (!plantilla) {
+      throw new NotFoundException(`Plantilla con ID ${plantilla_id} no encontrada`);
+    }
+
+    // Reemplazar variables en el contenido HTML
+    const contenido_procesado = this.reemplazarVariablesPaciente(plantilla.contenido, paciente);
+
+    // Generar el PDF
+    const directorio = path.join(process.cwd(), 'consentimientos-generados');
+    await fs.mkdir(directorio, { recursive: true });
+
+    const nombre_archivo = `consentimiento_${Date.now()}_${paciente_id}.pdf`;
+    const ruta_archivo = path.join(directorio, nombre_archivo);
+
+    await this.generarPDFConsentimiento(contenido_procesado, ruta_archivo, nombre);
+
+    // Guardar en la base de datos
+    const consentimiento = new ConsentimientoInformado();
+    consentimiento.paciente = paciente;
+    consentimiento.usuario = { id: usuario_id } as Usuario;
+    consentimiento.nombre = nombre;
+    consentimiento.contenido_html = contenido_procesado;
+    consentimiento.ruta_archivo = nombre_archivo;
+
+    return await this.consentimiento_repositorio.save(consentimiento);
+  }
+
+  async obtenerConsentimientosPaciente(paciente_id: number): Promise<ConsentimientoInformado[]> {
+    return await this.consentimiento_repositorio.find({
+      where: { paciente: { id: paciente_id } },
+      order: { fecha_creacion: 'DESC' },
+    });
+  }
+
+  async obtenerArchivoConsentimiento(id: number): Promise<string> {
+    const consentimiento = await this.consentimiento_repositorio.findOne({
+      where: { id },
+    });
+
+    if (!consentimiento) {
+      throw new NotFoundException(`Consentimiento con ID ${id} no encontrado`);
+    }
+
+    const ruta_completa = path.join(process.cwd(), 'consentimientos-generados', consentimiento.ruta_archivo);
+
+    try {
+      await fs.access(ruta_completa);
+    } catch {
+      throw new NotFoundException('Archivo de consentimiento no encontrado');
+    }
+
+    return ruta_completa;
+  }
+
+  async eliminarConsentimiento(id: number): Promise<void> {
+    const consentimiento = await this.consentimiento_repositorio.findOne({
+      where: { id },
+    });
+
+    if (!consentimiento) {
+      throw new NotFoundException(`Consentimiento con ID ${id} no encontrado`);
+    }
+
+    // Eliminar el archivo físico
+    const ruta_completa = path.join(process.cwd(), 'consentimientos-generados', consentimiento.ruta_archivo);
+    try {
+      await fs.unlink(ruta_completa);
+    } catch (error) {
+      console.error('Error al eliminar archivo de consentimiento:', error);
+    }
+
+    // Eliminar el registro de la base de datos
+    await this.consentimiento_repositorio.remove(consentimiento);
+  }
+
+  private reemplazarVariablesPaciente(contenido: string, paciente: Paciente): string {
+    const fecha_actual = new Date();
+    const fecha_formateada = format(fecha_actual, 'dd/MM/yyyy', { locale: es });
+
+    return contenido
+      .replace(/{{nombre}}/g, paciente.nombre || '')
+      .replace(/{{apellidos}}/g, paciente.apellidos || '')
+      .replace(/{{nombre_completo}}/g, `${paciente.nombre} ${paciente.apellidos}`)
+      .replace(/{{telefono}}/g, paciente.telefono || 'No registrado')
+      .replace(/{{correo}}/g, paciente.correo || 'No registrado')
+      .replace(/{{direccion}}/g, paciente.direccion || 'No registrada')
+      .replace(/{{fecha}}/g, fecha_formateada);
+  }
+
+  private async generarPDFConsentimiento(
+    contenido_html: string,
+    ruta_archivo: string,
+    titulo: string,
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const doc = new PDFDocument({
+        size: 'LETTER',
+        margins: { top: 50, bottom: 50, left: 50, right: 50 },
+      });
+
+      const stream = require('fs').createWriteStream(ruta_archivo);
+      doc.pipe(stream);
+
+      // Configurar fuente Times New Roman
+      doc.font('Times-Roman');
+
+      // Título del documento
+      doc.font('Times-Bold').fontSize(16).text(titulo, { align: 'center' });
+      doc.moveDown();
+
+      // Procesar el contenido HTML de forma básica
+      // Esto es una implementación simple, para HTML más complejo usar librerías como html-to-pdfmake
+      const lineas = contenido_html
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<\/p>/gi, '\n\n')
+        .replace(/<p>/gi, '')
+        .replace(/<strong>|<b>/gi, '**')
+        .replace(/<\/strong>|<\/b>/gi, '**')
+        .replace(/<em>|<i>/gi, '_')
+        .replace(/<\/em>|<\/i>/gi, '_')
+        .replace(/<h1>(.*?)<\/h1>/gi, '\n$1\n')
+        .replace(/<h2>(.*?)<\/h2>/gi, '\n$1\n')
+        .replace(/<h3>(.*?)<\/h3>/gi, '\n$1\n')
+        .replace(/<[^>]+>/g, ''); // Eliminar el resto de tags HTML
+
+      // Dividir en párrafos y procesar negritas/cursivas simples
+      const parrafos = lineas.split('\n\n');
+      
+      for (const parrafo of parrafos) {
+        if (parrafo.trim()) {
+          // Implementación básica de negrita
+          const partes = parrafo.split('**');
+          for (let i = 0; i < partes.length; i++) {
+            if (i % 2 === 0) {
+              doc.font('Times-Roman').fontSize(11).text(partes[i], { continued: i < partes.length - 1 });
+            } else {
+              doc.font('Times-Bold').fontSize(11).text(partes[i], { continued: i < partes.length - 1 });
+            }
+          }
+          doc.moveDown();
+        }
+      }
+
+      doc.end();
+
+      stream.on('finish', () => resolve());
+      stream.on('error', reject);
+    });
   }
 }

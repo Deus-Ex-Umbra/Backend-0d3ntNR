@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ArchivoAdjunto } from './entidades/archivo-adjunto.entidad';
 import { ArchivosAdjuntosControlador } from './archivos-adjuntos.controlador';
@@ -10,8 +10,8 @@ import { AlmacenamientoModule } from '../almacenamiento/almacenamiento.modulo';
 @Module({
   imports: [
     TypeOrmModule.forFeature([ArchivoAdjunto]),
-    PacientesModule,
-    TratamientosModule,
+    forwardRef(() => PacientesModule),
+    forwardRef(() => TratamientosModule),
     AlmacenamientoModule,
   ],
   controllers: [ArchivosAdjuntosControlador],

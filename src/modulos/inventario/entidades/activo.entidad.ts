@@ -1,6 +1,7 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany } from 'typeorm';
 import { Producto } from './producto.entidad';
 import { ActivoHistorial } from './activo-historial.entidad';
+import { PromesaUsoActivo } from './promesa-uso-activo.entidad';
 
 export enum EstadoActivo {
   DISPONIBLE = 'disponible',
@@ -42,4 +43,7 @@ export class Activo {
 
   @OneToMany(() => ActivoHistorial, (historial) => historial.activo)
   historial: ActivoHistorial[];
+
+  @OneToMany(() => PromesaUsoActivo, (promesa) => promesa.activo)
+  promesas_uso: PromesaUsoActivo[];
 }

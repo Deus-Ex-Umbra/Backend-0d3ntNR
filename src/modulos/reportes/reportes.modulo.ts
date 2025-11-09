@@ -9,6 +9,7 @@ import { Pago } from '../finanzas/entidades/pago.entidad';
 import { Egreso } from '../finanzas/entidades/egreso.entidad';
 import { Inventario } from '../inventario/entidades/inventario.entidad';
 import { Producto } from '../inventario/entidades/producto.entidad';
+import { Reporte } from './entidades/reporte.entidad';
 import { GeminiModule } from '../gemini/gemini.modulo';
 
 @Module({
@@ -21,6 +22,7 @@ import { GeminiModule } from '../gemini/gemini.modulo';
       Egreso,
       Inventario,
       Producto,
+      Reporte,
     ]),
     GeminiModule,
   ],

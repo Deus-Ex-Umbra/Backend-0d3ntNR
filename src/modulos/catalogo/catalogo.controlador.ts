@@ -6,10 +6,12 @@ import { CrearAlergiaDto } from './dto/crear-alergia.dto';
 import { CrearEnfermedadDto } from './dto/crear-enfermedad.dto';
 import { CrearMedicamentoDto } from './dto/crear-medicamento.dto';
 import { CrearColorCategoriaDto } from './dto/crear-color-categoria.dto';
+import { CrearEtiquetaDto } from './dto/crear-etiqueta.dto';
 import { ActualizarAlergiaDto } from './dto/actualizar-alergia.dto';
 import { ActualizarEnfermedadDto } from './dto/actualizar-enfermedad.dto';
 import { ActualizarMedicamentoDto } from './dto/actualizar-medicamento.dto';
 import { ActualizarColorCategoriaDto } from './dto/actualizar-color-categoria.dto';
+import { ActualizarEtiquetaDto } from './dto/actualizar-etiqueta.dto';
 
 @ApiTags('Catálogo')
 @ApiBearerAuth('JWT-auth')
@@ -96,5 +98,25 @@ export class CatalogoControlador {
   @Delete('colores/:id')
   eliminarColor(@Param('id') id: string) {
     return this.catalogo_servicio.eliminarColor(+id);
+  }
+
+  @Post('etiquetas')
+  crearEtiqueta(@Body() dto: CrearEtiquetaDto) {
+    return this.catalogo_servicio.crearEtiqueta(dto);
+  }
+
+  @Get('etiquetas')
+  obtenerEtiquetas() {
+    return this.catalogo_servicio.obtenerEtiquetas();
+  }
+
+  @Put('etiquetas/:id')
+  actualizarEtiqueta(@Param('id') id: string, @Body() dto: ActualizarEtiquetaDto) {
+    return this.catalogo_servicio.actualizarEtiqueta(+id, dto);
+  }
+
+  @Delete('etiquetas/:id')
+  eliminarEtiqueta(@Param('id') id: string) {
+    return this.catalogo_servicio.eliminarEtiqueta(+id);
   }
 }

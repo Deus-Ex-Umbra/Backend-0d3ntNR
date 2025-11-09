@@ -7,6 +7,7 @@ import { ActualizarCitaDto } from './dto/actualizar-cita.dto';
 import { Paciente } from '../pacientes/entidades/paciente.entidad';
 import { PlanTratamiento } from '../tratamientos/entidades/plan-tratamiento.entidad';
 import { FinanzasServicio } from '../finanzas/finanzas.servicio';
+import { InventarioServicio } from '../inventario/inventario.servicio';
 import { Usuario } from '../usuarios/entidades/usuario.entidad';
 
 @Injectable()
@@ -16,6 +17,8 @@ export class AgendaServicio {
     private readonly cita_repositorio: Repository<Cita>,
     @Inject(forwardRef(() => FinanzasServicio))
     private readonly finanzas_servicio: FinanzasServicio,
+    @Inject(forwardRef(() => InventarioServicio))
+    private readonly inventario_servicio: InventarioServicio,
   ) {}
 
   private calcularDuracionEnMinutos(horas: number, minutos: number): number {
@@ -318,6 +321,10 @@ private formatearHora(fecha: Date): string {
     if (!cita) {
       throw new NotFoundException(`Cita con ID "${id}" no encontrada o no le pertenece.`);
     }
+
+    // Eliminar promesas de uso antes de eliminar la cita
+    await this.inventario_servicio.eliminarPromesasUsoLotesPorCita(id);
+    await this.inventario_servicio.eliminarPromesasUsoActivosPorCita(id);
 
     await this.finanzas_servicio.eliminarPagosPorCita(usuario_id, id);
 

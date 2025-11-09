@@ -1,9 +1,10 @@
-import { Controller, Post, Body, UseGuards, Request, Res } from '@nestjs/common';
+import { Controller, Post, Get, Delete, Body, Param, UseGuards, Request, Res, StreamableFile } from '@nestjs/common';
 import { ReportesServicio } from './reportes.servicio';
 import { GenerarReporteDto } from './dto/generar-reporte.dto';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../autenticacion/guardias/jwt-auth.guardia';
 import type { Response } from 'express';
+import { createReadStream } from 'fs';
 
 @ApiTags('Reportes')
 @ApiBearerAuth('JWT-auth')
@@ -13,20 +14,41 @@ export class ReportesControlador {
   constructor(private readonly reportes_servicio: ReportesServicio) {}
 
   @Post('generar')
-  @ApiOperation({ summary: 'Generar reporte en PDF' })
+  @ApiOperation({ summary: 'Generar y guardar reporte en PDF' })
   async generarReporte(
     @Request() req,
     @Body() dto: GenerarReporteDto,
-    @Res() res: Response,
   ) {
-    const pdf_buffer = await this.reportes_servicio.generarReporte(req.user.id, dto);
+    return await this.reportes_servicio.generarYGuardarReporte(req.user.id, dto);
+  }
+
+  @Get()
+  @ApiOperation({ summary: 'Obtener todos los reportes del usuario' })
+  async obtenerReportes(@Request() req) {
+    return await this.reportes_servicio.obtenerReportesUsuario(req.user.id);
+  }
+
+  @Get(':id/descargar')
+  @ApiOperation({ summary: 'Descargar reporte por ID' })
+  async descargarReporte(
+    @Request() req,
+    @Param('id') id: number,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<StreamableFile> {
+    const { archivo, nombre } = await this.reportes_servicio.obtenerArchivoReporte(req.user.id, id);
     
     res.set({
       'Content-Type': 'application/pdf',
-      'Content-Disposition': `attachment; filename=reporte-${Date.now()}.pdf`,
-      'Content-Length': pdf_buffer.length,
+      'Content-Disposition': `attachment; filename="${nombre}.pdf"`,
     });
     
-    res.send(pdf_buffer);
+    return new StreamableFile(archivo);
+  }
+
+  @Delete(':id')
+  @ApiOperation({ summary: 'Eliminar reporte' })
+  async eliminarReporte(@Request() req, @Param('id') id: number) {
+    await this.reportes_servicio.eliminarReporte(req.user.id, id);
+    return { mensaje: 'Reporte eliminado correctamente' };
   }
 }

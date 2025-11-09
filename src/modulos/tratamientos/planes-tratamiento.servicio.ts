@@ -2,18 +2,27 @@ import { Injectable, NotFoundException, ConflictException } from '@nestjs/common
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { PlanTratamiento } from './entidades/plan-tratamiento.entidad';
+import { MaterialPlantilla, TipoMaterialPlantilla } from './entidades/material-plantilla.entidad';
 import { AsignarPlanTratamientoDto } from './dto/asignar-plan-tratamiento.dto';
 import { PacientesServicio } from '../pacientes/pacientes.servicio';
 import { TratamientosServicio } from './tratamientos.servicio';
 import { AgendaServicio } from '../agenda/agenda.servicio';
 import { Cita } from '../agenda/entidades/cita.entidad';
 import { Usuario } from '../usuarios/entidades/usuario.entidad';
+import { MaterialTratamiento, TipoMaterialTratamiento } from '../inventario/entidades/material-tratamiento.entidad';
+import { MaterialCita } from '../inventario/entidades/material-cita.entidad';
 
 @Injectable()
 export class PlanesTratamientoServicio {
   constructor(
     @InjectRepository(PlanTratamiento)
     private readonly plan_repositorio: Repository<PlanTratamiento>,
+    @InjectRepository(MaterialPlantilla)
+    private readonly material_plantilla_repositorio: Repository<MaterialPlantilla>,
+    @InjectRepository(MaterialTratamiento)
+    private readonly material_tratamiento_repositorio: Repository<MaterialTratamiento>,
+    @InjectRepository(MaterialCita)
+    private readonly material_cita_repositorio: Repository<MaterialCita>,
     private readonly pacientes_servicio: PacientesServicio,
     private readonly tratamientos_servicio: TratamientosServicio,
     private readonly agenda_servicio: AgendaServicio,
@@ -104,6 +113,22 @@ async asignarPlan(usuario_id: number, asignar_plan_dto: AsignarPlanTratamientoDt
 
     const plan_guardado = await this.plan_repositorio.save(nuevo_plan);
 
+    const materiales_plantilla = await this.material_plantilla_repositorio.find({
+      where: { tratamiento: { id: tratamiento_id } },
+      relations: ['producto'],
+    });
+
+    const materiales_generales = materiales_plantilla.filter(m => m.tipo === TipoMaterialPlantilla.GENERAL);
+    for (const material of materiales_generales) {
+      const material_tratamiento = this.material_tratamiento_repositorio.create({
+        plan_tratamiento: plan_guardado,
+        producto: material.producto,
+        tipo: TipoMaterialTratamiento.INICIO,
+        cantidad_planeada: material.cantidad,
+      });
+      await this.material_tratamiento_repositorio.save(material_tratamiento);
+    }
+
     const citas_promesas: Promise<Cita>[] = [];
     
     for (let i = 0; i < tratamiento_plantilla.numero_citas; i++) {
@@ -119,7 +144,19 @@ async asignarPlan(usuario_id: number, asignar_plan_dto: AsignarPlanTratamientoDt
             })
         );
     }
-    await Promise.all(citas_promesas);
+    const citas_creadas = await Promise.all(citas_promesas);
+
+    const materiales_por_cita = materiales_plantilla.filter(m => m.tipo === TipoMaterialPlantilla.POR_CITA);
+    for (const cita of citas_creadas) {
+      for (const material of materiales_por_cita) {
+        const material_cita = this.material_cita_repositorio.create({
+          cita: cita,
+          producto: material.producto,
+          cantidad_planeada: material.cantidad,
+        });
+        await this.material_cita_repositorio.save(material_cita);
+      }
+    }
 
     return this.encontrarPlanPorId(usuario_id, plan_guardado.id);
   }

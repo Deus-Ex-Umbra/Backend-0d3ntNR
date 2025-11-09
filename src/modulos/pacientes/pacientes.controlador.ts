@@ -9,7 +9,11 @@ import {
   Query,
   UseGuards,
   Request,
+  StreamableFile,
+  Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
+import * as fs from 'fs';
 import { PacientesServicio } from './pacientes.servicio';
 import { CrearPacienteDto } from './dto/crear-paciente.dto';
 import { ActualizarPacienteDto } from './dto/actualizar-paciente.dto';
@@ -98,5 +102,59 @@ export class PacientesControlador {
   @ApiResponse({ status: 404, description: 'No se encontraron tratamientos' })
   obtenerUltimoTratamiento(@Request() req, @Param('id') id: string) {
     return this.pacientes_servicio.obtenerUltimoTratamiento(req.user.id, +id);
+  }
+
+  // ==================== CONSENTIMIENTOS INFORMADOS ====================
+
+  @Post(':id/consentimientos')
+  @ApiOperation({ summary: 'Crear un consentimiento informado para un paciente' })
+  @ApiResponse({ status: 201, description: 'Consentimiento creado exitosamente' })
+  @ApiResponse({ status: 404, description: 'Paciente o plantilla no encontrados' })
+  async crearConsentimiento(
+    @Request() req,
+    @Param('id') paciente_id: string,
+    @Body() body: { plantilla_id: number; nombre: string },
+  ) {
+    return await this.pacientes_servicio.crearConsentimientoInformado(
+      +paciente_id,
+      body.plantilla_id,
+      body.nombre,
+      req.user.id,
+    );
+  }
+
+  @Get(':id/consentimientos')
+  @ApiOperation({ summary: 'Obtener consentimientos informados de un paciente' })
+  @ApiResponse({ status: 200, description: 'Lista de consentimientos del paciente' })
+  async obtenerConsentimientos(@Param('id') paciente_id: string) {
+    return await this.pacientes_servicio.obtenerConsentimientosPaciente(+paciente_id);
+  }
+
+  @Get('consentimientos/:id/descargar')
+  @ApiOperation({ summary: 'Descargar un consentimiento informado en PDF' })
+  @ApiResponse({ status: 200, description: 'Archivo PDF del consentimiento' })
+  @ApiResponse({ status: 404, description: 'Consentimiento no encontrado' })
+  async descargarConsentimiento(
+    @Param('id') id: string,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const ruta_archivo = await this.pacientes_servicio.obtenerArchivoConsentimiento(+id);
+    const archivo = fs.createReadStream(ruta_archivo);
+    
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="consentimiento_${id}.pdf"`,
+    });
+
+    return new StreamableFile(archivo);
+  }
+
+  @Delete('consentimientos/:id')
+  @ApiOperation({ summary: 'Eliminar un consentimiento informado' })
+  @ApiResponse({ status: 200, description: 'Consentimiento eliminado exitosamente' })
+  @ApiResponse({ status: 404, description: 'Consentimiento no encontrado' })
+  async eliminarConsentimiento(@Param('id') id: string) {
+    await this.pacientes_servicio.eliminarConsentimiento(+id);
+    return { mensaje: 'Consentimiento eliminado exitosamente' };
   }
 }

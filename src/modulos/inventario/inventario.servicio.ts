@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, LessThan, MoreThan } from 'typeorm';
 import { Inventario } from './entidades/inventario.entidad';
 import { PermisoInventario } from './entidades/permiso-inventario.entidad';
 import { Producto, TipoGestion } from './entidades/producto.entidad';
@@ -11,6 +11,8 @@ import { ActivoHistorial } from './entidades/activo-historial.entidad';
 import { MaterialCita } from './entidades/material-cita.entidad';
 import { MaterialTratamiento, TipoMaterialTratamiento } from './entidades/material-tratamiento.entidad';
 import { MovimientoInventario, TipoMovimiento, CategoriaMovimiento } from './entidades/movimiento-inventario.entidad';
+import { PromesaUsoLote } from './entidades/promesa-uso-lote.entidad';
+import { PromesaUsoActivo } from './entidades/promesa-uso-activo.entidad';
 import { CrearInventarioDto } from './dto/crear-inventario.dto';
 import { ActualizarInventarioDto } from './dto/actualizar-inventario.dto';
 import { InvitarUsuarioInventarioDto } from './dto/invitar-usuario-inventario.dto';
@@ -58,6 +60,10 @@ export class InventarioServicio {
   private readonly movimiento_repositorio: Repository<MovimientoInventario>,
   @InjectRepository(PlanTratamiento)
   private readonly plan_tratamiento_repositorio: Repository<PlanTratamiento>,
+  @InjectRepository(PromesaUsoLote)
+  private readonly promesa_uso_lote_repositorio: Repository<PromesaUsoLote>,
+  @InjectRepository(PromesaUsoActivo)
+  private readonly promesa_uso_activo_repositorio: Repository<PromesaUsoActivo>,
   private readonly finanzas_servicio: FinanzasServicio,
 ) {}
 
@@ -1068,18 +1074,61 @@ async obtenerMaterialesCita(usuario_id: number, cita_id: number): Promise<any> {
     relations: ['producto', 'producto.inventario', 'producto.lotes', 'producto.activos'],
   });
 
-  const materiales_formateados = materiales.map(material => ({
-    id: material.id,
-    producto_id: material.producto.id,
-    inventario_id: material.producto.inventario.id,
-    inventario_nombre: material.producto.inventario.nombre,
-    producto_nombre: material.producto.nombre,
-    tipo_gestion: material.producto.tipo_gestion,
-    unidad_medida: material.producto.unidad_medida,
-    cantidad_planeada: material.cantidad_planeada,
-    cantidad_usada: material.cantidad_usada,
-    confirmado: material.confirmado,
-  }));
+  const promesas_lotes = await this.promesa_uso_lote_repositorio.find({
+    where: { cita: { id: cita_id } },
+    relations: ['lote', 'lote.producto'],
+  });
+
+  const promesas_activos = await this.promesa_uso_activo_repositorio.find({
+    where: { cita: { id: cita_id } },
+    relations: ['activo', 'activo.producto'],
+  });
+
+  const materiales_formateados = materiales.map(material => {
+    const promesas_lote_producto = promesas_lotes.filter(
+      p => p.lote.producto.id === material.producto.id
+    );
+    const promesas_activo_producto = promesas_activos.filter(
+      p => p.activo.producto.id === material.producto.id
+    );
+
+    const items: any[] = [];
+
+    promesas_lote_producto.forEach(promesa => {
+      items.push({
+        lote_id: promesa.lote.id,
+        cantidad_planeada: promesa.cantidad_reservada,
+        nro_lote: promesa.lote.nro_lote,
+      });
+    });
+
+    promesas_activo_producto.forEach(promesa => {
+      items.push({
+        activo_id: promesa.activo.id,
+        cantidad_planeada: 1,
+        nro_serie: promesa.activo.nro_serie,
+        nombre_asignado: promesa.activo.nombre_asignado,
+      });
+    });
+
+    if (items.length === 0) {
+      items.push({ cantidad_planeada: material.cantidad_planeada });
+    }
+
+    return {
+      id: material.id,
+      producto_id: material.producto.id,
+      inventario_id: material.producto.inventario.id,
+      inventario_nombre: material.producto.inventario.nombre,
+      producto_nombre: material.producto.nombre,
+      tipo_gestion: material.producto.tipo_gestion,
+      unidad_medida: material.producto.unidad_medida,
+      cantidad_planeada: material.cantidad_planeada,
+      cantidad_usada: material.cantidad_usada,
+      confirmado: material.confirmado,
+      items,
+    };
+  });
 
   return {
     materiales: materiales_formateados,
@@ -1652,5 +1701,254 @@ async ajustarStock(usuario_id: number, inventario_id: number, dto: AjustarStockD
     movimiento_id: movimiento.id,
     movimiento_financiero_registrado: dto.generar_movimiento_financiero && dto.monto ? true : false,
   };
+}
+
+// ==================== GESTIÓN DE PROMESAS DE USO ====================
+
+/**
+ * Crear promesa de uso para un lote
+ */
+async crearPromesaUsoLote(lote_id: number, cita_id: number, cantidad: number): Promise<PromesaUsoLote> {
+  const lote = await this.lote_repositorio.findOne({ 
+    where: { id: lote_id }, 
+    relations: ['producto'] 
+  });
+
+  if (!lote) {
+    throw new NotFoundException(`Lote con ID ${lote_id} no encontrado`);
+  }
+
+  // Validar stock disponible considerando reservas
+  const stock_disponible = Number(lote.cantidad_actual) - Number(lote.cantidad_reservada);
+  if (stock_disponible < cantidad) {
+    throw new BadRequestException(
+      `Stock insuficiente en lote ${lote.nro_lote}. Disponible: ${stock_disponible} ${lote.producto.unidad_medida}`
+    );
+  }
+
+  const promesa = this.promesa_uso_lote_repositorio.create({
+    lote: { id: lote_id } as Lote,
+    cita: { id: cita_id } as Cita,
+    cantidad_reservada: cantidad,
+  });
+
+  const promesa_guardada = await this.promesa_uso_lote_repositorio.save(promesa);
+
+  // Incrementar cantidad_reservada en el lote
+  lote.cantidad_reservada = Number(lote.cantidad_reservada) + cantidad;
+  await this.lote_repositorio.save(lote);
+
+  return promesa_guardada;
+}
+
+/**
+ * Eliminar promesa de uso de un lote
+ */
+async eliminarPromesaUsoLote(promesa_id: number): Promise<void> {
+  const promesa = await this.promesa_uso_lote_repositorio.findOne({
+    where: { id: promesa_id },
+    relations: ['lote'],
+  });
+
+  if (!promesa) {
+    throw new NotFoundException(`Promesa de uso de lote con ID ${promesa_id} no encontrada`);
+  }
+
+  // Decrementar cantidad_reservada en el lote
+  const lote = promesa.lote;
+  lote.cantidad_reservada = Number(lote.cantidad_reservada) - Number(promesa.cantidad_reservada);
+  await this.lote_repositorio.save(lote);
+
+  await this.promesa_uso_lote_repositorio.remove(promesa);
+}
+
+/**
+ * Eliminar todas las promesas de uso de lotes para una cita
+ */
+async eliminarPromesasUsoLotesPorCita(cita_id: number): Promise<void> {
+  const promesas = await this.promesa_uso_lote_repositorio.find({
+    where: { cita: { id: cita_id } },
+    relations: ['lote'],
+  });
+
+  for (const promesa of promesas) {
+    const lote = promesa.lote;
+    lote.cantidad_reservada = Number(lote.cantidad_reservada) - Number(promesa.cantidad_reservada);
+    await this.lote_repositorio.save(lote);
+  }
+
+  await this.promesa_uso_lote_repositorio.remove(promesas);
+}
+
+/**
+ * Crear promesa de uso para un activo (serializado o general)
+ */
+async crearPromesaUsoActivo(
+  activo_id: number, 
+  cita_id: number, 
+  fecha_hora_inicio: Date, 
+  fecha_hora_fin: Date
+): Promise<PromesaUsoActivo> {
+  const activo = await this.activo_repositorio.findOne({ where: { id: activo_id } });
+
+  if (!activo) {
+    throw new NotFoundException(`Activo con ID ${activo_id} no encontrado`);
+  }
+
+  // Validar que el activo esté disponible
+  if (activo.estado !== EstadoActivo.DISPONIBLE) {
+    throw new BadRequestException(`El activo no está disponible actualmente. Estado: ${activo.estado}`);
+  }
+
+  // Verificar solapamientos con otras promesas
+  const promesas_solapadas = await this.promesa_uso_activo_repositorio
+    .createQueryBuilder('promesa')
+    .where('promesa.activo = :activo_id', { activo_id })
+    .andWhere('promesa.cita != :cita_id', { cita_id })
+    .andWhere(
+      '(promesa.fecha_hora_inicio < :fin AND promesa.fecha_hora_fin > :inicio)',
+      { inicio: fecha_hora_inicio, fin: fecha_hora_fin }
+    )
+    .getMany();
+
+  if (promesas_solapadas.length > 0) {
+    throw new BadRequestException(
+      `El activo ya está reservado para otra cita en ese horario`
+    );
+  }
+
+  const promesa = this.promesa_uso_activo_repositorio.create({
+    activo: { id: activo_id } as Activo,
+    cita: { id: cita_id } as Cita,
+    fecha_hora_inicio,
+    fecha_hora_fin,
+  });
+
+  return this.promesa_uso_activo_repositorio.save(promesa);
+}
+
+/**
+ * Eliminar promesa de uso de un activo
+ */
+async eliminarPromesaUsoActivo(promesa_id: number): Promise<void> {
+  const promesa = await this.promesa_uso_activo_repositorio.findOne({
+    where: { id: promesa_id },
+  });
+
+  if (!promesa) {
+    throw new NotFoundException(`Promesa de uso de activo con ID ${promesa_id} no encontrada`);
+  }
+
+  await this.promesa_uso_activo_repositorio.remove(promesa);
+}
+
+/**
+ * Eliminar todas las promesas de uso de activos para una cita
+ */
+async eliminarPromesasUsoActivosPorCita(cita_id: number): Promise<void> {
+  const promesas = await this.promesa_uso_activo_repositorio.find({
+    where: { cita: { id: cita_id } },
+  });
+
+  await this.promesa_uso_activo_repositorio.remove(promesas);
+}
+
+/**
+ * Actualizar estado de activos al iniciar una cita
+ */
+async activarActivosParaCita(cita_id: number): Promise<void> {
+  const promesas = await this.promesa_uso_activo_repositorio.find({
+    where: { cita: { id: cita_id } },
+    relations: ['activo'],
+  });
+
+  for (const promesa of promesas) {
+    const activo = promesa.activo;
+    activo.estado = EstadoActivo.EN_USO;
+    await this.activo_repositorio.save(activo);
+  }
+}
+
+/**
+ * Actualizar estado de activos al finalizar una cita
+ */
+async desactivarActivosParaCita(cita_id: number): Promise<void> {
+  const promesas = await this.promesa_uso_activo_repositorio.find({
+    where: { cita: { id: cita_id } },
+    relations: ['activo'],
+  });
+
+  for (const promesa of promesas) {
+    const activo = promesa.activo;
+    // Solo cambiar a disponible si actualmente está en uso
+    if (activo.estado === EstadoActivo.EN_USO) {
+      activo.estado = EstadoActivo.DISPONIBLE;
+      await this.activo_repositorio.save(activo);
+    }
+  }
+}
+
+/**
+ * Verificar si una cita debe estar activa (en curso) basándose en la fecha/hora
+ */
+async verificarYActualizarEstadoActivosCita(cita_id: number): Promise<void> {
+  const cita = await this.cita_repositorio.findOne({ where: { id: cita_id } });
+  
+  if (!cita) {
+    return;
+  }
+
+  const ahora = new Date();
+  const fecha_inicio = new Date(cita.fecha);
+  const fecha_fin = new Date(fecha_inicio);
+  fecha_fin.setHours(fecha_fin.getHours() + cita.horas_aproximadas);
+  fecha_fin.setMinutes(fecha_fin.getMinutes() + cita.minutos_aproximados);
+
+  // Si la cita está en curso, activar activos
+  if (ahora >= fecha_inicio && ahora <= fecha_fin) {
+    await this.activarActivosParaCita(cita_id);
+  } 
+  // Si la cita ya terminó, desactivar activos
+  else if (ahora > fecha_fin) {
+    await this.desactivarActivosParaCita(cita_id);
+  }
+}
+
+/**
+ * Obtener activos disponibles para una cita (sin solapamientos)
+ */
+async obtenerActivosDisponiblesParaCita(
+  producto_id: number,
+  fecha_hora_inicio: Date,
+  fecha_hora_fin: Date,
+  cita_id_excluir?: number
+): Promise<Activo[]> {
+  const query = this.activo_repositorio
+    .createQueryBuilder('activo')
+    .leftJoinAndSelect('activo.promesas_uso', 'promesa')
+    .where('activo.producto = :producto_id', { producto_id })
+    .andWhere('activo.estado = :estado', { estado: EstadoActivo.DISPONIBLE });
+
+  const activos = await query.getMany();
+
+  // Filtrar activos sin solapamientos
+  const activos_disponibles: Activo[] = [];
+  for (const activo of activos) {
+    const promesas_solapadas = await this.promesa_uso_activo_repositorio
+      .createQueryBuilder('promesa')
+      .where('promesa.activo = :activo_id', { activo_id: activo.id })
+      .andWhere(cita_id_excluir ? 'promesa.cita != :cita_id' : '1=1', { cita_id: cita_id_excluir })
+      .andWhere(
+        '(promesa.fecha_hora_inicio < :fin AND promesa.fecha_hora_fin > :inicio)',
+        { inicio: fecha_hora_inicio, fin: fecha_hora_fin }
+      )
+      .getCount();
+
+    if (promesas_solapadas === 0) {
+      activos_disponibles.push(activo);
+    }
+  }
+
+  return activos_disponibles;
 }
 }

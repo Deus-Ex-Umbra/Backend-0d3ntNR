@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { PlantillaConsentimiento } from './entidades/plantilla-consentimiento.entidad';
 import { PlantillasConsentimientoControlador } from './plantillas-consentimiento.controlador';
@@ -10,9 +10,9 @@ import { ArchivosAdjuntosModule } from '../archivos-adjuntos/archivos-adjuntos.m
 @Module({
   imports: [
     TypeOrmModule.forFeature([PlantillaConsentimiento]),
-    PacientesModule,
-    TratamientosModule,
-    ArchivosAdjuntosModule,
+    forwardRef(() => PacientesModule),
+    forwardRef(() => TratamientosModule),
+    forwardRef(() => ArchivosAdjuntosModule),
   ],
   controllers: [PlantillasConsentimientoControlador],
   providers: [PlantillasConsentimientoServicio],

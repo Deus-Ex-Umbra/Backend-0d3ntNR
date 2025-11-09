@@ -5,14 +5,17 @@ import { Alergia } from './entidades/alergia.entidad';
 import { Enfermedad } from './entidades/enfermedad.entidad';
 import { Medicamento } from './entidades/medicamento.entidad';
 import { ColorCategoria } from './entidades/color-categoria.entidad';
+import { Etiqueta } from './entidades/etiqueta.entidad';
 import { CrearAlergiaDto } from './dto/crear-alergia.dto';
 import { CrearEnfermedadDto } from './dto/crear-enfermedad.dto';
 import { CrearMedicamentoDto } from './dto/crear-medicamento.dto';
 import { CrearColorCategoriaDto } from './dto/crear-color-categoria.dto';
+import { CrearEtiquetaDto } from './dto/crear-etiqueta.dto';
 import { ActualizarAlergiaDto } from './dto/actualizar-alergia.dto';
 import { ActualizarEnfermedadDto } from './dto/actualizar-enfermedad.dto';
 import { ActualizarMedicamentoDto } from './dto/actualizar-medicamento.dto';
 import { ActualizarColorCategoriaDto } from './dto/actualizar-color-categoria.dto';
+import { ActualizarEtiquetaDto } from './dto/actualizar-etiqueta.dto';
 
 @Injectable()
 export class CatalogoServicio {
@@ -25,6 +28,8 @@ export class CatalogoServicio {
     private readonly medicamento_repositorio: Repository<Medicamento>,
     @InjectRepository(ColorCategoria)
     private readonly color_repositorio: Repository<ColorCategoria>,
+    @InjectRepository(Etiqueta)
+    private readonly etiqueta_repositorio: Repository<Etiqueta>,
   ) {}
 
   async crearAlergia(dto: CrearAlergiaDto): Promise<Alergia> {
@@ -132,6 +137,34 @@ export class CatalogoServicio {
     const resultado = await this.color_repositorio.update(id, { activo: false });
     if (resultado.affected === 0) {
       throw new NotFoundException('Color no encontrado');
+    }
+  }
+
+  async crearEtiqueta(dto: CrearEtiquetaDto): Promise<Etiqueta> {
+    const existe = await this.etiqueta_repositorio.findOne({ where: { nombre: dto.nombre } });
+    if (existe) {
+      throw new ConflictException('Esta etiqueta ya existe');
+    }
+    const etiqueta = this.etiqueta_repositorio.create(dto);
+    return this.etiqueta_repositorio.save(etiqueta);
+  }
+
+  async obtenerEtiquetas(): Promise<Etiqueta[]> {
+    return this.etiqueta_repositorio.find({ where: { activo: true }, order: { nombre: 'ASC' } });
+  }
+
+  async actualizarEtiqueta(id: number, dto: ActualizarEtiquetaDto): Promise<Etiqueta> {
+    const etiqueta = await this.etiqueta_repositorio.preload({ id, ...dto });
+    if (!etiqueta) {
+      throw new NotFoundException('Etiqueta no encontrada');
+    }
+    return this.etiqueta_repositorio.save(etiqueta);
+  }
+
+  async eliminarEtiqueta(id: number): Promise<void> {
+    const resultado = await this.etiqueta_repositorio.update(id, { activo: false });
+    if (resultado.affected === 0) {
+      throw new NotFoundException('Etiqueta no encontrada');
     }
   }
 }
