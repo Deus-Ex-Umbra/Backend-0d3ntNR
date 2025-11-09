@@ -10,7 +10,7 @@ import { CitaConsumible } from './entidades/cita-consumible.entidad';
 import { ActivoHistorial } from './entidades/activo-historial.entidad';
 import { MaterialCita } from './entidades/material-cita.entidad';
 import { MaterialTratamiento, TipoMaterialTratamiento } from './entidades/material-tratamiento.entidad';
-import { MovimientoInventario, TipoMovimiento } from './entidades/movimiento-inventario.entidad';
+import { MovimientoInventario, TipoMovimiento, CategoriaMovimiento } from './entidades/movimiento-inventario.entidad';
 import { CrearInventarioDto } from './dto/crear-inventario.dto';
 import { ActualizarInventarioDto } from './dto/actualizar-inventario.dto';
 import { InvitarUsuarioInventarioDto } from './dto/invitar-usuario-inventario.dto';
@@ -425,6 +425,15 @@ async obtenerInventarioPorId(usuario_id: number, inventario_id: number): Promise
 
     resultado = await this.lote_repositorio.save(nuevo_lote);
 
+    // Calcular stock anterior (antes de la compra)
+    const lotes_anteriores = await this.lote_repositorio.find({
+      where: { producto: { id: producto.id }, activo: true },
+    });
+    const stock_anterior = lotes_anteriores
+      .filter(l => l.id !== resultado.id)
+      .reduce((total, lote) => total + Number(lote.cantidad_actual), 0);
+    const stock_nuevo = stock_anterior + dto.cantidad;
+
     // Registrar auditoría de creación de lote
     await this.registrarMovimientoAuditoria(
       inventario_id,
@@ -439,6 +448,18 @@ async obtenerInventarioPorId(usuario_id: number, inventario_id: number): Promise
         fecha_vencimiento: dto.fecha_vencimiento,
       },
       `Lote "${resultado.nro_lote}" creado para ${producto.nombre}`,
+    );
+
+    // Registrar movimiento de entrada de stock para lote
+    await this.registrarMovimiento(
+      producto,
+      TipoMovimiento.ENTRADA_LOTE,
+      dto.cantidad,
+      stock_anterior,
+      stock_nuevo,
+      usuario_id,
+      `Compra - Lote: ${dto.nro_lote}`,
+      `Compra de ${dto.cantidad} ${producto.unidad_medida} - Costo total: $${dto.costo_total}`,
     );
   } else {
     const num_activos = Math.floor(dto.cantidad);
@@ -462,10 +483,15 @@ async obtenerInventarioPorId(usuario_id: number, inventario_id: number): Promise
       const [activo_guardado] = await this.activo_repositorio.save([datos_activo]);
       activos_creados.push(activo_guardado);
 
+      // Determinar tipo de movimiento según tipo de gestión
+      const tipo_movimiento = producto.tipo_gestion === TipoGestion.ACTIVO_SERIALIZADO 
+        ? TipoMovimiento.SERIE_CREADA 
+        : TipoMovimiento.GENERAL_CREADO;
+
       // Registrar auditoría de creación de activo
       await this.registrarMovimientoAuditoria(
         inventario_id,
-        TipoMovimiento.ACTIVO_CREADO,
+        tipo_movimiento,
         usuario_id,
         producto,
         undefined,
@@ -475,7 +501,23 @@ async obtenerInventarioPorId(usuario_id: number, inventario_id: number): Promise
           costo_compra: activo_guardado.costo_compra,
           estado: activo_guardado.estado,
         },
-        `Activo creado para ${producto.nombre}`,
+        `${producto.tipo_gestion === TipoGestion.ACTIVO_SERIALIZADO ? 'Serie' : 'Activo general'} creado para ${producto.nombre}`,
+      );
+
+      // Registrar movimiento de entrada de stock
+      const tipo_entrada = producto.tipo_gestion === TipoGestion.ACTIVO_SERIALIZADO 
+        ? TipoMovimiento.ENTRADA_SERIE 
+        : TipoMovimiento.ENTRADA_GENERAL;
+      
+      await this.registrarMovimiento(
+        producto,
+        tipo_entrada,
+        1,
+        i,
+        i + 1,
+        usuario_id,
+        `Compra - ${producto.tipo_gestion === TipoGestion.ACTIVO_SERIALIZADO ? 'Serie' : 'Activo general'}: ${activo_guardado.nro_serie || activo_guardado.nombre_asignado}`,
+        `Compra de ${producto.tipo_gestion === TipoGestion.ACTIVO_SERIALIZADO ? 'serie' : 'activo general'}`,
       );
     }
 
@@ -518,6 +560,7 @@ async obtenerInventarioPorId(usuario_id: number, inventario_id: number): Promise
   for (const consumible of dto.consumibles) {
     const producto = await this.producto_repositorio.findOne({
       where: { id: consumible.producto_id, activo: true },
+      relations: ['inventario'],
     });
 
     if (!producto || producto.tipo_gestion !== TipoGestion.CONSUMIBLE) {
@@ -528,6 +571,11 @@ async obtenerInventarioPorId(usuario_id: number, inventario_id: number): Promise
       where: { producto: { id: consumible.producto_id }, activo: true },
       order: { fecha_vencimiento: 'ASC' },
     });
+
+    const stock_anterior = lotes.reduce(
+      (total, lote) => total + Number(lote.cantidad_actual), 
+      0
+    );
 
     let cantidad_restante = consumible.cantidad;
 
@@ -557,6 +605,23 @@ async obtenerInventarioPorId(usuario_id: number, inventario_id: number): Promise
         `No hay suficiente stock de ${producto.nombre}. Faltan ${cantidad_restante} ${producto.unidad_medida}`,
       );
     }
+
+    const stock_nuevo = lotes.reduce(
+      (total, lote) => total + Number(lote.cantidad_actual), 
+      0
+    );
+
+    // Registrar movimiento de salida de lote
+    await this.registrarMovimiento(
+      producto,
+      TipoMovimiento.SALIDA_LOTE,
+      consumible.cantidad,
+      stock_anterior,
+      stock_nuevo,
+      usuario_id,
+      `Cita ID: ${cita_id}`,
+      `Consumibles usados en cita`,
+    );
 
     resultados.push({
       producto_id: consumible.producto_id,
@@ -702,6 +767,13 @@ async obtenerInventarioPorId(usuario_id: number, inventario_id: number): Promise
     observaciones: observaciones,
   });
 
+  // Determinar categoría automáticamente según el tipo de movimiento
+  if ([TipoMovimiento.ENTRADA_LOTE, TipoMovimiento.ENTRADA_SERIE, TipoMovimiento.ENTRADA_GENERAL].includes(tipo)) {
+    movimiento.categoria = CategoriaMovimiento.ENTRADA_STOCK;
+  } else if ([TipoMovimiento.SALIDA_LOTE, TipoMovimiento.SALIDA_SERIE, TipoMovimiento.SALIDA_GENERAL].includes(tipo)) {
+    movimiento.categoria = CategoriaMovimiento.SALIDA_STOCK;
+  }
+
   movimiento.producto = producto;
   movimiento.inventario = producto.inventario;
   movimiento.usuario = { id: usuario_id } as Usuario;
@@ -723,6 +795,17 @@ async obtenerInventarioPorId(usuario_id: number, inventario_id: number): Promise
     movimiento.tipo = tipo;
     movimiento.inventario = { id: inventario_id } as Inventario;
     movimiento.usuario = { id: usuario_id } as Usuario;
+    
+    // Determinar categoría automáticamente según el tipo de movimiento
+    if ([TipoMovimiento.PRODUCTO_CREADO, TipoMovimiento.PRODUCTO_EDITADO, TipoMovimiento.PRODUCTO_ELIMINADO].includes(tipo)) {
+      movimiento.categoria = CategoriaMovimiento.AUDITORIA_PRODUCTO;
+    } else if ([TipoMovimiento.LOTE_CREADO, TipoMovimiento.LOTE_EDITADO, TipoMovimiento.LOTE_ELIMINADO].includes(tipo)) {
+      movimiento.categoria = CategoriaMovimiento.AUDITORIA_LOTE;
+    } else if ([TipoMovimiento.SERIE_CREADA, TipoMovimiento.SERIE_EDITADA, TipoMovimiento.SERIE_ELIMINADA].includes(tipo)) {
+      movimiento.categoria = CategoriaMovimiento.AUDITORIA_SERIE;
+    } else if ([TipoMovimiento.GENERAL_CREADO, TipoMovimiento.GENERAL_EDITADO, TipoMovimiento.GENERAL_ELIMINADO].includes(tipo)) {
+      movimiento.categoria = CategoriaMovimiento.AUDITORIA_GENERAL;
+    }
     
     if (datos_anteriores) {
       movimiento.datos_anteriores = JSON.stringify(datos_anteriores);
@@ -944,7 +1027,7 @@ async confirmarMaterialesCita(
 
       await this.registrarMovimiento(
         material.producto,
-        TipoMovimiento.USO_CITA,
+        TipoMovimiento.SALIDA_LOTE,
         material_dto.cantidad_usada,
         stock_anterior,
         stock_nuevo,
@@ -1166,7 +1249,7 @@ async confirmarMaterialesGenerales(
       // Registrar movimiento de inventario
       await this.registrarMovimiento(
         material.producto,
-        TipoMovimiento.USO_TRATAMIENTO,
+        TipoMovimiento.SALIDA_LOTE,
         material_dto.cantidad_usada,
         stock_anterior,
         stock_nuevo,
@@ -1377,15 +1460,20 @@ async actualizarActivo(
 
   const activo_actualizado = await this.activo_repositorio.save(activo);
 
+  // Determinar tipo de movimiento según tipo de gestión
+  const tipo_movimiento = activo.producto.tipo_gestion === TipoGestion.ACTIVO_SERIALIZADO 
+    ? TipoMovimiento.SERIE_EDITADA 
+    : TipoMovimiento.GENERAL_EDITADO;
+
   // Registrar auditoría de edición
   await this.registrarMovimientoAuditoria(
     inventario_id,
-    TipoMovimiento.ACTIVO_EDITADO,
+    tipo_movimiento,
     usuario_id,
     activo.producto,
     datos_anteriores,
     dto,
-    `Activo editado`,
+    `${activo.producto.tipo_gestion === TipoGestion.ACTIVO_SERIALIZADO ? 'Serie' : 'Activo general'} editado`,
   );
 
   return activo_actualizado;
@@ -1415,15 +1503,20 @@ async eliminarActivo(usuario_id: number, inventario_id: number, activo_id: numbe
   
   await this.activo_repositorio.remove(activo);
 
+  // Determinar tipo de movimiento según tipo de gestión
+  const tipo_movimiento = producto.tipo_gestion === TipoGestion.ACTIVO_SERIALIZADO 
+    ? TipoMovimiento.SERIE_ELIMINADA 
+    : TipoMovimiento.GENERAL_ELIMINADO;
+
   // Registrar auditoría de eliminación
   await this.registrarMovimientoAuditoria(
     inventario_id,
-    TipoMovimiento.ACTIVO_ELIMINADO,
+    tipo_movimiento,
     usuario_id,
     producto,
     datos_activo,
     undefined,
-    `Activo eliminado de ${producto.nombre}`,
+    `${producto.tipo_gestion === TipoGestion.ACTIVO_SERIALIZADO ? 'Serie' : 'Activo general'} eliminado de ${producto.nombre}`,
   );
 }
 
@@ -1523,7 +1616,7 @@ async ajustarStock(usuario_id: number, inventario_id: number, dto: AjustarStockD
   const stock_nuevo = stock_nuevo_data.stock_actual;
 
   const movimiento = this.movimiento_repositorio.create({
-    tipo: dto.tipo === TipoAjuste.ENTRADA ? TipoMovimiento.ENTRADA : TipoMovimiento.SALIDA,
+    tipo: dto.tipo === TipoAjuste.ENTRADA ? TipoMovimiento.ENTRADA_LOTE : TipoMovimiento.SALIDA_LOTE,
     cantidad: dto.cantidad,
     stock_anterior: stock_anterior.stock_actual,
     stock_nuevo: stock_nuevo,
