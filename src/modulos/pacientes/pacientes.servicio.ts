@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, ILike, In } from 'typeorm';
+import { Repository, ILike, In, LessThan } from 'typeorm';
 import { Paciente } from './entidades/paciente.entidad';
 import { PacienteAlergia } from './entidades/paciente-alergia.entidad';
 import { PacienteEnfermedad } from './entidades/paciente-enfermedad.entidad';
@@ -8,6 +8,8 @@ import { PacienteMedicamento } from './entidades/paciente-medicamento.entidad';
 import { Alergia } from '../catalogo/entidades/alergia.entidad';
 import { Enfermedad } from '../catalogo/entidades/enfermedad.entidad';
 import { Medicamento } from '../catalogo/entidades/medicamento.entidad';
+import { Cita } from '../agenda/entidades/cita.entidad';
+import { PlanTratamiento } from '../tratamientos/entidades/plan-tratamiento.entidad';
 import { CrearPacienteDto } from './dto/crear-paciente.dto';
 import { ActualizarPacienteDto } from './dto/actualizar-paciente.dto';
 import { RespuestaAnamnesisDto } from './dto/respuesta-anamnesis.dto';
@@ -30,6 +32,10 @@ export class PacientesServicio {
     private readonly enfermedad_repositorio: Repository<Enfermedad>,
     @InjectRepository(Medicamento)
     private readonly medicamento_repositorio: Repository<Medicamento>,
+    @InjectRepository(Cita)
+    private readonly cita_repositorio: Repository<Cita>,
+    @InjectRepository(PlanTratamiento)
+    private readonly plan_tratamiento_repositorio: Repository<PlanTratamiento>,
   ) {}
 
   async crear(usuario_id: number, crear_paciente_dto: CrearPacienteDto): Promise<Paciente> {
@@ -210,5 +216,99 @@ export class PacientesServicio {
       })
     );
     await this.paciente_medicamento_repositorio.save(relaciones);
+  }
+
+  async obtenerUltimaCita(usuario_id: number, paciente_id: number): Promise<any> {
+    const paciente = await this.paciente_repositorio.findOne({
+      where: { id: paciente_id, usuario: { id: usuario_id } },
+    });
+
+    if (!paciente) {
+      throw new NotFoundException(`Paciente con ID "${paciente_id}" no encontrado o no le pertenece.`);
+    }
+
+    const ahora = new Date();
+    const ultima_cita = await this.cita_repositorio.findOne({
+      where: {
+        paciente: { id: paciente_id },
+        fecha: LessThan(ahora),
+      },
+      order: {
+        fecha: 'DESC',
+      },
+      relations: ['paciente'],
+    });
+
+    if (!ultima_cita) {
+      return null;
+    }
+
+    return {
+      id: ultima_cita.id,
+      fecha: ultima_cita.fecha,
+      descripcion: ultima_cita.descripcion,
+      estado_pago: ultima_cita.estado_pago,
+      monto_esperado: ultima_cita.monto_esperado,
+      horas_aproximadas: ultima_cita.horas_aproximadas,
+      minutos_aproximados: ultima_cita.minutos_aproximados,
+    };
+  }
+
+  async obtenerUltimoTratamiento(usuario_id: number, paciente_id: number): Promise<any> {
+    const paciente = await this.paciente_repositorio.findOne({
+      where: { id: paciente_id, usuario: { id: usuario_id } },
+    });
+
+    if (!paciente) {
+      throw new NotFoundException(`Paciente con ID "${paciente_id}" no encontrado o no le pertenece.`);
+    }
+
+    const ultimo_tratamiento = await this.plan_tratamiento_repositorio.findOne({
+      where: {
+        paciente: { id: paciente_id },
+      },
+      order: {
+        id: 'DESC',
+      },
+      relations: ['tratamiento', 'citas', 'pagos'],
+    });
+
+    if (!ultimo_tratamiento) {
+      return null;
+    }
+
+    // Determinar estado basado en si está finalizado y las citas
+    let estado = 'pendiente';
+    if (ultimo_tratamiento.finalizado) {
+      estado = 'completado';
+    } else if (ultimo_tratamiento.citas && ultimo_tratamiento.citas.length > 0) {
+      estado = 'en_progreso';
+    }
+
+    // Obtener fecha de inicio de la primera cita
+    let fecha_inicio = new Date();
+    if (ultimo_tratamiento.citas && ultimo_tratamiento.citas.length > 0) {
+      const citas_ordenadas = [...ultimo_tratamiento.citas].sort(
+        (a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime()
+      );
+      fecha_inicio = citas_ordenadas[0].fecha;
+    }
+
+    return {
+      id: ultimo_tratamiento.id,
+      tratamiento: {
+        id: ultimo_tratamiento.tratamiento.id,
+        nombre: ultimo_tratamiento.tratamiento.nombre,
+      },
+      fecha_inicio: fecha_inicio,
+      estado: estado,
+      costo_total: ultimo_tratamiento.costo_total,
+      total_abonado: ultimo_tratamiento.total_abonado,
+      citas: ultimo_tratamiento.citas?.map(cita => ({
+        id: cita.id,
+        fecha: cita.fecha,
+        estado_pago: cita.estado_pago,
+      })),
+    };
   }
 }

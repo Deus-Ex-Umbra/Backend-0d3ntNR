@@ -280,7 +280,25 @@ async obtenerInventarioPorId(usuario_id: number, inventario_id: number): Promise
       inventario: { id: dto.inventario_id } as Inventario,
     });
 
-    return this.producto_repositorio.save(nuevo_producto);
+    const producto_guardado = await this.producto_repositorio.save(nuevo_producto);
+
+    // Registrar auditoría de creación
+    await this.registrarMovimientoAuditoria(
+      dto.inventario_id,
+      TipoMovimiento.PRODUCTO_CREADO,
+      usuario_id,
+      producto_guardado,
+      null,
+      {
+        nombre: producto_guardado.nombre,
+        tipo_gestion: producto_guardado.tipo_gestion,
+        stock_minimo: producto_guardado.stock_minimo,
+        unidad_medida: producto_guardado.unidad_medida,
+      },
+      `Producto "${producto_guardado.nombre}" creado`,
+    );
+
+    return producto_guardado;
   }
 
   async obtenerProductos(usuario_id: number, inventario_id: number): Promise<Producto[]> {
@@ -309,12 +327,51 @@ async obtenerInventarioPorId(usuario_id: number, inventario_id: number): Promise
       throw new NotFoundException('Producto no encontrado');
     }
 
+    // Guardar datos anteriores para auditoría
+    const datos_anteriores = {
+      nombre: producto.nombre,
+      tipo_gestion: producto.tipo_gestion,
+      stock_minimo: producto.stock_minimo,
+      unidad_medida: producto.unidad_medida,
+      descripcion: producto.descripcion,
+      notificar_stock_bajo: producto.notificar_stock_bajo,
+    };
+
     Object.assign(producto, dto);
-    return this.producto_repositorio.save(producto);
+    const producto_actualizado = await this.producto_repositorio.save(producto);
+
+    // Registrar auditoría de edición
+    await this.registrarMovimientoAuditoria(
+      inventario_id,
+      TipoMovimiento.PRODUCTO_EDITADO,
+      usuario_id,
+      producto_actualizado,
+      datos_anteriores,
+      dto,
+      `Producto "${producto_actualizado.nombre}" editado`,
+    );
+
+    return producto_actualizado;
   }
 
   async eliminarProducto(usuario_id: number, inventario_id: number, producto_id: number): Promise<void> {
     await this.obtenerInventarioPorId(usuario_id, inventario_id);
+
+    const producto = await this.producto_repositorio.findOne({
+      where: { id: producto_id, inventario: { id: inventario_id } },
+    });
+
+    if (!producto) {
+      throw new NotFoundException('Producto no encontrado');
+    }
+
+    // Guardar datos antes de eliminar
+    const datos_producto = {
+      nombre: producto.nombre,
+      tipo_gestion: producto.tipo_gestion,
+      stock_minimo: producto.stock_minimo,
+      unidad_medida: producto.unidad_medida,
+    };
 
     const resultado = await this.producto_repositorio.update(
       { id: producto_id, inventario: { id: inventario_id } },
@@ -324,6 +381,17 @@ async obtenerInventarioPorId(usuario_id: number, inventario_id: number): Promise
     if (resultado.affected === 0) {
       throw new NotFoundException('Producto no encontrado');
     }
+
+    // Registrar auditoría de eliminación
+    await this.registrarMovimientoAuditoria(
+      inventario_id,
+      TipoMovimiento.PRODUCTO_ELIMINADO,
+      usuario_id,
+      undefined,
+      datos_producto,
+      undefined,
+      `Producto "${datos_producto.nombre}" eliminado`,
+    );
   }
 
   async registrarCompra(usuario_id: number, inventario_id: number, dto: RegistrarCompraDto): Promise<any> {
@@ -356,6 +424,22 @@ async obtenerInventarioPorId(usuario_id: number, inventario_id: number): Promise
     });
 
     resultado = await this.lote_repositorio.save(nuevo_lote);
+
+    // Registrar auditoría de creación de lote
+    await this.registrarMovimientoAuditoria(
+      inventario_id,
+      TipoMovimiento.LOTE_CREADO,
+      usuario_id,
+      producto,
+      undefined,
+      {
+        nro_lote: resultado.nro_lote,
+        cantidad: resultado.cantidad_actual,
+        costo_unitario: costo_unitario,
+        fecha_vencimiento: dto.fecha_vencimiento,
+      },
+      `Lote "${resultado.nro_lote}" creado para ${producto.nombre}`,
+    );
   } else {
     const num_activos = Math.floor(dto.cantidad);
     const activos_creados: Activo[] = [];
@@ -377,6 +461,22 @@ async obtenerInventarioPorId(usuario_id: number, inventario_id: number): Promise
       }
       const [activo_guardado] = await this.activo_repositorio.save([datos_activo]);
       activos_creados.push(activo_guardado);
+
+      // Registrar auditoría de creación de activo
+      await this.registrarMovimientoAuditoria(
+        inventario_id,
+        TipoMovimiento.ACTIVO_CREADO,
+        usuario_id,
+        producto,
+        undefined,
+        {
+          nro_serie: activo_guardado.nro_serie,
+          nombre_asignado: activo_guardado.nombre_asignado,
+          costo_compra: activo_guardado.costo_compra,
+          estado: activo_guardado.estado,
+        },
+        `Activo creado para ${producto.nombre}`,
+      );
     }
 
     resultado = { 
@@ -503,6 +603,17 @@ async obtenerInventarioPorId(usuario_id: number, inventario_id: number): Promise
 
       activo.estado = dto.estado;
       await this.activo_repositorio.save(activo);
+
+      // Registrar auditoría de cambio de estado
+      await this.registrarMovimientoAuditoria(
+        inventario_id,
+        TipoMovimiento.ACTIVO_CAMBIO_ESTADO,
+        usuario_id,
+        activo.producto,
+        { estado: estado_anterior },
+        { estado: dto.estado },
+        `Estado de activo cambiado de ${estado_anterior} a ${dto.estado}`,
+      );
     }
 
     return activo;
@@ -583,18 +694,54 @@ async obtenerInventarioPorId(usuario_id: number, inventario_id: number): Promise
   observaciones?: string,
 ): Promise<void> {
   const movimiento = this.movimiento_repositorio.create({
-    producto: producto,
     tipo: tipo,
     cantidad: cantidad,
     stock_anterior: stock_anterior,
     stock_nuevo: stock_nuevo,
     referencia: referencia,
     observaciones: observaciones,
-    usuario: { id: usuario_id } as Usuario,
   });
+
+  movimiento.producto = producto;
+  movimiento.inventario = producto.inventario;
+  movimiento.usuario = { id: usuario_id } as Usuario;
 
   await this.movimiento_repositorio.save(movimiento);
 }
+
+  // Nuevos métodos de auditoría
+  private async registrarMovimientoAuditoria(
+    inventario_id: number,
+    tipo: TipoMovimiento,
+    usuario_id: number,
+    producto?: Producto,
+    datos_anteriores?: any,
+    datos_nuevos?: any,
+    observaciones?: string,
+  ): Promise<void> {
+    const movimiento = new MovimientoInventario();
+    movimiento.tipo = tipo;
+    movimiento.inventario = { id: inventario_id } as Inventario;
+    movimiento.usuario = { id: usuario_id } as Usuario;
+    
+    if (datos_anteriores) {
+      movimiento.datos_anteriores = JSON.stringify(datos_anteriores);
+    }
+    
+    if (datos_nuevos) {
+      movimiento.datos_nuevos = JSON.stringify(datos_nuevos);
+    }
+    
+    if (observaciones) {
+      movimiento.observaciones = observaciones;
+    }
+    
+    if (producto) {
+      movimiento.producto = producto;
+    }
+
+    await this.movimiento_repositorio.save(movimiento);
+  }
 
 private async verificarStockDisponible(producto_id: number, cantidad_requerida: number): Promise<boolean> {
   const producto = await this.producto_repositorio.findOne({
@@ -1078,23 +1225,54 @@ async confirmarMaterialesGenerales(
 async obtenerHistorialMovimientos(
   usuario_id: number,
   inventario_id: number,
-  producto_id?: number,
+  filtros: {
+    producto_id?: number;
+    tipos?: string[];
+    fecha_inicio?: Date;
+    fecha_fin?: Date;
+    usuario_id?: number;
+    limit?: number;
+  } = {},
 ): Promise<any[]> {
   await this.obtenerInventarioPorId(usuario_id, inventario_id);
 
-  const query: any = {
-    relations: ['producto', 'usuario'],
-    order: { fecha: 'DESC' },
-    take: 100,
-  };
+  const queryBuilder = this.movimiento_repositorio
+    .createQueryBuilder('movimiento')
+    .leftJoinAndSelect('movimiento.producto', 'producto')
+    .leftJoinAndSelect('movimiento.usuario', 'usuario')
+    .leftJoinAndSelect('movimiento.inventario', 'inventario')
+    .where('inventario.id = :inventario_id', { inventario_id })
+    .orderBy('movimiento.fecha', 'DESC')
+    .take(filtros.limit || 100);
 
-  if (producto_id) {
-    query.where = { producto: { id: producto_id } };
-  } else {
-    query.where = { producto: { inventario: { id: inventario_id } } };
+  if (filtros.producto_id) {
+    queryBuilder.andWhere('producto.id = :producto_id', { producto_id: filtros.producto_id });
   }
 
-  return this.movimiento_repositorio.find(query);
+  if (filtros.tipos && filtros.tipos.length > 0) {
+    queryBuilder.andWhere('movimiento.tipo IN (:...tipos)', { tipos: filtros.tipos });
+  }
+
+  if (filtros.fecha_inicio) {
+    queryBuilder.andWhere('movimiento.fecha >= :fecha_inicio', { fecha_inicio: filtros.fecha_inicio });
+  }
+
+  if (filtros.fecha_fin) {
+    queryBuilder.andWhere('movimiento.fecha <= :fecha_fin', { fecha_fin: filtros.fecha_fin });
+  }
+
+  if (filtros.usuario_id) {
+    queryBuilder.andWhere('usuario.id = :usuario_filtro_id', { usuario_filtro_id: filtros.usuario_id });
+  }
+
+  const movimientos = await queryBuilder.getMany();
+
+  // Parsear datos JSON para auditoría
+  return movimientos.map(mov => ({
+    ...mov,
+    datos_anteriores: mov.datos_anteriores ? JSON.parse(mov.datos_anteriores) : null,
+    datos_nuevos: mov.datos_nuevos ? JSON.parse(mov.datos_nuevos) : null,
+  }));
 }
 
 async actualizarInventario(
@@ -1131,7 +1309,27 @@ async eliminarLote(usuario_id: number, inventario_id: number, lote_id: number): 
     throw new NotFoundException('Lote no encontrado en este inventario');
   }
 
+  // Guardar datos antes de eliminar
+  const datos_lote = {
+    nro_lote: lote.nro_lote,
+    cantidad_actual: lote.cantidad_actual,
+    fecha_vencimiento: lote.fecha_vencimiento,
+  };
+
+  const producto = lote.producto;
+  
   await this.lote_repositorio.remove(lote);
+
+  // Registrar auditoría de eliminación
+  await this.registrarMovimientoAuditoria(
+    inventario_id,
+    TipoMovimiento.LOTE_ELIMINADO,
+    usuario_id,
+    producto,
+    datos_lote,
+    undefined,
+    `Lote "${datos_lote.nro_lote}" eliminado de ${producto.nombre}`,
+  );
 }
 
 async actualizarActivo(
@@ -1150,6 +1348,13 @@ async actualizarActivo(
   if (!activo || activo.producto.inventario.id !== inventario_id) {
     throw new NotFoundException('Activo no encontrado en este inventario');
   }
+
+  // Guardar datos anteriores para auditoría
+  const datos_anteriores: any = {
+    estado: activo.estado,
+    ubicacion: activo.ubicacion,
+    nombre_asignado: activo.nombre_asignado,
+  };
 
   if (dto.estado && dto.estado !== activo.estado) {
     const historial = this.activo_historial_repositorio.create({
@@ -1170,7 +1375,20 @@ async actualizarActivo(
     activo.nombre_asignado = dto.nombre_asignado;
   }
 
-  return this.activo_repositorio.save(activo);
+  const activo_actualizado = await this.activo_repositorio.save(activo);
+
+  // Registrar auditoría de edición
+  await this.registrarMovimientoAuditoria(
+    inventario_id,
+    TipoMovimiento.ACTIVO_EDITADO,
+    usuario_id,
+    activo.producto,
+    datos_anteriores,
+    dto,
+    `Activo editado`,
+  );
+
+  return activo_actualizado;
 }
 
 async eliminarActivo(usuario_id: number, inventario_id: number, activo_id: number): Promise<void> {
@@ -1185,7 +1403,28 @@ async eliminarActivo(usuario_id: number, inventario_id: number, activo_id: numbe
     throw new NotFoundException('Activo no encontrado en este inventario');
   }
 
+  // Guardar datos antes de eliminar
+  const datos_activo = {
+    nro_serie: activo.nro_serie,
+    nombre_asignado: activo.nombre_asignado,
+    estado: activo.estado,
+    costo_compra: activo.costo_compra,
+  };
+
+  const producto = activo.producto;
+  
   await this.activo_repositorio.remove(activo);
+
+  // Registrar auditoría de eliminación
+  await this.registrarMovimientoAuditoria(
+    inventario_id,
+    TipoMovimiento.ACTIVO_ELIMINADO,
+    usuario_id,
+    producto,
+    datos_activo,
+    undefined,
+    `Activo eliminado de ${producto.nombre}`,
+  );
 }
 
 async venderActivo(usuario_id: number, inventario_id: number, activo_id: number, monto_venta: number, registrar_pago: boolean = true): Promise<any> {
@@ -1200,8 +1439,21 @@ async venderActivo(usuario_id: number, inventario_id: number, activo_id: number,
     throw new NotFoundException('Activo no encontrado en este inventario');
   }
 
+  const estado_anterior = activo.estado;
+
   activo.estado = EstadoActivo.DESECHADO;
   await this.activo_repositorio.save(activo);
+
+  // Registrar auditoría de venta
+  await this.registrarMovimientoAuditoria(
+    inventario_id,
+    TipoMovimiento.ACTIVO_VENDIDO,
+    usuario_id,
+    activo.producto,
+    { estado: estado_anterior, costo_compra: activo.costo_compra },
+    { estado: EstadoActivo.DESECHADO, monto_venta },
+    `Activo vendido por $${monto_venta}`,
+  );
 
   if (registrar_pago) {
     await this.finanzas_servicio.registrarPago(usuario_id, {

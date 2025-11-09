@@ -234,17 +234,53 @@ export class InventarioControlador {
   @Get(':inventario_id/historial-movimientos')
   @ApiOperation({ summary: 'Obtener historial de movimientos del inventario' })
   @ApiQuery({ name: 'producto_id', required: false, type: Number, description: 'Filtrar por producto específico' })
+  @ApiQuery({ name: 'tipos', required: false, type: String, description: 'Filtrar por tipos de movimiento (separados por coma)' })
+  @ApiQuery({ name: 'fecha_inicio', required: false, type: String, description: 'Fecha de inicio (ISO 8601)' })
+  @ApiQuery({ name: 'fecha_fin', required: false, type: String, description: 'Fecha de fin (ISO 8601)' })
+  @ApiQuery({ name: 'usuario_id', required: false, type: Number, description: 'Filtrar por usuario' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Límite de resultados (default: 100, max: 1000)' })
   @UseGuards(PermisoInventarioGuardia)
   @RolInventarioDecorador(RolInventario.LECTOR)
   obtenerHistorialMovimientos(
     @Request() req,
     @Param('inventario_id') inventario_id: string,
     @Query('producto_id') producto_id?: string,
+    @Query('tipos') tipos?: string,
+    @Query('fecha_inicio') fecha_inicio?: string,
+    @Query('fecha_fin') fecha_fin?: string,
+    @Query('usuario_id') usuario_id?: string,
+    @Query('limit') limit?: string,
   ) {
+    const filtros: any = {};
+    
+    if (producto_id) {
+      filtros.producto_id = +producto_id;
+    }
+    
+    if (tipos) {
+      filtros.tipos = tipos.split(',');
+    }
+    
+    if (fecha_inicio) {
+      filtros.fecha_inicio = new Date(fecha_inicio);
+    }
+    
+    if (fecha_fin) {
+      filtros.fecha_fin = new Date(fecha_fin);
+    }
+    
+    if (usuario_id) {
+      filtros.usuario_id = +usuario_id;
+    }
+    
+    if (limit) {
+      filtros.limit = Math.min(+limit, 1000);
+    }
+
     return this.inventario_servicio.obtenerHistorialMovimientos(
       req.user.id,
       +inventario_id,
-      producto_id ? +producto_id : undefined,
+      filtros,
     );
   }
 

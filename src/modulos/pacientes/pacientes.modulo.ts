@@ -7,6 +7,8 @@ import { PacienteMedicamento } from './entidades/paciente-medicamento.entidad';
 import { Alergia } from '../catalogo/entidades/alergia.entidad';
 import { Enfermedad } from '../catalogo/entidades/enfermedad.entidad';
 import { Medicamento } from '../catalogo/entidades/medicamento.entidad';
+import { Cita } from '../agenda/entidades/cita.entidad';
+import { PlanTratamiento } from '../tratamientos/entidades/plan-tratamiento.entidad';
 import { PacientesControlador } from './pacientes.controlador';
 import { PacientesServicio } from './pacientes.servicio';
 
@@ -20,6 +22,8 @@ import { PacientesServicio } from './pacientes.servicio';
       Alergia,
       Enfermedad,
       Medicamento,
+      Cita,
+      PlanTratamiento,
     ])
   ],
   controllers: [PacientesControlador],

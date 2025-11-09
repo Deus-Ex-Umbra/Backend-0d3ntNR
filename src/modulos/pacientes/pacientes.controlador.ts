@@ -83,4 +83,20 @@ export class PacientesControlador {
   eliminar(@Request() req, @Param('id') id: string) {
     return this.pacientes_servicio.eliminar(req.user.id, +id);
   }
+
+  @Get(':id/ultima-cita')
+  @ApiOperation({ summary: 'Obtener la última cita pasada de un paciente' })
+  @ApiResponse({ status: 200, description: 'Última cita del paciente' })
+  @ApiResponse({ status: 404, description: 'No se encontraron citas' })
+  obtenerUltimaCita(@Request() req, @Param('id') id: string) {
+    return this.pacientes_servicio.obtenerUltimaCita(req.user.id, +id);
+  }
+
+  @Get(':id/ultimo-tratamiento')
+  @ApiOperation({ summary: 'Obtener el último tratamiento del paciente' })
+  @ApiResponse({ status: 200, description: 'Último tratamiento del paciente' })
+  @ApiResponse({ status: 404, description: 'No se encontraron tratamientos' })
+  obtenerUltimoTratamiento(@Request() req, @Param('id') id: string) {
+    return this.pacientes_servicio.obtenerUltimoTratamiento(req.user.id, +id);
+  }
 }
