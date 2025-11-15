@@ -183,7 +183,7 @@ private formatearHora(fecha: Date): string {
     return this.cita_repositorio.save(nueva_cita);
   }
 
-  async obtenerCitasPorMes(usuario_id: number, mes: number, ano: number): Promise<Cita[]> {
+  async obtenerCitasPorMes(usuario_id: number, mes: number, ano: number, ligero: boolean = false): Promise<Cita[]> {
     const primer_dia = new Date(ano, mes - 1, 1);
     const ultimo_dia = new Date(ano, mes, 0, 23, 59, 59);
 
@@ -191,6 +191,29 @@ private formatearHora(fecha: Date): string {
         fecha: Between(primer_dia, ultimo_dia),
         usuario: { id: usuario_id }
     };
+
+    if (ligero) {
+      return this.cita_repositorio.find({
+        where: where_condition,
+        relations: ['paciente'],
+        select: {
+          id: true,
+          fecha: true,
+          descripcion: true,
+          estado_pago: true,
+          monto_esperado: true,
+          horas_aproximadas: true,
+          minutos_aproximados: true,
+          materiales_confirmados: true,
+          paciente: {
+            id: true,
+            nombre: true,
+            apellidos: true
+          }
+        },
+        order: { fecha: 'ASC' }
+      });
+    }
 
     return this.cita_repositorio.find({
         where: where_condition,
@@ -321,8 +344,6 @@ private formatearHora(fecha: Date): string {
     if (!cita) {
       throw new NotFoundException(`Cita con ID "${id}" no encontrada o no le pertenece.`);
     }
-
-    // Eliminar promesas de uso antes de eliminar la cita
     await this.inventario_servicio.eliminarPromesasUsoLotesPorCita(id);
     await this.inventario_servicio.eliminarPromesasUsoActivosPorCita(id);
 
@@ -355,6 +376,32 @@ private formatearHora(fecha: Date): string {
       .andWhere('cita.usuario.id = :usuario_id', { usuario_id })
       .orderBy('cita.fecha', 'DESC')
       .getMany();
+  }
+
+  async obtenerPorId(usuario_id: number, id: number): Promise<Cita> {
+    const cita = await this.cita_repositorio.findOne({
+      where: { id, usuario: { id: usuario_id } },
+      relations: ['paciente', 'plan_tratamiento'],
+    });
+
+    if (!cita) {
+      throw new NotFoundException(`Cita con ID "${id}" no encontrada o no le pertenece.`);
+    }
+
+    return cita;
+  }
+
+  async obtenerPorIdCompleto(usuario_id: number, id: number): Promise<Cita> {
+    const cita = await this.cita_repositorio.findOne({
+      where: { id, usuario: { id: usuario_id } },
+      relations: ['paciente', 'plan_tratamiento', 'plan_tratamiento.paciente'],
+    });
+
+    if (!cita) {
+      throw new NotFoundException(`Cita con ID "${id}" no encontrada o no le pertenece.`);
+    }
+
+    return cita;
   }
 
 async obtenerEspaciosLibres(

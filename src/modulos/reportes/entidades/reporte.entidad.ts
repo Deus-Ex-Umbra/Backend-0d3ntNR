@@ -13,16 +13,19 @@ export class Reporte {
   nombre: string;
 
   @Column({ type: 'text' })
-  areas: string; // JSON string de las áreas incluidas
+  areas: string;
 
-  @Column({ type: 'date', nullable: true })
+  @Column({ nullable: true })
   fecha_inicio: Date;
 
-  @Column({ type: 'date', nullable: true })
+  @Column({ nullable: true })
   fecha_fin: Date;
 
   @Column()
-  ruta_archivo: string; // Ruta al PDF en el sistema de archivos
+  ruta_archivo: string;
+
+  @Column({ type: 'text', nullable: true })
+  analisis_gemini: string;
 
   @CreateDateColumn()
   fecha_creacion: Date;

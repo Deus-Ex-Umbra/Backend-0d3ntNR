@@ -6,6 +6,7 @@ import { Enfermedad } from './entidades/enfermedad.entidad';
 import { Medicamento } from './entidades/medicamento.entidad';
 import { ColorCategoria } from './entidades/color-categoria.entidad';
 import { Etiqueta } from './entidades/etiqueta.entidad';
+import { EtiquetaPlantilla } from './entidades/etiqueta-plantilla.entidad';
 import { CrearAlergiaDto } from './dto/crear-alergia.dto';
 import { CrearEnfermedadDto } from './dto/crear-enfermedad.dto';
 import { CrearMedicamentoDto } from './dto/crear-medicamento.dto';
@@ -30,6 +31,8 @@ export class CatalogoServicio {
     private readonly color_repositorio: Repository<ColorCategoria>,
     @InjectRepository(Etiqueta)
     private readonly etiqueta_repositorio: Repository<Etiqueta>,
+    @InjectRepository(EtiquetaPlantilla)
+    private readonly etiqueta_plantilla_repositorio: Repository<EtiquetaPlantilla>,
   ) {}
 
   async crearAlergia(dto: CrearAlergiaDto): Promise<Alergia> {
@@ -167,4 +170,36 @@ export class CatalogoServicio {
       throw new NotFoundException('Etiqueta no encontrada');
     }
   }
+
+  async crearEtiquetaPlantilla(usuario_id: number, dto: any): Promise<EtiquetaPlantilla> {
+    const existe = await this.etiqueta_plantilla_repositorio.findOne({ where: { codigo: dto.codigo } });
+    if (existe) {
+      throw new ConflictException('Ya existe una etiqueta con este código');
+    }
+    const nueva_etiqueta = this.etiqueta_plantilla_repositorio.create({
+      nombre: dto.nombre,
+      codigo: dto.codigo,
+      descripcion: dto.descripcion,
+      usuario: { id: usuario_id } as any,
+    });
+    return this.etiqueta_plantilla_repositorio.save(nueva_etiqueta);
+  }
+
+  async obtenerEtiquetasPlantilla(usuario_id: number): Promise<EtiquetaPlantilla[]> {
+    return this.etiqueta_plantilla_repositorio.find({ where: { usuario: { id: usuario_id }, activo: true }, order: { nombre: 'ASC' } });
+  }
+
+  async actualizarEtiquetaPlantilla(id: number, usuario_id: number, dto: any): Promise<EtiquetaPlantilla> {
+    const etiqueta = await this.etiqueta_plantilla_repositorio.findOne({ where: { id, usuario: { id: usuario_id } } });
+    if (!etiqueta) throw new NotFoundException('Etiqueta no encontrada');
+    Object.assign(etiqueta, dto);
+    const etiqueta_actualizada = await this.etiqueta_plantilla_repositorio.save(etiqueta);
+    return etiqueta_actualizada;
+  }
+
+  async eliminarEtiquetaPlantilla(id: number, usuario_id: number): Promise<void> {
+    const resultado = await this.etiqueta_plantilla_repositorio.update({ id, usuario: { id: usuario_id } }, { activo: false });
+    if (resultado.affected === 0) throw new NotFoundException('Etiqueta no encontrada');
+  }
 }
+

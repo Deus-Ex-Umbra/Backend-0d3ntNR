@@ -20,8 +20,15 @@ export class AgendaControlador {
   @Get()
   @ApiQuery({ name: 'mes', required: true, type: Number, description: 'Mes a consultar (1-12)' })
   @ApiQuery({ name: 'ano', required: true, type: Number, description: 'Año a consultar' })
-  obtenerCitasPorMes(@Request() req, @Query('mes') mes: string, @Query('ano') ano: string) {
-    return this.agenda_servicio.obtenerCitasPorMes(req.user.id, +mes, +ano);
+  @ApiQuery({ name: 'ligero', required: false, type: Boolean, description: 'Devolver solo datos básicos sin relaciones' })
+  obtenerCitasPorMes(
+    @Request() req, 
+    @Query('mes') mes: string, 
+    @Query('ano') ano: string,
+    @Query('ligero') ligero?: string
+  ) {
+    const es_ligero = ligero === 'true';
+    return this.agenda_servicio.obtenerCitasPorMes(req.user.id, +mes, +ano, es_ligero);
   }
 
   @Get('filtrar')
@@ -47,16 +54,6 @@ export class AgendaControlador {
     return this.agenda_servicio.obtenerCitasSinPago(req.user.id);
   }
 
-  @Put(':id')
-  actualizar(@Request() req, @Param('id') id: string, @Body() actualizar_cita_dto: ActualizarCitaDto) {
-    return this.agenda_servicio.actualizar(req.user.id, +id, actualizar_cita_dto);
-  }
-
-  @Delete(':id')
-  eliminar(@Request() req, @Param('id') id: string) {
-    return this.agenda_servicio.eliminar(req.user.id, +id);
-  }
-
   @Get('espacios-libres')
   @ApiQuery({ name: 'mes', required: true, type: Number, description: 'Mes a consultar (1-12)' })
   @ApiQuery({ name: 'ano', required: true, type: Number, description: 'Año a consultar' })
@@ -79,5 +76,25 @@ export class AgendaControlador {
     const fecha_inicio_date = new Date(fecha_inicio);
     const fecha_fin_date = new Date(fecha_fin);
     return this.agenda_servicio.filtrarEspaciosLibres(req.user.id, fecha_inicio_date, fecha_fin_date);
+  }
+
+  @Get(':id/completo')
+  obtenerPorIdCompleto(@Request() req, @Param('id') id: string) {
+    return this.agenda_servicio.obtenerPorIdCompleto(req.user.id, +id);
+  }
+
+  @Get(':id')
+  obtenerPorId(@Request() req, @Param('id') id: string) {
+    return this.agenda_servicio.obtenerPorId(req.user.id, +id);
+  }
+
+  @Put(':id')
+  actualizar(@Request() req, @Param('id') id: string, @Body() actualizar_cita_dto: ActualizarCitaDto) {
+    return this.agenda_servicio.actualizar(req.user.id, +id, actualizar_cita_dto);
+  }
+
+  @Delete(':id')
+  eliminar(@Request() req, @Param('id') id: string) {
+    return this.agenda_servicio.eliminar(req.user.id, +id);
   }
 }

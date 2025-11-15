@@ -36,6 +36,8 @@ import { Alergia } from './modulos/catalogo/entidades/alergia.entidad';
 import { Enfermedad } from './modulos/catalogo/entidades/enfermedad.entidad';
 import { Medicamento } from './modulos/catalogo/entidades/medicamento.entidad';
 import { ColorCategoria } from './modulos/catalogo/entidades/color-categoria.entidad';
+import { Etiqueta } from './modulos/catalogo/entidades/etiqueta.entidad';
+import { EtiquetaPlantilla } from './modulos/catalogo/entidades/etiqueta-plantilla.entidad';
 import { ArchivoAdjunto } from './modulos/archivos-adjuntos/entidades/archivo-adjunto.entidad';
 import { EdicionImagen } from './modulos/ediciones-imagenes/entidades/edicion-imagen.entidad';
 import { PlantillaConsentimiento } from './modulos/plantillas-consentimiento/entidades/plantilla-consentimiento.entidad';
@@ -58,8 +60,12 @@ import { ConsentimientoInformado } from './modulos/pacientes/entidades/consentim
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     TypeOrmModule.forRoot({
-      type: 'sqlite',
-      database: 'database.sqlite',
+      type: 'postgres',
+      host: process.env.DB_HOST || 'localhost',
+      port: parseInt(process.env.DB_PORT || '5432', 10),
+      username: process.env.DB_USERNAME || 'postgres',
+      password: process.env.DB_PASSWORD || '',
+      database: process.env.DB_DATABASE || 'db0d3ntnr',
       entities: [
         Paciente,
         PacienteAlergia,
@@ -77,6 +83,8 @@ import { ConsentimientoInformado } from './modulos/pacientes/entidades/consentim
         Enfermedad,
         Medicamento,
         ColorCategoria,
+        Etiqueta,
+        EtiquetaPlantilla,
         ArchivoAdjunto,
         EdicionImagen,
         PlantillaConsentimiento,
@@ -96,6 +104,9 @@ import { ConsentimientoInformado } from './modulos/pacientes/entidades/consentim
         ConsentimientoInformado,
       ],
       synchronize: true,
+      ssl: {
+        rejectUnauthorized: false, 
+      },
     }),
     PacientesModule,
     TratamientosModule,

@@ -11,6 +11,7 @@ import { Producto } from '../inventario/entidades/producto.entidad';
 import { Reporte } from './entidades/reporte.entidad';
 import { GeminiServicio } from '../gemini/gemini.servicio';
 import { GenerarReporteDto, AreaReporte } from './dto/generar-reporte.dto';
+import { AlmacenamientoServicio, TipoDocumento } from '../almacenamiento/almacenamiento.servicio';
 import PDFDocument from 'pdfkit';
 import { promises as fs } from 'fs';
 import { join } from 'path';
@@ -19,8 +20,6 @@ import { ChartJSNodeCanvas } from 'chartjs-node-canvas';
 
 @Injectable()
 export class ReportesServicio {
-  private readonly ruta_reportes = join(process.cwd(), 'reportes-generados');
-
   constructor(
     @InjectRepository(Paciente)
     private readonly paciente_repositorio: Repository<Paciente>,
@@ -39,17 +38,8 @@ export class ReportesServicio {
     @InjectRepository(Reporte)
     private readonly reporte_repositorio: Repository<Reporte>,
     private readonly gemini_servicio: GeminiServicio,
-  ) {
-    this.inicializarDirectorioReportes();
-  }
-
-  private async inicializarDirectorioReportes() {
-    try {
-      await fs.mkdir(this.ruta_reportes, { recursive: true });
-    } catch (error) {
-      console.error('Error al crear directorio de reportes:', error);
-    }
-  }
+    private readonly almacenamiento_servicio: AlmacenamientoServicio,
+  ) {}
 
   async generarReporte(usuario_id: number, dto: GenerarReporteDto): Promise<Buffer> {
     const fecha_inicio = dto.fecha_inicio ? new Date(dto.fecha_inicio) : new Date(0);
@@ -262,7 +252,7 @@ Por favor, genera un análisis profesional y conciso que incluya:
 3. Recomendaciones prácticas basadas en los datos
 
 El texto debe ser profesional, claro y en español. Usa un tono formal pero accesible.
-NO incluyas formato markdown, solo texto plano con saltos de línea para separar secciones.
+Usa formato Markdown para estructurar la respuesta (encabezados, listas, negritas, etc.).
 `;
 
     return this.gemini_servicio.generarContenido(prompt, false);
@@ -279,10 +269,7 @@ NO incluyas formato markdown, solo texto plano con saltos de línea para separar
           const pdf_buffer = Buffer.concat(buffers);
           resolve(pdf_buffer);
         });
-
-        // Usar Times New Roman
         doc.font('Times-Roman');
-
         doc.fontSize(20).text('Reporte de Clínica Dental', { align: 'center' });
         doc.moveDown();
         
@@ -293,8 +280,7 @@ NO incluyas formato markdown, solo texto plano con saltos de línea para separar
         doc.font('Times-Bold');
         doc.fontSize(16).text('Análisis General', { underline: true });
         doc.moveDown();
-        doc.font('Times-Roman');
-        doc.fontSize(11).text(texto_gemini, { align: 'justify' });
+        this.agregarTextoMarkdown(doc, texto_gemini);
         doc.moveDown(2);
 
         if (datos_reporte.areas.finanzas) {
@@ -320,17 +306,103 @@ NO incluyas formato markdown, solo texto plano con saltos de línea para separar
     });
   }
 
+  private agregarTextoMarkdown(doc: PDFKit.PDFDocument, texto: string): void {
+    const lineas = texto.split('\n');
+    
+    for (const linea of lineas) {
+      if (!linea.trim()) {
+        doc.moveDown(0.5);
+        continue;
+      }
+      if (linea.startsWith('## ')) {
+        doc.font('Times-Bold');
+        doc.fontSize(14).text(linea.substring(3), { continued: false });
+        doc.moveDown(0.5);
+        doc.font('Times-Roman');
+        doc.fontSize(11);
+        continue;
+      }
+      if (linea.startsWith('### ')) {
+        doc.font('Times-Bold');
+        doc.fontSize(12).text(linea.substring(4), { continued: false });
+        doc.moveDown(0.3);
+        doc.font('Times-Roman');
+        doc.fontSize(11);
+        continue;
+      }
+      if (linea.trim().startsWith('- ') || linea.trim().startsWith('* ')) {
+        const texto_lista = linea.trim().substring(2);
+        doc.fontSize(11);
+        this.procesarLineaConFormato(doc, `  • ${texto_lista}`);
+        doc.moveDown(0.2);
+        continue;
+      }
+      doc.fontSize(11);
+      this.procesarLineaConFormato(doc, linea);
+      doc.moveDown(0.3);
+    }
+  }
+
+  private procesarLineaConFormato(doc: PDFKit.PDFDocument, linea: string): void {
+    const regex_negrita = /\*\*([^*]+)\*\*/g;
+    let ultima_posicion = 0;
+    let match;
+
+    const posiciones: Array<{ inicio: number; fin: number; texto: string; negrita: boolean }> = [];
+
+    while ((match = regex_negrita.exec(linea)) !== null) {
+      if (match.index > ultima_posicion) {
+        posiciones.push({
+          inicio: ultima_posicion,
+          fin: match.index,
+          texto: linea.substring(ultima_posicion, match.index),
+          negrita: false,
+        });
+      }
+      posiciones.push({
+        inicio: match.index,
+        fin: match.index + match[0].length,
+        texto: match[1],
+        negrita: true,
+      });
+
+      ultima_posicion = match.index + match[0].length;
+    }
+    if (ultima_posicion < linea.length) {
+      posiciones.push({
+        inicio: ultima_posicion,
+        fin: linea.length,
+        texto: linea.substring(ultima_posicion),
+        negrita: false,
+      });
+    }
+    if (posiciones.length === 0) {
+      doc.font('Times-Roman').text(linea, { continued: false, align: 'justify' });
+      return;
+    }
+    for (let i = 0; i < posiciones.length; i++) {
+      const segmento = posiciones[i];
+      if (segmento.negrita) {
+        doc.font('Times-Bold');
+      } else {
+        doc.font('Times-Roman');
+      }
+      doc.text(segmento.texto, { 
+        continued: i < posiciones.length - 1,
+        align: i === 0 ? 'justify' : undefined 
+      });
+    }
+  }
+
   private async agregarSeccionFinanzas(doc: PDFKit.PDFDocument, datos: any): Promise<void> {
     doc.addPage();
     doc.font('Times-Bold');
     doc.fontSize(16).text('Finanzas', { underline: true });
     doc.moveDown();
-    
     doc.font('Times-Roman');
     doc.fontSize(12);
     doc.text(`Total Ingresos: Bs. ${datos.total_ingresos.toFixed(2)}`);
     doc.text(`Total Egresos: Bs. ${datos.total_egresos.toFixed(2)}`);
-    
     if (datos.balance >= 0) {
       doc.fillColor('green');
     } else {
@@ -343,14 +415,10 @@ NO incluyas formato markdown, solo texto plano con saltos de línea para separar
     doc.text(`Cantidad de pagos: ${datos.cantidad_pagos}`);
     doc.text(`Cantidad de egresos: ${datos.cantidad_egresos}`);
     doc.moveDown();
-
-    // Generar gráfico de ingresos vs egresos si hay datos suficientes
     if (datos.pagos.length > 0 || datos.egresos.length > 0) {
       try {
         const grafico_buffer = await this.generarGraficoIngresosEgresos(datos);
         const posicion_y_actual = doc.y;
-        
-        // Verificar si hay espacio suficiente en la página
         if (posicion_y_actual > 500) {
           doc.addPage();
         }
@@ -380,11 +448,7 @@ NO incluyas formato markdown, solo texto plano con saltos de línea para separar
     const width = 800;
     const height = 400;
     const chartJSNodeCanvas = new ChartJSNodeCanvas({ width, height });
-
-    // Agrupar pagos y egresos por mes
     const meses_map = new Map<string, { ingresos: number; egresos: number }>();
-    
-    // Procesar pagos (ingresos)
     datos.pagos.forEach((pago: any) => {
       const fecha = new Date(pago.fecha);
       const mes_key = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}`;
@@ -394,8 +458,6 @@ NO incluyas formato markdown, solo texto plano con saltos de línea para separar
       }
       meses_map.get(mes_key)!.ingresos += pago.monto;
     });
-
-    // Procesar egresos
     if (datos.egresos && Array.isArray(datos.egresos)) {
       datos.egresos.forEach((egreso: any) => {
         const fecha = new Date(egreso.fecha);
@@ -407,8 +469,6 @@ NO incluyas formato markdown, solo texto plano con saltos de línea para separar
         meses_map.get(mes_key)!.egresos += egreso.monto;
       });
     }
-
-    // Ordenar por fecha y preparar datos
     const meses_ordenados = Array.from(meses_map.keys()).sort();
     const labels = meses_ordenados.map(mes => {
       const [year, month] = mes.split('-');
@@ -459,6 +519,20 @@ NO incluyas formato markdown, solo texto plano con saltos de línea para separar
               },
             },
           },
+          datalabels: {
+            display: true,
+            color: '#000',
+            anchor: 'end',
+            align: 'top',
+            font: {
+              weight: 'bold',
+              size: 11,
+              family: 'Times New Roman',
+            },
+            formatter: function(value: number) {
+              return 'Bs. ' + value.toFixed(0);
+            },
+          },
         },
         scales: {
           y: {
@@ -496,14 +570,10 @@ NO incluyas formato markdown, solo texto plano con saltos de línea para separar
     doc.fontSize(12);
     doc.text(`Total de citas: ${datos.total_citas}`);
     doc.moveDown();
-    
-    // Agregar gráfico de citas por estado
     if (datos.citas_por_estado && datos.total_citas > 0) {
       try {
         const grafico_buffer = await this.generarGraficoCitasPorEstado(datos.citas_por_estado);
         const posicion_y_actual = doc.y;
-        
-        // Verificar si hay espacio suficiente en la página
         if (posicion_y_actual > 450) {
           doc.addPage();
         }
@@ -544,6 +614,9 @@ NO incluyas formato markdown, solo texto plano con saltos de línea para separar
     const height = 400;
     const chartJSNodeCanvas = new ChartJSNodeCanvas({ width, height });
 
+    const total_citas = (citas_por_estado.pendiente || 0) + (citas_por_estado.pagado || 0) + 
+                        (citas_por_estado.cancelado || 0) + (citas_por_estado.sin_paciente || 0);
+
     const configuration: any = {
       type: 'doughnut',
       data: {
@@ -557,10 +630,10 @@ NO incluyas formato markdown, solo texto plano con saltos de línea para separar
               citas_por_estado.sin_paciente || 0,
             ],
             backgroundColor: [
-              'rgba(234, 179, 8, 0.7)',   // Amarillo para pendientes
-              'rgba(34, 197, 94, 0.7)',   // Verde para pagadas
-              'rgba(239, 68, 68, 0.7)',   // Rojo para canceladas
-              'rgba(156, 163, 175, 0.7)', // Gris para sin paciente
+              'rgba(234, 179, 8, 0.7)',
+              'rgba(34, 197, 94, 0.7)',
+              'rgba(239, 68, 68, 0.7)',
+              'rgba(156, 163, 175, 0.7)',
             ],
             borderColor: [
               'rgba(234, 179, 8, 1)',
@@ -591,6 +664,22 @@ NO incluyas formato markdown, solo texto plano con saltos de línea para separar
                 size: 12,
               },
               padding: 15,
+              generateLabels: function(chart: any) {
+                const data = chart.data;
+                if (data.labels.length && data.datasets.length) {
+                  return data.labels.map(function(label: string, i: number) {
+                    const value = data.datasets[0].data[i];
+                    const percentage = total_citas > 0 ? ((value / total_citas) * 100).toFixed(2) : '0.00';
+                    return {
+                      text: `${label}: ${value} (${percentage}%)`,
+                      fillStyle: data.datasets[0].backgroundColor[i],
+                      hidden: false,
+                      index: i,
+                    };
+                  });
+                }
+                return [];
+              },
             },
           },
         },
@@ -618,8 +707,6 @@ NO incluyas formato markdown, solo texto plano con saltos de línea para separar
       try {
         const grafico_buffer = await this.generarGraficoTratamientos(datos.tratamientos_mas_comunes);
         const posicion_y_actual = doc.y;
-        
-        // Verificar si hay espacio suficiente en la página
         if (posicion_y_actual > 450) {
           doc.addPage();
         }
@@ -647,8 +734,6 @@ NO incluyas formato markdown, solo texto plano con saltos de línea para separar
     const width = 800;
     const height = 500;
     const chartJSNodeCanvas = new ChartJSNodeCanvas({ width, height });
-
-    // Tomar los top 10 tratamientos más comunes
     const top_tratamientos = tratamientos.slice(0, 10);
     const labels = top_tratamientos.map(t => t.nombre);
     const datos = top_tratamientos.map(t => t.cantidad);
@@ -668,7 +753,7 @@ NO incluyas formato markdown, solo texto plano con saltos de línea para separar
         ],
       },
       options: {
-        indexAxis: 'y', // Barras horizontales
+        indexAxis: 'y',
         responsive: true,
         plugins: {
           title: {
@@ -681,6 +766,20 @@ NO incluyas formato markdown, solo texto plano con saltos de línea para separar
           },
           legend: {
             display: false,
+          },
+          datalabels: {
+            display: true,
+            color: '#000',
+            anchor: 'end',
+            align: 'right',
+            font: {
+              weight: 'bold',
+              size: 12,
+              family: 'Times New Roman',
+            },
+            formatter: function(value: number) {
+              return value.toString();
+            },
           },
         },
         scales: {
@@ -767,21 +866,21 @@ NO incluyas formato markdown, solo texto plano con saltos de línea para separar
 
     const texto_gemini = await this.generarTextoConGemini(datos_reporte, dto.areas);
     const pdf_buffer = await this.generarPDF(datos_reporte, texto_gemini);
-
-    // Guardar el PDF en el sistema de archivos
     const timestamp = Date.now();
-    const nombre_archivo = `reporte-${usuario_id}-${timestamp}.pdf`;
-    const ruta_completa = join(this.ruta_reportes, nombre_archivo);
-    
-    await fs.writeFile(ruta_completa, pdf_buffer);
-
-    // Guardar metadata en la base de datos
+    const nombre_archivo = `reporte-${usuario_id}-${timestamp}`;
+    const nombre_archivo_guardado = await this.almacenamiento_servicio.guardarArchivoDesdeBuffer(
+      pdf_buffer,
+      'pdf',
+      TipoDocumento.REPORTE,
+      nombre_archivo
+    );
     const reporte = new Reporte();
     reporte.nombre = `Reporte ${new Date().toLocaleDateString('es-BO')}`;
     reporte.areas = JSON.stringify(dto.areas);
     if (dto.fecha_inicio) reporte.fecha_inicio = new Date(dto.fecha_inicio);
     if (dto.fecha_fin) reporte.fecha_fin = new Date(dto.fecha_fin);
-    reporte.ruta_archivo = ruta_completa;
+    reporte.ruta_archivo = nombre_archivo_guardado;
+    reporte.analisis_gemini = texto_gemini;
     reporte.usuario = { id: usuario_id } as any;
 
     await this.reporte_repositorio.save(reporte);
@@ -793,6 +892,7 @@ NO incluyas formato markdown, solo texto plano con saltos de línea para separar
       fecha_inicio: reporte.fecha_inicio,
       fecha_fin: reporte.fecha_fin,
       fecha_creacion: reporte.fecha_creacion,
+      analisis_gemini: reporte.analisis_gemini,
     };
   }
 
@@ -809,6 +909,7 @@ NO incluyas formato markdown, solo texto plano con saltos de línea para separar
       fecha_inicio: r.fecha_inicio,
       fecha_fin: r.fecha_fin,
       fecha_creacion: r.fecha_creacion,
+      analisis_gemini: r.analisis_gemini,
     }));
   }
 
@@ -821,7 +922,11 @@ NO incluyas formato markdown, solo texto plano con saltos de línea para separar
       throw new NotFoundException('Reporte no encontrado');
     }
 
-    const archivo = createReadStream(reporte.ruta_archivo);
+    const ruta_completa = this.almacenamiento_servicio.obtenerRutaArchivo(
+      reporte.ruta_archivo,
+      TipoDocumento.REPORTE
+    );
+    const archivo = createReadStream(ruta_completa);
     return { archivo, nombre: reporte.nombre };
   }
 
@@ -833,15 +938,10 @@ NO incluyas formato markdown, solo texto plano con saltos de línea para separar
     if (!reporte) {
       throw new NotFoundException('Reporte no encontrado');
     }
-
-    // Eliminar archivo físico
-    try {
-      await fs.unlink(reporte.ruta_archivo);
-    } catch (error) {
-      console.error('Error al eliminar archivo de reporte:', error);
-    }
-
-    // Eliminar registro de la base de datos
+    await this.almacenamiento_servicio.eliminarArchivo(
+      reporte.ruta_archivo,
+      TipoDocumento.REPORTE
+    );
     await this.reporte_repositorio.remove(reporte);
   }
 }

@@ -14,9 +14,9 @@ export class Etiqueta {
   @Column({ type: 'boolean', default: true })
   activo: boolean;
 
-  @CreateDateColumn({ type: 'timestamp' })
+  @CreateDateColumn()
   fecha_creacion: Date;
 
-  @UpdateDateColumn({ type: 'timestamp' })
+  @UpdateDateColumn()
   fecha_actualizacion: Date;
 }

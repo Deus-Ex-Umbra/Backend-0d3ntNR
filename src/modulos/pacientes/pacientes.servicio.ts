@@ -16,6 +16,7 @@ import { CrearPacienteDto } from './dto/crear-paciente.dto';
 import { ActualizarPacienteDto } from './dto/actualizar-paciente.dto';
 import { RespuestaAnamnesisDto } from './dto/respuesta-anamnesis.dto';
 import { Usuario } from '../usuarios/entidades/usuario.entidad';
+import { AlmacenamientoServicio, TipoDocumento } from '../almacenamiento/almacenamiento.servicio';
 import PDFDocument from 'pdfkit';
 import * as fs from 'fs/promises';
 import * as path from 'path';
@@ -47,6 +48,7 @@ export class PacientesServicio {
     private readonly cita_repositorio: Repository<Cita>,
     @InjectRepository(PlanTratamiento)
     private readonly plan_tratamiento_repositorio: Repository<PlanTratamiento>,
+    private readonly almacenamiento_servicio: AlmacenamientoServicio,
   ) {}
 
   async crear(usuario_id: number, crear_paciente_dto: CrearPacienteDto): Promise<Paciente> {
@@ -287,16 +289,12 @@ export class PacientesServicio {
     if (!ultimo_tratamiento) {
       return null;
     }
-
-    // Determinar estado basado en si está finalizado y las citas
     let estado = 'pendiente';
     if (ultimo_tratamiento.finalizado) {
       estado = 'completado';
     } else if (ultimo_tratamiento.citas && ultimo_tratamiento.citas.length > 0) {
       estado = 'en_progreso';
     }
-
-    // Obtener fecha de inicio de la primera cita
     let fecha_inicio = new Date();
     if (ultimo_tratamiento.citas && ultimo_tratamiento.citas.length > 0) {
       const citas_ordenadas = [...ultimo_tratamiento.citas].sort(
@@ -323,15 +321,12 @@ export class PacientesServicio {
     };
   }
 
-  // ==================== CONSENTIMIENTOS INFORMADOS ====================
-
   async crearConsentimientoInformado(
     paciente_id: number,
     plantilla_id: number,
     nombre: string,
     usuario_id: number,
   ): Promise<ConsentimientoInformado> {
-    // Verificar que el paciente existe
     const paciente = await this.paciente_repositorio.findOne({
       where: { id: paciente_id },
     });
@@ -339,8 +334,6 @@ export class PacientesServicio {
     if (!paciente) {
       throw new NotFoundException(`Paciente con ID ${paciente_id} no encontrado`);
     }
-
-    // Obtener la plantilla
     const plantilla = await this.plantilla_repositorio.findOne({
       where: { id: plantilla_id },
     });
@@ -348,75 +341,62 @@ export class PacientesServicio {
     if (!plantilla) {
       throw new NotFoundException(`Plantilla con ID ${plantilla_id} no encontrada`);
     }
-
-    // Reemplazar variables en el contenido HTML
     const contenido_procesado = this.reemplazarVariablesPaciente(plantilla.contenido, paciente);
-
-    // Generar el PDF
-    const directorio = path.join(process.cwd(), 'consentimientos-generados');
-    await fs.mkdir(directorio, { recursive: true });
-
-    const nombre_archivo = `consentimiento_${Date.now()}_${paciente_id}.pdf`;
-    const ruta_archivo = path.join(directorio, nombre_archivo);
-
-    await this.generarPDFConsentimiento(contenido_procesado, ruta_archivo, nombre);
-
-    // Guardar en la base de datos
+    const timestamp = Date.now();
+    const nombre_archivo_base = `consentimiento_${timestamp}_${paciente_id}`;
+    const pdf_buffer = await this.generarPDFConsentimientoEnMemoria(contenido_procesado, nombre);
+    const nombre_archivo = await this.almacenamiento_servicio.guardarArchivoDesdeBuffer(
+      pdf_buffer,
+      'pdf',
+      TipoDocumento.PLANTILLA_CONSENTIMIENTO,
+      nombre_archivo_base
+    );
     const consentimiento = new ConsentimientoInformado();
     consentimiento.paciente = paciente;
     consentimiento.usuario = { id: usuario_id } as Usuario;
     consentimiento.nombre = nombre;
     consentimiento.contenido_html = contenido_procesado;
     consentimiento.ruta_archivo = nombre_archivo;
-
     return await this.consentimiento_repositorio.save(consentimiento);
   }
 
-  async obtenerConsentimientosPaciente(paciente_id: number): Promise<ConsentimientoInformado[]> {
+  async obtenerConsentimientosPaciente(usuario_id: number, paciente_id: number): Promise<ConsentimientoInformado[]> {
     return await this.consentimiento_repositorio.find({
-      where: { paciente: { id: paciente_id } },
+      where: { 
+        paciente: { id: paciente_id },
+        usuario: { id: usuario_id }
+      },
       order: { fecha_creacion: 'DESC' },
     });
   }
 
-  async obtenerArchivoConsentimiento(id: number): Promise<string> {
+  async obtenerArchivoConsentimiento(usuario_id: number, id: number): Promise<string> {
     const consentimiento = await this.consentimiento_repositorio.findOne({
-      where: { id },
+      where: { id, usuario: { id: usuario_id } },
     });
 
     if (!consentimiento) {
-      throw new NotFoundException(`Consentimiento con ID ${id} no encontrado`);
+      throw new NotFoundException(`Consentimiento con ID ${id} no encontrado o no le pertenece.`);
     }
 
-    const ruta_completa = path.join(process.cwd(), 'consentimientos-generados', consentimiento.ruta_archivo);
-
-    try {
-      await fs.access(ruta_completa);
-    } catch {
-      throw new NotFoundException('Archivo de consentimiento no encontrado');
-    }
-
-    return ruta_completa;
+    return this.almacenamiento_servicio.obtenerRutaArchivo(
+      consentimiento.ruta_archivo,
+      TipoDocumento.PLANTILLA_CONSENTIMIENTO
+    );
   }
 
-  async eliminarConsentimiento(id: number): Promise<void> {
+  async eliminarConsentimiento(usuario_id: number, id: number): Promise<void> {
     const consentimiento = await this.consentimiento_repositorio.findOne({
-      where: { id },
+      where: { id, usuario: { id: usuario_id } },
     });
 
     if (!consentimiento) {
-      throw new NotFoundException(`Consentimiento con ID ${id} no encontrado`);
+      throw new NotFoundException(`Consentimiento con ID ${id} no encontrado o no le pertenece.`);
     }
-
-    // Eliminar el archivo físico
-    const ruta_completa = path.join(process.cwd(), 'consentimientos-generados', consentimiento.ruta_archivo);
-    try {
-      await fs.unlink(ruta_completa);
-    } catch (error) {
-      console.error('Error al eliminar archivo de consentimiento:', error);
-    }
-
-    // Eliminar el registro de la base de datos
+    await this.almacenamiento_servicio.eliminarArchivo(
+      consentimiento.ruta_archivo,
+      TipoDocumento.PLANTILLA_CONSENTIMIENTO
+    );
     await this.consentimiento_repositorio.remove(consentimiento);
   }
 
@@ -434,6 +414,56 @@ export class PacientesServicio {
       .replace(/{{fecha}}/g, fecha_formateada);
   }
 
+  private async generarPDFConsentimientoEnMemoria(
+    contenido_html: string,
+    titulo: string,
+  ): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      const doc = new PDFDocument({
+        size: 'LETTER',
+        margins: { top: 50, bottom: 50, left: 50, right: 50 },
+      });
+
+      const buffers: Buffer[] = [];
+      doc.on('data', buffers.push.bind(buffers));
+      doc.on('end', () => resolve(Buffer.concat(buffers)));
+      doc.on('error', reject);
+      doc.font('Times-Roman');
+      doc.font('Times-Bold').fontSize(16).text(titulo, { align: 'center' });
+      doc.moveDown();
+      const lineas = contenido_html
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<\/p>/gi, '\n\n')
+        .replace(/<p>/gi, '')
+        .replace(/<strong>|<b>/gi, '**')
+        .replace(/<\/strong>|<\/b>/gi, '**')
+        .replace(/<em>|<i>/gi, '_')
+        .replace(/<\/em>|<\/i>/gi, '_')
+        .replace(/<h1>(.*?)<\/h1>/gi, '\n$1\n')
+        .replace(/<h2>(.*?)<\/h2>/gi, '\n$1\n')
+        .replace(/<h3>(.*?)<\/h3>/gi, '\n$1\n')
+        .replace(/<[^>]+>/g, '');
+
+      const parrafos = lineas.split('\n\n');
+      
+      for (const parrafo of parrafos) {
+        if (parrafo.trim()) {
+          const partes = parrafo.split('**');
+          for (let i = 0; i < partes.length; i++) {
+            if (i % 2 === 0) {
+              doc.font('Times-Roman').fontSize(11).text(partes[i], { continued: i < partes.length - 1 });
+            } else {
+              doc.font('Times-Bold').fontSize(11).text(partes[i], { continued: i < partes.length - 1 });
+            }
+          }
+          doc.moveDown();
+        }
+      }
+
+      doc.end();
+    });
+  }
+
   private async generarPDFConsentimiento(
     contenido_html: string,
     ruta_archivo: string,
@@ -447,16 +477,9 @@ export class PacientesServicio {
 
       const stream = require('fs').createWriteStream(ruta_archivo);
       doc.pipe(stream);
-
-      // Configurar fuente Times New Roman
       doc.font('Times-Roman');
-
-      // Título del documento
       doc.font('Times-Bold').fontSize(16).text(titulo, { align: 'center' });
       doc.moveDown();
-
-      // Procesar el contenido HTML de forma básica
-      // Esto es una implementación simple, para HTML más complejo usar librerías como html-to-pdfmake
       const lineas = contenido_html
         .replace(/<br\s*\/?>/gi, '\n')
         .replace(/<\/p>/gi, '\n\n')
@@ -468,14 +491,11 @@ export class PacientesServicio {
         .replace(/<h1>(.*?)<\/h1>/gi, '\n$1\n')
         .replace(/<h2>(.*?)<\/h2>/gi, '\n$1\n')
         .replace(/<h3>(.*?)<\/h3>/gi, '\n$1\n')
-        .replace(/<[^>]+>/g, ''); // Eliminar el resto de tags HTML
-
-      // Dividir en párrafos y procesar negritas/cursivas simples
+        .replace(/<[^>]+>/g, '');
       const parrafos = lineas.split('\n\n');
       
       for (const parrafo of parrafos) {
         if (parrafo.trim()) {
-          // Implementación básica de negrita
           const partes = parrafo.split('**');
           for (let i = 0; i < partes.length; i++) {
             if (i % 2 === 0) {

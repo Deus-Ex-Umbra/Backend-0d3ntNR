@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Delete, Param, Body, UseGuards, Put } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Param, Body, UseGuards, Put, Req } from '@nestjs/common';
 import { CatalogoServicio } from './catalogo.servicio';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../autenticacion/guardias/jwt-auth.guardia';
@@ -12,6 +12,8 @@ import { ActualizarEnfermedadDto } from './dto/actualizar-enfermedad.dto';
 import { ActualizarMedicamentoDto } from './dto/actualizar-medicamento.dto';
 import { ActualizarColorCategoriaDto } from './dto/actualizar-color-categoria.dto';
 import { ActualizarEtiquetaDto } from './dto/actualizar-etiqueta.dto';
+import { CrearEtiquetaPlantillaDto } from './dto/crear-etiqueta-plantilla.dto';
+import { ActualizarEtiquetaPlantillaDto } from './dto/actualizar-etiqueta-plantilla.dto';
 
 @ApiTags('Catálogo')
 @ApiBearerAuth('JWT-auth')
@@ -118,5 +120,25 @@ export class CatalogoControlador {
   @Delete('etiquetas/:id')
   eliminarEtiqueta(@Param('id') id: string) {
     return this.catalogo_servicio.eliminarEtiqueta(+id);
+  }
+
+  @Post('etiquetas-plantilla')
+  crearEtiquetaPlantilla(@Body() dto: CrearEtiquetaPlantillaDto, @Req() req: any) {
+    return this.catalogo_servicio.crearEtiquetaPlantilla(req.user.id, dto);
+  }
+
+  @Get('etiquetas-plantilla')
+  obtenerEtiquetasPlantilla(@Req() req: any) {
+    return this.catalogo_servicio.obtenerEtiquetasPlantilla(req.user.id);
+  }
+
+  @Put('etiquetas-plantilla/:id')
+  actualizarEtiquetaPlantilla(@Param('id') id: string, @Body() dto: ActualizarEtiquetaPlantillaDto, @Req() req: any) {
+    return this.catalogo_servicio.actualizarEtiquetaPlantilla(+id, req.user.id, dto);
+  }
+
+  @Delete('etiquetas-plantilla/:id')
+  eliminarEtiquetaPlantilla(@Param('id') id: string, @Req() req: any) {
+    return this.catalogo_servicio.eliminarEtiquetaPlantilla(+id, req.user.id);
   }
 }

@@ -103,9 +103,7 @@ export class PacientesControlador {
   obtenerUltimoTratamiento(@Request() req, @Param('id') id: string) {
     return this.pacientes_servicio.obtenerUltimoTratamiento(req.user.id, +id);
   }
-
-  // ==================== CONSENTIMIENTOS INFORMADOS ====================
-
+  
   @Post(':id/consentimientos')
   @ApiOperation({ summary: 'Crear un consentimiento informado para un paciente' })
   @ApiResponse({ status: 201, description: 'Consentimiento creado exitosamente' })
@@ -126,8 +124,11 @@ export class PacientesControlador {
   @Get(':id/consentimientos')
   @ApiOperation({ summary: 'Obtener consentimientos informados de un paciente' })
   @ApiResponse({ status: 200, description: 'Lista de consentimientos del paciente' })
-  async obtenerConsentimientos(@Param('id') paciente_id: string) {
-    return await this.pacientes_servicio.obtenerConsentimientosPaciente(+paciente_id);
+  async obtenerConsentimientos(
+    @Request() req,
+    @Param('id') paciente_id: string
+  ) {
+    return await this.pacientes_servicio.obtenerConsentimientosPaciente(req.user.id, +paciente_id);
   }
 
   @Get('consentimientos/:id/descargar')
@@ -135,10 +136,11 @@ export class PacientesControlador {
   @ApiResponse({ status: 200, description: 'Archivo PDF del consentimiento' })
   @ApiResponse({ status: 404, description: 'Consentimiento no encontrado' })
   async descargarConsentimiento(
+    @Request() req,
     @Param('id') id: string,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const ruta_archivo = await this.pacientes_servicio.obtenerArchivoConsentimiento(+id);
+    const ruta_archivo = await this.pacientes_servicio.obtenerArchivoConsentimiento(req.user.id, +id);
     const archivo = fs.createReadStream(ruta_archivo);
     
     res.set({
@@ -153,8 +155,11 @@ export class PacientesControlador {
   @ApiOperation({ summary: 'Eliminar un consentimiento informado' })
   @ApiResponse({ status: 200, description: 'Consentimiento eliminado exitosamente' })
   @ApiResponse({ status: 404, description: 'Consentimiento no encontrado' })
-  async eliminarConsentimiento(@Param('id') id: string) {
-    await this.pacientes_servicio.eliminarConsentimiento(+id);
+  async eliminarConsentimiento(
+    @Request() req,
+    @Param('id') id: string
+  ) {
+    await this.pacientes_servicio.eliminarConsentimiento(req.user.id, +id);
     return { mensaje: 'Consentimiento eliminado exitosamente' };
   }
 }

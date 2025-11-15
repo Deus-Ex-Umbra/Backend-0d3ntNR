@@ -14,6 +14,7 @@ import { PlantillaConsentimiento } from '../plantillas-consentimiento/entidades/
 import { PacientesControlador } from './pacientes.controlador';
 import { PacientesServicio } from './pacientes.servicio';
 import { PlantillasConsentimientoModule } from '../plantillas-consentimiento/plantillas-consentimiento.modulo';
+import { AlmacenamientoModule } from '../almacenamiento/almacenamiento.modulo';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { PlantillasConsentimientoModule } from '../plantillas-consentimiento/pla
       PlanTratamiento,
     ]),
     forwardRef(() => PlantillasConsentimientoModule),
+    AlmacenamientoModule,
   ],
   controllers: [PacientesControlador],
   providers: [PacientesServicio],

@@ -25,14 +25,13 @@ export class Activo {
   @Column('decimal', { precision: 10, scale: 2 })
   costo_compra: number;
 
-  @Column({ type: 'date' })
+  @Column()
   fecha_compra: Date;
   
   @Column({ nullable: true })
   ubicacion: string;
 
   @Column({
-    type: 'simple-enum',
     enum: EstadoActivo,
     default: EstadoActivo.DISPONIBLE,
   })

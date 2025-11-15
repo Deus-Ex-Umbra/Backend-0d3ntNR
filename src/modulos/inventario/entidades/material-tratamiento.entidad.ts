@@ -20,7 +20,6 @@ export class MaterialTratamiento {
   producto: Producto;
 
   @Column({
-    type: 'simple-enum',
     enum: TipoMaterialTratamiento,
   })
   tipo: TipoMaterialTratamiento;

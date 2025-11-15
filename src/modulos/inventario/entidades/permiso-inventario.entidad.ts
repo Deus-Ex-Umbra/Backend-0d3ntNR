@@ -13,7 +13,6 @@ export class PermisoInventario {
   id: number;
 
   @Column({
-    type: 'simple-enum',
     enum: RolInventario,
   })
   rol: RolInventario;

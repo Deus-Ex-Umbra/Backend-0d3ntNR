@@ -288,7 +288,6 @@ async obtenerInventarioPorId(usuario_id: number, inventario_id: number): Promise
 
     const producto_guardado = await this.producto_repositorio.save(nuevo_producto);
 
-    // Registrar auditoría de creación
     await this.registrarMovimientoAuditoria(
       dto.inventario_id,
       TipoMovimiento.PRODUCTO_CREADO,
@@ -332,8 +331,6 @@ async obtenerInventarioPorId(usuario_id: number, inventario_id: number): Promise
     if (!producto) {
       throw new NotFoundException('Producto no encontrado');
     }
-
-    // Guardar datos anteriores para auditoría
     const datos_anteriores = {
       nombre: producto.nombre,
       tipo_gestion: producto.tipo_gestion,
@@ -345,8 +342,6 @@ async obtenerInventarioPorId(usuario_id: number, inventario_id: number): Promise
 
     Object.assign(producto, dto);
     const producto_actualizado = await this.producto_repositorio.save(producto);
-
-    // Registrar auditoría de edición
     await this.registrarMovimientoAuditoria(
       inventario_id,
       TipoMovimiento.PRODUCTO_EDITADO,
@@ -370,8 +365,6 @@ async obtenerInventarioPorId(usuario_id: number, inventario_id: number): Promise
     if (!producto) {
       throw new NotFoundException('Producto no encontrado');
     }
-
-    // Guardar datos antes de eliminar
     const datos_producto = {
       nombre: producto.nombre,
       tipo_gestion: producto.tipo_gestion,
@@ -387,8 +380,6 @@ async obtenerInventarioPorId(usuario_id: number, inventario_id: number): Promise
     if (resultado.affected === 0) {
       throw new NotFoundException('Producto no encontrado');
     }
-
-    // Registrar auditoría de eliminación
     await this.registrarMovimientoAuditoria(
       inventario_id,
       TipoMovimiento.PRODUCTO_ELIMINADO,
@@ -430,8 +421,6 @@ async obtenerInventarioPorId(usuario_id: number, inventario_id: number): Promise
     });
 
     resultado = await this.lote_repositorio.save(nuevo_lote);
-
-    // Calcular stock anterior (antes de la compra)
     const lotes_anteriores = await this.lote_repositorio.find({
       where: { producto: { id: producto.id }, activo: true },
     });
@@ -439,8 +428,6 @@ async obtenerInventarioPorId(usuario_id: number, inventario_id: number): Promise
       .filter(l => l.id !== resultado.id)
       .reduce((total, lote) => total + Number(lote.cantidad_actual), 0);
     const stock_nuevo = stock_anterior + dto.cantidad;
-
-    // Registrar auditoría de creación de lote
     await this.registrarMovimientoAuditoria(
       inventario_id,
       TipoMovimiento.LOTE_CREADO,
@@ -455,8 +442,6 @@ async obtenerInventarioPorId(usuario_id: number, inventario_id: number): Promise
       },
       `Lote "${resultado.nro_lote}" creado para ${producto.nombre}`,
     );
-
-    // Registrar movimiento de entrada de stock para lote
     await this.registrarMovimiento(
       producto,
       TipoMovimiento.ENTRADA_LOTE,
@@ -488,13 +473,9 @@ async obtenerInventarioPorId(usuario_id: number, inventario_id: number): Promise
       }
       const [activo_guardado] = await this.activo_repositorio.save([datos_activo]);
       activos_creados.push(activo_guardado);
-
-      // Determinar tipo de movimiento según tipo de gestión
       const tipo_movimiento = producto.tipo_gestion === TipoGestion.ACTIVO_SERIALIZADO 
         ? TipoMovimiento.SERIE_CREADA 
         : TipoMovimiento.GENERAL_CREADO;
-
-      // Registrar auditoría de creación de activo
       await this.registrarMovimientoAuditoria(
         inventario_id,
         tipo_movimiento,
@@ -510,7 +491,6 @@ async obtenerInventarioPorId(usuario_id: number, inventario_id: number): Promise
         `${producto.tipo_gestion === TipoGestion.ACTIVO_SERIALIZADO ? 'Serie' : 'Activo general'} creado para ${producto.nombre}`,
       );
 
-      // Registrar movimiento de entrada de stock
       const tipo_entrada = producto.tipo_gestion === TipoGestion.ACTIVO_SERIALIZADO 
         ? TipoMovimiento.ENTRADA_SERIE 
         : TipoMovimiento.ENTRADA_GENERAL;
@@ -617,7 +597,6 @@ async obtenerInventarioPorId(usuario_id: number, inventario_id: number): Promise
       0
     );
 
-    // Registrar movimiento de salida de lote
     await this.registrarMovimiento(
       producto,
       TipoMovimiento.SALIDA_LOTE,
@@ -675,7 +654,6 @@ async obtenerInventarioPorId(usuario_id: number, inventario_id: number): Promise
       activo.estado = dto.estado;
       await this.activo_repositorio.save(activo);
 
-      // Registrar auditoría de cambio de estado
       await this.registrarMovimientoAuditoria(
         inventario_id,
         TipoMovimiento.ACTIVO_CAMBIO_ESTADO,
@@ -772,8 +750,6 @@ async obtenerInventarioPorId(usuario_id: number, inventario_id: number): Promise
     referencia: referencia,
     observaciones: observaciones,
   });
-
-  // Determinar categoría automáticamente según el tipo de movimiento
   if ([TipoMovimiento.ENTRADA_LOTE, TipoMovimiento.ENTRADA_SERIE, TipoMovimiento.ENTRADA_GENERAL].includes(tipo)) {
     movimiento.categoria = CategoriaMovimiento.ENTRADA_STOCK;
   } else if ([TipoMovimiento.SALIDA_LOTE, TipoMovimiento.SALIDA_SERIE, TipoMovimiento.SALIDA_GENERAL].includes(tipo)) {
@@ -787,8 +763,7 @@ async obtenerInventarioPorId(usuario_id: number, inventario_id: number): Promise
   await this.movimiento_repositorio.save(movimiento);
 }
 
-  // Nuevos métodos de auditoría
-  private async registrarMovimientoAuditoria(
+private async registrarMovimientoAuditoria(
     inventario_id: number,
     tipo: TipoMovimiento,
     usuario_id: number,
@@ -801,8 +776,6 @@ async obtenerInventarioPorId(usuario_id: number, inventario_id: number): Promise
     movimiento.tipo = tipo;
     movimiento.inventario = { id: inventario_id } as Inventario;
     movimiento.usuario = { id: usuario_id } as Usuario;
-    
-    // Determinar categoría automáticamente según el tipo de movimiento
     if ([TipoMovimiento.PRODUCTO_CREADO, TipoMovimiento.PRODUCTO_EDITADO, TipoMovimiento.PRODUCTO_ELIMINADO].includes(tipo)) {
       movimiento.categoria = CategoriaMovimiento.AUDITORIA_PRODUCTO;
     } else if ([TipoMovimiento.LOTE_CREADO, TipoMovimiento.LOTE_EDITADO, TipoMovimiento.LOTE_ELIMINADO].includes(tipo)) {
@@ -1223,7 +1196,6 @@ async confirmarMaterialesGenerales(
   plan_tratamiento_id: number,
   dto: ConfirmarMaterialesTratamientoDto,
 ): Promise<any> {
-  // Obtener el plan de tratamiento
   const plan = await this.plan_tratamiento_repositorio.findOne({
     where: { id: plan_tratamiento_id, usuario: { id: usuario_id } },
     relations: ['paciente', 'tratamiento'],
@@ -1232,15 +1204,11 @@ async confirmarMaterialesGenerales(
   if (!plan) {
     throw new NotFoundException('Plan de tratamiento no encontrado');
   }
-
-  // Verificar que los materiales no hayan sido confirmados previamente
   if (plan.materiales_inicio_confirmados) {
     throw new BadRequestException('Los materiales generales ya fueron confirmados');
   }
 
   const materiales_confirmados: MaterialTratamiento[] = [];
-
-  // Procesar cada material del DTO
   for (const material_dto of dto.materiales) {
     const material = await this.material_tratamiento_repositorio.findOne({
       where: { id: material_dto.material_tratamiento_id },
@@ -1250,15 +1218,11 @@ async confirmarMaterialesGenerales(
     if (!material) {
       throw new NotFoundException(`Material con ID ${material_dto.material_tratamiento_id} no encontrado`);
     }
-
-    // Verificar que sea material de tipo 'inicio'
     if (material.tipo !== TipoMaterialTratamiento.INICIO) {
       throw new BadRequestException(
         `El material ${material.producto.nombre} no es de tipo general (inicio)`,
       );
     }
-
-    // Verificar stock disponible
     const puede_usar = await this.verificarStockDisponible(
       material.producto.id,
       material_dto.cantidad_usada,
@@ -1270,8 +1234,6 @@ async confirmarMaterialesGenerales(
         `Cantidad requerida: ${material_dto.cantidad_usada}`,
       );
     }
-
-    // Si es consumible, reducir stock del inventario
     if (material.producto.tipo_gestion === TipoGestion.CONSUMIBLE) {
       const lotes = await this.lote_repositorio.find({
         where: { producto: { id: material.producto.id }, activo: true },
@@ -1294,8 +1256,6 @@ async confirmarMaterialesGenerales(
       }
 
       const stock_nuevo = lotes.reduce((total, lote) => total + Number(lote.cantidad_actual), 0);
-
-      // Registrar movimiento de inventario
       await this.registrarMovimiento(
         material.producto,
         TipoMovimiento.SALIDA_LOTE,
@@ -1307,28 +1267,18 @@ async confirmarMaterialesGenerales(
         `Materiales generales confirmados manualmente`,
       );
     }
-
-    // Marcar material como confirmado
     material.cantidad_usada = material_dto.cantidad_usada;
     material.confirmado = true;
     await this.material_tratamiento_repositorio.save(material);
 
     materiales_confirmados.push(material);
   }
-
-  // Marcar materiales como confirmados en el plan
   plan.materiales_inicio_confirmados = true;
-
-  // Si se incluye información de pago, actualizar el plan
   if (dto.estado_pago) {
-    // Si hay un monto de pago, registrar en finanzas
     if (dto.monto_pago && dto.monto_pago > 0) {
       const monto_anterior = plan.total_abonado || 0;
       plan.total_abonado = monto_anterior + dto.monto_pago;
-
       const nombre_tratamiento = plan.tratamiento?.nombre || 'Tratamiento';
-      
-      // Registrar pago en finanzas usando el método existente
       await this.finanzas_servicio.registrarPago(usuario_id, {
         fecha: new Date(),
         monto: dto.monto_pago,
@@ -1398,8 +1348,6 @@ async obtenerHistorialMovimientos(
   }
 
   const movimientos = await queryBuilder.getMany();
-
-  // Parsear datos JSON para auditoría
   return movimientos.map(mov => ({
     ...mov,
     datos_anteriores: mov.datos_anteriores ? JSON.parse(mov.datos_anteriores) : null,
@@ -1440,8 +1388,6 @@ async eliminarLote(usuario_id: number, inventario_id: number, lote_id: number): 
   if (!lote || lote.producto.inventario.id !== inventario_id) {
     throw new NotFoundException('Lote no encontrado en este inventario');
   }
-
-  // Guardar datos antes de eliminar
   const datos_lote = {
     nro_lote: lote.nro_lote,
     cantidad_actual: lote.cantidad_actual,
@@ -1451,8 +1397,6 @@ async eliminarLote(usuario_id: number, inventario_id: number, lote_id: number): 
   const producto = lote.producto;
   
   await this.lote_repositorio.remove(lote);
-
-  // Registrar auditoría de eliminación
   await this.registrarMovimientoAuditoria(
     inventario_id,
     TipoMovimiento.LOTE_ELIMINADO,
@@ -1480,8 +1424,6 @@ async actualizarActivo(
   if (!activo || activo.producto.inventario.id !== inventario_id) {
     throw new NotFoundException('Activo no encontrado en este inventario');
   }
-
-  // Guardar datos anteriores para auditoría
   const datos_anteriores: any = {
     estado: activo.estado,
     ubicacion: activo.ubicacion,
@@ -1508,13 +1450,9 @@ async actualizarActivo(
   }
 
   const activo_actualizado = await this.activo_repositorio.save(activo);
-
-  // Determinar tipo de movimiento según tipo de gestión
   const tipo_movimiento = activo.producto.tipo_gestion === TipoGestion.ACTIVO_SERIALIZADO 
     ? TipoMovimiento.SERIE_EDITADA 
     : TipoMovimiento.GENERAL_EDITADO;
-
-  // Registrar auditoría de edición
   await this.registrarMovimientoAuditoria(
     inventario_id,
     tipo_movimiento,
@@ -1539,8 +1477,6 @@ async eliminarActivo(usuario_id: number, inventario_id: number, activo_id: numbe
   if (!activo || activo.producto.inventario.id !== inventario_id) {
     throw new NotFoundException('Activo no encontrado en este inventario');
   }
-
-  // Guardar datos antes de eliminar
   const datos_activo = {
     nro_serie: activo.nro_serie,
     nombre_asignado: activo.nombre_asignado,
@@ -1551,13 +1487,9 @@ async eliminarActivo(usuario_id: number, inventario_id: number, activo_id: numbe
   const producto = activo.producto;
   
   await this.activo_repositorio.remove(activo);
-
-  // Determinar tipo de movimiento según tipo de gestión
   const tipo_movimiento = producto.tipo_gestion === TipoGestion.ACTIVO_SERIALIZADO 
     ? TipoMovimiento.SERIE_ELIMINADA 
     : TipoMovimiento.GENERAL_ELIMINADO;
-
-  // Registrar auditoría de eliminación
   await this.registrarMovimientoAuditoria(
     inventario_id,
     tipo_movimiento,
@@ -1585,8 +1517,6 @@ async venderActivo(usuario_id: number, inventario_id: number, activo_id: number,
 
   activo.estado = EstadoActivo.DESECHADO;
   await this.activo_repositorio.save(activo);
-
-  // Registrar auditoría de venta
   await this.registrarMovimientoAuditoria(
     inventario_id,
     TipoMovimiento.ACTIVO_VENDIDO,
@@ -1675,11 +1605,8 @@ async ajustarStock(usuario_id: number, inventario_id: number, dto: AjustarStockD
   });
 
   await this.movimiento_repositorio.save(movimiento);
-
-  // Registrar movimiento financiero
   if (dto.generar_movimiento_financiero && dto.monto) {
     if (dto.tipo === TipoAjuste.ENTRADA) {
-      // Entrada = Compra = Egreso en finanzas
       await this.finanzas_servicio.registrarEgreso(usuario_id, {
         concepto: `Compra: ${producto.nombre} (${dto.cantidad} ${producto.unidad_medida})`,
         monto: dto.monto,
@@ -1703,11 +1630,6 @@ async ajustarStock(usuario_id: number, inventario_id: number, dto: AjustarStockD
   };
 }
 
-// ==================== GESTIÓN DE PROMESAS DE USO ====================
-
-/**
- * Crear promesa de uso para un lote
- */
 async crearPromesaUsoLote(lote_id: number, cita_id: number, cantidad: number): Promise<PromesaUsoLote> {
   const lote = await this.lote_repositorio.findOne({ 
     where: { id: lote_id }, 
@@ -1717,8 +1639,6 @@ async crearPromesaUsoLote(lote_id: number, cita_id: number, cantidad: number): P
   if (!lote) {
     throw new NotFoundException(`Lote con ID ${lote_id} no encontrado`);
   }
-
-  // Validar stock disponible considerando reservas
   const stock_disponible = Number(lote.cantidad_actual) - Number(lote.cantidad_reservada);
   if (stock_disponible < cantidad) {
     throw new BadRequestException(
@@ -1733,17 +1653,12 @@ async crearPromesaUsoLote(lote_id: number, cita_id: number, cantidad: number): P
   });
 
   const promesa_guardada = await this.promesa_uso_lote_repositorio.save(promesa);
-
-  // Incrementar cantidad_reservada en el lote
   lote.cantidad_reservada = Number(lote.cantidad_reservada) + cantidad;
   await this.lote_repositorio.save(lote);
 
   return promesa_guardada;
 }
 
-/**
- * Eliminar promesa de uso de un lote
- */
 async eliminarPromesaUsoLote(promesa_id: number): Promise<void> {
   const promesa = await this.promesa_uso_lote_repositorio.findOne({
     where: { id: promesa_id },
@@ -1753,8 +1668,6 @@ async eliminarPromesaUsoLote(promesa_id: number): Promise<void> {
   if (!promesa) {
     throw new NotFoundException(`Promesa de uso de lote con ID ${promesa_id} no encontrada`);
   }
-
-  // Decrementar cantidad_reservada en el lote
   const lote = promesa.lote;
   lote.cantidad_reservada = Number(lote.cantidad_reservada) - Number(promesa.cantidad_reservada);
   await this.lote_repositorio.save(lote);
@@ -1762,9 +1675,6 @@ async eliminarPromesaUsoLote(promesa_id: number): Promise<void> {
   await this.promesa_uso_lote_repositorio.remove(promesa);
 }
 
-/**
- * Eliminar todas las promesas de uso de lotes para una cita
- */
 async eliminarPromesasUsoLotesPorCita(cita_id: number): Promise<void> {
   const promesas = await this.promesa_uso_lote_repositorio.find({
     where: { cita: { id: cita_id } },
@@ -1780,9 +1690,6 @@ async eliminarPromesasUsoLotesPorCita(cita_id: number): Promise<void> {
   await this.promesa_uso_lote_repositorio.remove(promesas);
 }
 
-/**
- * Crear promesa de uso para un activo (serializado o general)
- */
 async crearPromesaUsoActivo(
   activo_id: number, 
   cita_id: number, 
@@ -1794,13 +1701,9 @@ async crearPromesaUsoActivo(
   if (!activo) {
     throw new NotFoundException(`Activo con ID ${activo_id} no encontrado`);
   }
-
-  // Validar que el activo esté disponible
   if (activo.estado !== EstadoActivo.DISPONIBLE) {
     throw new BadRequestException(`El activo no está disponible actualmente. Estado: ${activo.estado}`);
   }
-
-  // Verificar solapamientos con otras promesas
   const promesas_solapadas = await this.promesa_uso_activo_repositorio
     .createQueryBuilder('promesa')
     .where('promesa.activo = :activo_id', { activo_id })
@@ -1827,9 +1730,6 @@ async crearPromesaUsoActivo(
   return this.promesa_uso_activo_repositorio.save(promesa);
 }
 
-/**
- * Eliminar promesa de uso de un activo
- */
 async eliminarPromesaUsoActivo(promesa_id: number): Promise<void> {
   const promesa = await this.promesa_uso_activo_repositorio.findOne({
     where: { id: promesa_id },
@@ -1842,9 +1742,6 @@ async eliminarPromesaUsoActivo(promesa_id: number): Promise<void> {
   await this.promesa_uso_activo_repositorio.remove(promesa);
 }
 
-/**
- * Eliminar todas las promesas de uso de activos para una cita
- */
 async eliminarPromesasUsoActivosPorCita(cita_id: number): Promise<void> {
   const promesas = await this.promesa_uso_activo_repositorio.find({
     where: { cita: { id: cita_id } },
@@ -1853,9 +1750,6 @@ async eliminarPromesasUsoActivosPorCita(cita_id: number): Promise<void> {
   await this.promesa_uso_activo_repositorio.remove(promesas);
 }
 
-/**
- * Actualizar estado de activos al iniciar una cita
- */
 async activarActivosParaCita(cita_id: number): Promise<void> {
   const promesas = await this.promesa_uso_activo_repositorio.find({
     where: { cita: { id: cita_id } },
@@ -1869,9 +1763,6 @@ async activarActivosParaCita(cita_id: number): Promise<void> {
   }
 }
 
-/**
- * Actualizar estado de activos al finalizar una cita
- */
 async desactivarActivosParaCita(cita_id: number): Promise<void> {
   const promesas = await this.promesa_uso_activo_repositorio.find({
     where: { cita: { id: cita_id } },
@@ -1880,7 +1771,6 @@ async desactivarActivosParaCita(cita_id: number): Promise<void> {
 
   for (const promesa of promesas) {
     const activo = promesa.activo;
-    // Solo cambiar a disponible si actualmente está en uso
     if (activo.estado === EstadoActivo.EN_USO) {
       activo.estado = EstadoActivo.DISPONIBLE;
       await this.activo_repositorio.save(activo);
@@ -1888,9 +1778,6 @@ async desactivarActivosParaCita(cita_id: number): Promise<void> {
   }
 }
 
-/**
- * Verificar si una cita debe estar activa (en curso) basándose en la fecha/hora
- */
 async verificarYActualizarEstadoActivosCita(cita_id: number): Promise<void> {
   const cita = await this.cita_repositorio.findOne({ where: { id: cita_id } });
   
@@ -1903,20 +1790,14 @@ async verificarYActualizarEstadoActivosCita(cita_id: number): Promise<void> {
   const fecha_fin = new Date(fecha_inicio);
   fecha_fin.setHours(fecha_fin.getHours() + cita.horas_aproximadas);
   fecha_fin.setMinutes(fecha_fin.getMinutes() + cita.minutos_aproximados);
-
-  // Si la cita está en curso, activar activos
   if (ahora >= fecha_inicio && ahora <= fecha_fin) {
     await this.activarActivosParaCita(cita_id);
-  } 
-  // Si la cita ya terminó, desactivar activos
+  }
   else if (ahora > fecha_fin) {
     await this.desactivarActivosParaCita(cita_id);
   }
 }
 
-/**
- * Obtener activos disponibles para una cita (sin solapamientos)
- */
 async obtenerActivosDisponiblesParaCita(
   producto_id: number,
   fecha_hora_inicio: Date,
@@ -1928,10 +1809,7 @@ async obtenerActivosDisponiblesParaCita(
     .leftJoinAndSelect('activo.promesas_uso', 'promesa')
     .where('activo.producto = :producto_id', { producto_id })
     .andWhere('activo.estado = :estado', { estado: EstadoActivo.DISPONIBLE });
-
   const activos = await query.getMany();
-
-  // Filtrar activos sin solapamientos
   const activos_disponibles: Activo[] = [];
   for (const activo of activos) {
     const promesas_solapadas = await this.promesa_uso_activo_repositorio

@@ -17,10 +17,10 @@ export class ConsentimientoInformado {
   nombre: string;
 
   @Column({ type: 'text' })
-  contenido_html: string; // Contenido HTML con datos del paciente ya reemplazados
+  contenido_html: string;
 
   @Column()
-  ruta_archivo: string; // Ruta al PDF en el sistema de archivos
+  ruta_archivo: string;
 
   @CreateDateColumn()
   fecha_creacion: Date;

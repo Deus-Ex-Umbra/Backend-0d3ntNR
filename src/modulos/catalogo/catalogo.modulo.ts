@@ -5,11 +5,12 @@ import { Enfermedad } from './entidades/enfermedad.entidad';
 import { Medicamento } from './entidades/medicamento.entidad';
 import { ColorCategoria } from './entidades/color-categoria.entidad';
 import { Etiqueta } from './entidades/etiqueta.entidad';
+import { EtiquetaPlantilla } from './entidades/etiqueta-plantilla.entidad';
 import { CatalogoControlador } from './catalogo.controlador';
 import { CatalogoServicio } from './catalogo.servicio';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Alergia, Enfermedad, Medicamento, ColorCategoria, Etiqueta])],
+  imports: [TypeOrmModule.forFeature([Alergia, Enfermedad, Medicamento, ColorCategoria, Etiqueta, EtiquetaPlantilla])],
   controllers: [CatalogoControlador],
   providers: [CatalogoServicio],
   exports: [CatalogoServicio],

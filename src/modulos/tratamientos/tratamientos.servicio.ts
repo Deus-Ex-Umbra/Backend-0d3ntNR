@@ -110,8 +110,6 @@ export class TratamientosServicio {
     if (!tratamiento) {
       throw new NotFoundException(`Tratamiento con ID "${id}" no encontrado.`);
     }
-
-    // Eliminación lógica
     tratamiento.activo = false;
     await this.tratamiento_repositorio.save(tratamiento);
   }

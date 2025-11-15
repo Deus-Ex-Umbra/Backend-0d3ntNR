@@ -7,7 +7,7 @@ import { ActualizarArchivoDto } from './dto/actualizar-archivo.dto';
 import { Paciente } from '../pacientes/entidades/paciente.entidad';
 import { PlanTratamiento } from '../tratamientos/entidades/plan-tratamiento.entidad';
 import { Usuario } from '../usuarios/entidades/usuario.entidad';
-import { AlmacenamientoServicio } from '../almacenamiento/almacenamiento.servicio';
+import { AlmacenamientoServicio, TipoDocumento } from '../almacenamiento/almacenamiento.servicio';
 
 @Injectable()
 export class ArchivosAdjuntosServicio {
@@ -19,7 +19,11 @@ export class ArchivosAdjuntosServicio {
 
   async subir(usuario_id: number, dto: SubirArchivoDto): Promise<ArchivoAdjunto> {
     const extension = dto.nombre_archivo.split('.').pop() || 'bin';
-    const ruta_archivo = await this.almacenamiento_servicio.guardarArchivo(dto.contenido_base64, extension);
+    const ruta_archivo = await this.almacenamiento_servicio.guardarArchivo(
+      dto.contenido_base64, 
+      extension,
+      TipoDocumento.ARCHIVO_ADJUNTO
+    );
 
     const nuevo_archivo = this.archivo_repositorio.create({
       nombre_archivo: dto.nombre_archivo,
@@ -55,7 +59,7 @@ export class ArchivosAdjuntosServicio {
       throw new NotFoundException(`Archivo con ID "${id}" no encontrado o no le pertenece.`);
     }
 
-    return this.almacenamiento_servicio.leerArchivo(archivo.ruta_archivo);
+    return this.almacenamiento_servicio.leerArchivo(archivo.ruta_archivo, TipoDocumento.ARCHIVO_ADJUNTO);
   }
 
   async actualizar(usuario_id: number, id: number, dto: ActualizarArchivoDto): Promise<ArchivoAdjunto> {
@@ -76,7 +80,7 @@ export class ArchivosAdjuntosServicio {
       throw new NotFoundException(`Archivo con ID "${id}" no encontrado o no le pertenece.`);
     }
 
-    await this.almacenamiento_servicio.eliminarArchivo(archivo.ruta_archivo);
+    await this.almacenamiento_servicio.eliminarArchivo(archivo.ruta_archivo, TipoDocumento.ARCHIVO_ADJUNTO);
     await this.archivo_repositorio.remove(archivo);
   }
 }

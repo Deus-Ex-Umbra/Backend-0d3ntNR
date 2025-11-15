@@ -18,7 +18,6 @@ export class Producto {
   nombre: string;
 
   @Column({
-    type: 'simple-enum',
     enum: TipoGestion,
   })
   tipo_gestion: TipoGestion;

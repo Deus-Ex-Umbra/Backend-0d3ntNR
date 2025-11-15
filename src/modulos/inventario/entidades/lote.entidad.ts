@@ -11,7 +11,7 @@ export class Lote {
   @Column()
   nro_lote: string;
 
-  @Column({ type: 'date', nullable: true })
+  @Column({ nullable: true })
   fecha_vencimiento: Date;
 
   @Column('decimal', { precision: 10, scale: 2 })

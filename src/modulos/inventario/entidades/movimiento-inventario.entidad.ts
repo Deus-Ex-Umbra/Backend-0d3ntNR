@@ -6,44 +6,29 @@ import { Lote } from './lote.entidad';
 import { Activo } from './activo.entidad';
 
 export enum TipoMovimiento {
-  // Movimientos de stock - Entrada
   ENTRADA_LOTE = 'entrada_lote',
   ENTRADA_SERIE = 'entrada_serie',
   ENTRADA_GENERAL = 'entrada_general',
-  
-  // Movimientos de stock - Salida
   SALIDA_LOTE = 'salida_lote',
   SALIDA_SERIE = 'salida_serie',
   SALIDA_GENERAL = 'salida_general',
-  
-  // Movimientos de stock - Operaciones específicas
   COMPRA = 'compra',
   AJUSTE = 'ajuste',
   USO_CITA = 'uso_cita',
   USO_TRATAMIENTO = 'uso_tratamiento',
   DEVOLUCION = 'devolucion',
-  
-  // Auditoría de productos
   PRODUCTO_CREADO = 'producto_creado',
   PRODUCTO_EDITADO = 'producto_editado',
   PRODUCTO_ELIMINADO = 'producto_eliminado',
-  
-  // Auditoría de lotes
   LOTE_CREADO = 'lote_creado',
   LOTE_EDITADO = 'lote_editado',
   LOTE_ELIMINADO = 'lote_eliminado',
-  
-  // Auditoría de series (activos serializados)
   SERIE_CREADA = 'serie_creada',
   SERIE_EDITADA = 'serie_editada',
   SERIE_ELIMINADA = 'serie_eliminada',
-  
-  // Auditoría de generales (activos generales)
   GENERAL_CREADO = 'general_creado',
   GENERAL_EDITADO = 'general_editado',
   GENERAL_ELIMINADO = 'general_eliminado',
-  
-  // Estados de activos
   ACTIVO_CAMBIO_ESTADO = 'activo_cambio_estado',
   ACTIVO_VENDIDO = 'activo_vendido',
 }
@@ -75,13 +60,11 @@ export class MovimientoInventario {
   activo: Activo;
 
   @Column({
-    type: 'simple-enum',
     enum: TipoMovimiento,
   })
   tipo: TipoMovimiento;
 
   @Column({
-    type: 'simple-enum',
     enum: CategoriaMovimiento,
     nullable: true,
   })
@@ -103,10 +86,10 @@ export class MovimientoInventario {
   observaciones: string;
 
   @Column({ type: 'text', nullable: true })
-  datos_anteriores: string; // JSON con datos previos para auditoría
+  datos_anteriores: string;
 
   @Column({ type: 'text', nullable: true })
-  datos_nuevos: string; // JSON con datos nuevos para auditoría
+  datos_nuevos: string;
 
   @Column('decimal', { precision: 10, scale: 2, nullable: true })
   costo_total: number;

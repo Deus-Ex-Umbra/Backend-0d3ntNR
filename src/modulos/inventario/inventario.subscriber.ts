@@ -11,19 +11,11 @@ import { Lote } from './entidades/lote.entidad';
 import { Activo } from './entidades/activo.entidad';
 import { MovimientoInventario, TipoMovimiento, CategoriaMovimiento } from './entidades/movimiento-inventario.entidad';
 
-/**
- * Subscriber para registrar automáticamente los movimientos de inventario
- * cuando se crean o eliminan productos, lotes o activos
- */
 @EventSubscriber()
 export class InventarioSubscriber implements EntitySubscriberInterface {
   constructor(dataSource: DataSource) {
     dataSource.subscribers.push(this);
   }
-
-  /**
-   * Registra automáticamente la creación de un producto
-   */
   async afterInsert(event: InsertEvent<any>): Promise<void> {
     if (event.entity instanceof Producto) {
       await this.registrarCreacionProducto(event);
@@ -34,9 +26,6 @@ export class InventarioSubscriber implements EntitySubscriberInterface {
     }
   }
 
-  /**
-   * Registra automáticamente la eliminación de un producto
-   */
   async beforeRemove(event: RemoveEvent<any>): Promise<void> {
     if (event.entity instanceof Producto) {
       await this.registrarEliminacionProducto(event);
@@ -47,13 +36,8 @@ export class InventarioSubscriber implements EntitySubscriberInterface {
     }
   }
 
-  /**
-   * Registra la creación de un producto
-   */
   private async registrarCreacionProducto(event: InsertEvent<Producto>): Promise<void> {
     const producto = event.entity;
-    
-    // Solo registrar si el producto tiene un inventario asociado
     if (!producto.inventario) return;
 
     try {
@@ -77,16 +61,12 @@ export class InventarioSubscriber implements EntitySubscriberInterface {
     }
   }
 
-  /**
-   * Registra la creación de un lote
-   */
   private async registrarCreacionLote(event: InsertEvent<Lote>): Promise<void> {
     const lote = event.entity;
     
     if (!lote.producto) return;
 
     try {
-      // Cargar el producto con su inventario si no está cargado
       const producto = await event.manager.findOne(Producto, {
         where: { id: lote.producto.id },
         relations: ['inventario'],
@@ -115,16 +95,12 @@ export class InventarioSubscriber implements EntitySubscriberInterface {
     }
   }
 
-  /**
-   * Registra la creación de un activo (serie o general)
-   */
   private async registrarCreacionActivo(event: InsertEvent<Activo>): Promise<void> {
     const activo = event.entity;
     
     if (!activo.producto) return;
 
     try {
-      // Cargar el producto con su inventario si no está cargado
       const producto = await event.manager.findOne(Producto, {
         where: { id: activo.producto.id },
         relations: ['inventario'],
@@ -133,8 +109,6 @@ export class InventarioSubscriber implements EntitySubscriberInterface {
       if (!producto || !producto.inventario) return;
 
       const movimiento = new MovimientoInventario();
-      
-      // Determinar el tipo según el tipo de gestión del producto
       if (producto.tipo_gestion === TipoGestion.ACTIVO_SERIALIZADO) {
         movimiento.tipo = TipoMovimiento.SERIE_CREADA;
         movimiento.categoria = CategoriaMovimiento.AUDITORIA_SERIE;
@@ -142,7 +116,7 @@ export class InventarioSubscriber implements EntitySubscriberInterface {
         movimiento.tipo = TipoMovimiento.GENERAL_CREADO;
         movimiento.categoria = CategoriaMovimiento.AUDITORIA_GENERAL;
       } else {
-        return; // No es un activo válido
+        return;
       }
 
       movimiento.inventario = producto.inventario;
@@ -164,9 +138,6 @@ export class InventarioSubscriber implements EntitySubscriberInterface {
     }
   }
 
-  /**
-   * Registra la eliminación de un producto
-   */
   private async registrarEliminacionProducto(event: RemoveEvent<Producto>): Promise<void> {
     const producto = event.entity;
     
@@ -193,16 +164,12 @@ export class InventarioSubscriber implements EntitySubscriberInterface {
     }
   }
 
-  /**
-   * Registra la eliminación de un lote
-   */
   private async registrarEliminacionLote(event: RemoveEvent<Lote>): Promise<void> {
     const lote = event.entity;
     
     if (!lote || !lote.producto) return;
 
     try {
-      // Cargar el producto con su inventario si no está cargado
       const producto = await event.manager.findOne(Producto, {
         where: { id: lote.producto.id },
         relations: ['inventario'],
@@ -231,16 +198,12 @@ export class InventarioSubscriber implements EntitySubscriberInterface {
     }
   }
 
-  /**
-   * Registra la eliminación de un activo (serie o general)
-   */
   private async registrarEliminacionActivo(event: RemoveEvent<Activo>): Promise<void> {
     const activo = event.entity;
     
     if (!activo || !activo.producto) return;
 
     try {
-      // Cargar el producto con su inventario si no está cargado
       const producto = await event.manager.findOne(Producto, {
         where: { id: activo.producto.id },
         relations: ['inventario'],
@@ -249,8 +212,6 @@ export class InventarioSubscriber implements EntitySubscriberInterface {
       if (!producto || !producto.inventario) return;
 
       const movimiento = new MovimientoInventario();
-      
-      // Determinar el tipo según el tipo de gestión del producto
       if (producto.tipo_gestion === TipoGestion.ACTIVO_SERIALIZADO) {
         movimiento.tipo = TipoMovimiento.SERIE_ELIMINADA;
         movimiento.categoria = CategoriaMovimiento.AUDITORIA_SERIE;

@@ -9,13 +9,11 @@ export class ActivoHistorial {
   id: number;
 
   @Column({
-    type: 'simple-enum',
     enum: EstadoActivo,
   })
   estado_anterior: EstadoActivo;
 
   @Column({
-    type: 'simple-enum',
     enum: EstadoActivo,
   })
   estado_nuevo: EstadoActivo;

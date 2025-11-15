@@ -13,10 +13,10 @@ export class PromesaUsoActivo {
   @ManyToOne(() => Cita, { onDelete: 'CASCADE' })
   cita: Cita;
 
-  @Column({ type: 'datetime' })
+  @Column()
   fecha_hora_inicio: Date;
 
-  @Column({ type: 'datetime' })
+  @Column()
   fecha_hora_fin: Date;
 
   @CreateDateColumn()

@@ -17,7 +17,6 @@ export class Inventario {
   nombre: string;
 
   @Column({
-    type: 'simple-enum',
     enum: VisibilidadInventario,
     default: VisibilidadInventario.PRIVADO,
   })

@@ -11,6 +11,7 @@ import { Inventario } from '../inventario/entidades/inventario.entidad';
 import { Producto } from '../inventario/entidades/producto.entidad';
 import { Reporte } from './entidades/reporte.entidad';
 import { GeminiModule } from '../gemini/gemini.modulo';
+import { AlmacenamientoModule } from '../almacenamiento/almacenamiento.modulo';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { GeminiModule } from '../gemini/gemini.modulo';
       Reporte,
     ]),
     GeminiModule,
+    AlmacenamientoModule,
   ],
   controllers: [ReportesControlador],
   providers: [ReportesServicio],
