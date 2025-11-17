@@ -14,6 +14,8 @@ import { ActualizarColorCategoriaDto } from './dto/actualizar-color-categoria.dt
 import { ActualizarEtiquetaDto } from './dto/actualizar-etiqueta.dto';
 import { CrearEtiquetaPlantillaDto } from './dto/crear-etiqueta-plantilla.dto';
 import { ActualizarEtiquetaPlantillaDto } from './dto/actualizar-etiqueta-plantilla.dto';
+import { CrearTamanoPapelDto } from './dto/crear-tamano-papel.dto';
+import { ActualizarTamanoPapelDto } from './dto/actualizar-tamano-papel.dto';
 
 @ApiTags('Catálogo')
 @ApiBearerAuth('JWT-auth')
@@ -140,5 +142,26 @@ export class CatalogoControlador {
   @Delete('etiquetas-plantilla/:id')
   eliminarEtiquetaPlantilla(@Param('id') id: string, @Req() req: any) {
     return this.catalogo_servicio.eliminarEtiquetaPlantilla(+id, req.user.id);
+  }
+
+  // Tamaños de papel
+  @Post('tamanos-papel')
+  crearTamanoPapel(@Body() dto: CrearTamanoPapelDto) {
+    return this.catalogo_servicio.crearTamanoPapel(dto);
+  }
+
+  @Get('tamanos-papel')
+  obtenerTamanosPapel() {
+    return this.catalogo_servicio.obtenerTamanosPapel();
+  }
+
+  @Put('tamanos-papel/:id')
+  actualizarTamanoPapel(@Param('id') id: string, @Body() dto: ActualizarTamanoPapelDto) {
+    return this.catalogo_servicio.actualizarTamanoPapel(+id, dto);
+  }
+
+  @Delete('tamanos-papel/:id')
+  eliminarTamanoPapel(@Param('id') id: string) {
+    return this.catalogo_servicio.eliminarTamanoPapel(+id);
   }
 }

@@ -17,9 +17,13 @@ import { ActualizarEnfermedadDto } from './dto/actualizar-enfermedad.dto';
 import { ActualizarMedicamentoDto } from './dto/actualizar-medicamento.dto';
 import { ActualizarColorCategoriaDto } from './dto/actualizar-color-categoria.dto';
 import { ActualizarEtiquetaDto } from './dto/actualizar-etiqueta.dto';
+import { TamanoPapel } from './entidades/tamano-papel.entidad';
+import { CrearTamanoPapelDto } from './dto/crear-tamano-papel.dto';
+import { ActualizarTamanoPapelDto } from './dto/actualizar-tamano-papel.dto';
+import { OnModuleInit } from '@nestjs/common';
 
 @Injectable()
-export class CatalogoServicio {
+export class CatalogoServicio implements OnModuleInit {
   constructor(
     @InjectRepository(Alergia)
     private readonly alergia_repositorio: Repository<Alergia>,
@@ -33,7 +37,83 @@ export class CatalogoServicio {
     private readonly etiqueta_repositorio: Repository<Etiqueta>,
     @InjectRepository(EtiquetaPlantilla)
     private readonly etiqueta_plantilla_repositorio: Repository<EtiquetaPlantilla>,
+    @InjectRepository(TamanoPapel)
+    private readonly tamano_papel_repositorio: Repository<TamanoPapel>,
   ) {}
+
+  async onModuleInit() {
+    await this.seedTamanosPapel();
+  }
+
+  private async seedTamanosPapel() {
+    const existentes = await this.tamano_papel_repositorio.find();
+
+    // Migración suave: si existen registros en cm (valores típicos < 50), convertirlos a mm
+    for (const e of existentes) {
+      if (typeof e.ancho === 'number' && typeof e.alto === 'number' && e.ancho > 0 && e.alto > 0 && e.ancho < 50 && e.alto < 60) {
+        const anchoMm = Math.round(e.ancho * 10);
+        const altoMm = Math.round(e.alto * 10);
+        e.ancho = anchoMm as any;
+        e.alto = altoMm as any;
+        if (!e.descripcion || /cm\b/i.test(e.descripcion)) {
+          e.descripcion = `${anchoMm} × ${altoMm} mm`;
+        }
+        await this.tamano_papel_repositorio.save(e);
+      }
+    }
+    const nombresNecesarios = ['Carta', 'Legal', 'A4'];
+    const faltantes = nombresNecesarios.filter(n => !existentes.some(e => e.nombre === n));
+    if (faltantes.length === 0) return;
+
+    const definiciones: Record<string, { ancho: number; alto: number; descripcion: string }> = {
+      // Todas las medidas en milímetros (mm)
+      'Carta': { ancho: 216, alto: 279, descripcion: '216 × 279 mm (8.5" × 11")' },
+      'Legal': { ancho: 216, alto: 356, descripcion: '216 × 356 mm (8.5" × 14")' },
+      'A4': { ancho: 210, alto: 297, descripcion: '210 × 297 mm (8.27" × 11.7")' },
+    };
+
+    for (const nombre of faltantes) {
+      const def = definiciones[nombre];
+      if (!def) continue;
+      const nuevo = this.tamano_papel_repositorio.create({
+        nombre,
+        ancho: def.ancho,
+        alto: def.alto,
+        descripcion: def.descripcion,
+        protegido: true,
+        activo: true,
+      });
+      await this.tamano_papel_repositorio.save(nuevo);
+    }
+  }
+
+  // Tamaños de papel
+  async crearTamanoPapel(dto: CrearTamanoPapelDto): Promise<TamanoPapel> {
+    const existe = await this.tamano_papel_repositorio.findOne({ where: { nombre: dto.nombre } });
+    if (existe) throw new ConflictException('Este tamaño de papel ya existe');
+    const tamano = this.tamano_papel_repositorio.create({ ...dto, protegido: false, activo: true });
+    return this.tamano_papel_repositorio.save(tamano);
+  }
+
+  async obtenerTamanosPapel(): Promise<TamanoPapel[]> {
+    return this.tamano_papel_repositorio.find({ where: { activo: true }, order: { nombre: 'ASC' } });
+  }
+
+  async actualizarTamanoPapel(id: number, dto: ActualizarTamanoPapelDto): Promise<TamanoPapel> {
+    const existente = await this.tamano_papel_repositorio.findOne({ where: { id } });
+    if (!existente) throw new NotFoundException('Tamaño no encontrado');
+    if (existente.protegido) throw new ConflictException('Este tamaño está protegido y no puede modificarse');
+    Object.assign(existente, dto);
+    return this.tamano_papel_repositorio.save(existente);
+  }
+
+  async eliminarTamanoPapel(id: number): Promise<void> {
+    const existente = await this.tamano_papel_repositorio.findOne({ where: { id } });
+    if (!existente) throw new NotFoundException('Tamaño no encontrado');
+    if (existente.protegido) throw new ConflictException('Este tamaño está protegido y no puede eliminarse');
+    const resultado = await this.tamano_papel_repositorio.update(id, { activo: false });
+    if (resultado.affected === 0) throw new NotFoundException('Tamaño no encontrado');
+  }
 
   async crearAlergia(dto: CrearAlergiaDto): Promise<Alergia> {
     const existe = await this.alergia_repositorio.findOne({ where: { nombre: dto.nombre } });

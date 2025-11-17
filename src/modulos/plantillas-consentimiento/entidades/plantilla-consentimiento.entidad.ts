@@ -15,6 +15,9 @@ export class PlantillaConsentimiento {
   @Column('text')
   contenido: string;
 
+  @Column({ type: 'varchar', default: 'carta' })
+  tamano_papel: 'carta' | 'legal' | 'a4';
+
   @Column({ type: 'integer', default: 20 })
   margen_superior: number;
 

@@ -55,6 +55,7 @@ import { PromesaUsoLote } from './modulos/inventario/entidades/promesa-uso-lote.
 import { PromesaUsoActivo } from './modulos/inventario/entidades/promesa-uso-activo.entidad';
 import { Reporte } from './modulos/reportes/entidades/reporte.entidad';
 import { ConsentimientoInformado } from './modulos/pacientes/entidades/consentimiento-informado.entidad';
+import { TamanoPapel } from './modulos/catalogo/entidades/tamano-papel.entidad';
 
 @Module({
   imports: [
@@ -102,6 +103,7 @@ import { ConsentimientoInformado } from './modulos/pacientes/entidades/consentim
         PromesaUsoActivo,
         Reporte,
         ConsentimientoInformado,
+        TamanoPapel,
       ],
       synchronize: true,
       ssl: {

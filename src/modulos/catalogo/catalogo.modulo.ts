@@ -8,9 +8,10 @@ import { Etiqueta } from './entidades/etiqueta.entidad';
 import { EtiquetaPlantilla } from './entidades/etiqueta-plantilla.entidad';
 import { CatalogoControlador } from './catalogo.controlador';
 import { CatalogoServicio } from './catalogo.servicio';
+import { TamanoPapel } from './entidades/tamano-papel.entidad';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Alergia, Enfermedad, Medicamento, ColorCategoria, Etiqueta, EtiquetaPlantilla])],
+  imports: [TypeOrmModule.forFeature([Alergia, Enfermedad, Medicamento, ColorCategoria, Etiqueta, EtiquetaPlantilla, TamanoPapel])],
   controllers: [CatalogoControlador],
   providers: [CatalogoServicio],
   exports: [CatalogoServicio],
