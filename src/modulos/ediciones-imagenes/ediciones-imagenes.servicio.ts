@@ -6,6 +6,7 @@ import { CrearEdicionDto } from './dto/crear-edicion.dto';
 import { ActualizarEdicionDto } from './dto/actualizar-edicion.dto';
 import { ArchivoAdjunto } from '../archivos-adjuntos/entidades/archivo-adjunto.entidad';
 import { Usuario } from '../usuarios/entidades/usuario.entidad';
+import { AlmacenamientoServicio, TipoDocumento } from '../almacenamiento/almacenamiento.servicio';
 
 @Injectable()
 export class EdicionesImagenesServicio {
@@ -14,6 +15,7 @@ export class EdicionesImagenesServicio {
     private readonly edicion_repositorio: Repository<EdicionImagen>,
     @InjectRepository(ArchivoAdjunto)
     private readonly archivo_repositorio: Repository<ArchivoAdjunto>,
+    private readonly almacenamiento_servicio: AlmacenamientoServicio,
   ) {}
 
   async crear(usuario_id: number, dto: CrearEdicionDto): Promise<EdicionImagen> {
@@ -50,34 +52,48 @@ export class EdicionesImagenesServicio {
       }
     }
 
+    // Guardar imagen resultado en almacenamiento y persistir solo la ruta
+    const nombre_archivo_resultado = await this.almacenamiento_servicio.guardarArchivo(
+      dto.imagen_resultado_base64,
+      'png',
+      TipoDocumento.EDICION_IMAGEN,
+    );
+
     const nueva_edicion = this.edicion_repositorio.create({
       archivo_original: archivo,
       edicion_padre,
       nombre: dto.nombre,
       descripcion: dto.descripcion,
       datos_canvas: dto.datos_canvas,
-      imagen_resultado_base64: dto.imagen_resultado_base64,
+      ruta_imagen_resultado: nombre_archivo_resultado,
       version,
       usuario: { id: usuario_id } as Usuario,
     });
 
-    return this.edicion_repositorio.save(nueva_edicion);
+    const guardada = await this.edicion_repositorio.save(nueva_edicion);
+    // Responder manteniendo compatibilidad: incluir base64 sin persistirlo
+    return Object.assign({}, guardada, { imagen_resultado_base64: dto.imagen_resultado_base64 }) as any;
   }
 
-  async obtenerPorArchivo(usuario_id: number, archivo_id: number): Promise<EdicionImagen[]> {
+  async obtenerPorArchivo(usuario_id: number, archivo_id: number): Promise<any[]> {
     const archivo = await this.archivo_repositorio.findOne({ where: { id: archivo_id, usuario: { id: usuario_id } } });
     if (!archivo) {
       throw new NotFoundException('Archivo no encontrado o no le pertenece.');
     }
     
-    return this.edicion_repositorio.find({
+    const ediciones = await this.edicion_repositorio.find({
       where: { archivo_original: { id: archivo_id } },
       relations: ['usuario', 'edicion_padre'],
       order: { version: 'DESC' },
     });
+    const conImagen = await Promise.all(ediciones.map(async (e) => {
+      const imagen_base64 = await this.almacenamiento_servicio.leerArchivo(e.ruta_imagen_resultado, TipoDocumento.EDICION_IMAGEN);
+      return Object.assign({}, e, { imagen_resultado_base64: imagen_base64 });
+    }));
+    return conImagen;
   }
 
-  async obtenerPorId(usuario_id: number, id: number): Promise<EdicionImagen> {
+  async obtenerPorId(usuario_id: number, id: number): Promise<any> {
     const edicion = await this.edicion_repositorio.findOne({
       where: { id },
       relations: ['archivo_original', 'usuario', 'edicion_padre', 'archivo_original.usuario'],
@@ -91,10 +107,11 @@ export class EdicionesImagenesServicio {
       throw new ForbiddenException('No tienes permiso para ver esta edición.');
     }
 
-    return edicion;
+    const imagen_base64 = await this.almacenamiento_servicio.leerArchivo(edicion.ruta_imagen_resultado, TipoDocumento.EDICION_IMAGEN);
+    return Object.assign({}, edicion, { imagen_resultado_base64: imagen_base64 });
   }
 
-  async actualizar(id: number, usuario_id: number, dto: ActualizarEdicionDto): Promise<EdicionImagen> {
+  async actualizar(id: number, usuario_id: number, dto: ActualizarEdicionDto): Promise<any> {
     const edicion = await this.edicion_repositorio.findOne({
       where: { id },
       relations: ['usuario'],
@@ -108,8 +125,22 @@ export class EdicionesImagenesServicio {
       throw new ForbiddenException('No tienes permiso para editar esta versión');
     }
 
-    Object.assign(edicion, dto);
-    return this.edicion_repositorio.save(edicion);
+    if (dto.nombre !== undefined) edicion.nombre = dto.nombre;
+    if (dto.descripcion !== undefined) edicion.descripcion = dto.descripcion;
+    if (dto.datos_canvas !== undefined) edicion.datos_canvas = dto.datos_canvas as any;
+    if ((dto as any).imagen_resultado_base64) {
+      const nombre_archivo_resultado = await this.almacenamiento_servicio.guardarArchivo(
+        (dto as any).imagen_resultado_base64,
+        'png',
+        TipoDocumento.EDICION_IMAGEN,
+      );
+      edicion.ruta_imagen_resultado = nombre_archivo_resultado;
+    }
+    const guardada = await this.edicion_repositorio.save(edicion);
+    const imagen_base64 = (dto as any).imagen_resultado_base64
+      ? (dto as any).imagen_resultado_base64
+      : await this.almacenamiento_servicio.leerArchivo(guardada.ruta_imagen_resultado, TipoDocumento.EDICION_IMAGEN);
+    return Object.assign({}, guardada, { imagen_resultado_base64: imagen_base64 });
   }
 
   async eliminar(id: number, usuario_id: number): Promise<void> {
@@ -126,11 +157,28 @@ export class EdicionesImagenesServicio {
       throw new ForbiddenException('No tienes permiso para eliminar esta versión');
     }
 
-    await this.edicion_repositorio.remove(edicion);
+    // Borrado lógico para preservar historial y archivos
+    await this.edicion_repositorio.softRemove(edicion);
   }
 
-  async duplicar(id: number, usuario_id: number): Promise<EdicionImagen> {
+  async duplicar(id: number, usuario_id: number): Promise<any> {
     const edicion_original = await this.obtenerPorId(usuario_id, id);
+
+    // Duplicar archivo de resultado para independencia de versiones
+    let nueva_ruta = edicion_original.ruta_imagen_resultado;
+    try {
+      const buffer = await this.almacenamiento_servicio.leerArchivoComoBuffer(
+        edicion_original.ruta_imagen_resultado,
+        TipoDocumento.EDICION_IMAGEN,
+      );
+      nueva_ruta = await this.almacenamiento_servicio.guardarArchivoDesdeBuffer(
+        buffer,
+        'png',
+        TipoDocumento.EDICION_IMAGEN,
+      );
+    } catch (_) {
+      // Si falla la duplicación, reusar la ruta existente
+    }
 
     const nueva_edicion = this.edicion_repositorio.create({
       archivo_original: edicion_original.archivo_original,
@@ -138,11 +186,13 @@ export class EdicionesImagenesServicio {
       nombre: edicion_original.nombre ? `${edicion_original.nombre} (Copia)` : undefined,
       descripcion: edicion_original.descripcion,
       datos_canvas: edicion_original.datos_canvas,
-      imagen_resultado_base64: edicion_original.imagen_resultado_base64,
+      ruta_imagen_resultado: nueva_ruta,
       version: edicion_original.version + 1,
       usuario: { id: usuario_id } as Usuario,
     });
 
-    return this.edicion_repositorio.save(nueva_edicion);
+    const guardada = await this.edicion_repositorio.save(nueva_edicion);
+    const imagen_base64 = await this.almacenamiento_servicio.leerArchivo(guardada.ruta_imagen_resultado, TipoDocumento.EDICION_IMAGEN);
+    return Object.assign({}, guardada, { imagen_resultado_base64: imagen_base64 });
   }
 }

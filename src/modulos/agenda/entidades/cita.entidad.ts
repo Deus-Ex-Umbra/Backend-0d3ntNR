@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, DeleteDateColumn } from 'typeorm';
 import { Paciente } from '../../pacientes/entidades/paciente.entidad';
 import { PlanTratamiento } from '../../tratamientos/entidades/plan-tratamiento.entidad';
 import { Usuario } from '../../usuarios/entidades/usuario.entidad';
@@ -8,7 +8,7 @@ export class Cita {
   @PrimaryGeneratedColumn()
   id: number;
   
-  @ManyToOne(() => Usuario, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Usuario, { onDelete: 'CASCADE', onUpdate: 'CASCADE' })
   usuario: Usuario;
 
   @Column()
@@ -32,9 +32,12 @@ export class Cita {
   @Column({ default: false })
   materiales_confirmados: boolean;
 
-  @ManyToOne(() => Paciente, { nullable: true, onDelete: 'SET NULL' })
+  @ManyToOne(() => Paciente, { nullable: true, onDelete: 'CASCADE', onUpdate: 'CASCADE' })
   paciente: Paciente;
 
-  @ManyToOne(() => PlanTratamiento, (plan) => plan.citas, { nullable: true, onDelete: 'CASCADE' })
+  @ManyToOne(() => PlanTratamiento, (plan) => plan.citas, { nullable: true, onDelete: 'CASCADE', onUpdate: 'CASCADE' })
   plan_tratamiento: PlanTratamiento;
+
+  @DeleteDateColumn({ nullable: true })
+  eliminado_en?: Date | null;
 }

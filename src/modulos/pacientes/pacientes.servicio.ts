@@ -164,10 +164,11 @@ export class PacientesServicio {
   }
 
   async eliminar(usuario_id: number, id: number): Promise<void> {
-    const resultado = await this.paciente_repositorio.delete({ id, usuario: { id: usuario_id } });
-    if (resultado.affected === 0) {
+    const paciente = await this.paciente_repositorio.findOne({ where: { id, usuario: { id: usuario_id } } });
+    if (!paciente) {
       throw new NotFoundException(`Paciente con ID "${id}" no encontrado o no le pertenece.`);
     }
+    await this.paciente_repositorio.softRemove(paciente);
   }
 
   async obtenerAnamnesisPorPaciente(usuario_id: number, id: number): Promise<RespuestaAnamnesisDto> {

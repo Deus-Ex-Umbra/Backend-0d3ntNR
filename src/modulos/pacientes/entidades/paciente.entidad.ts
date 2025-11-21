@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany, ManyToOne } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, OneToMany, ManyToOne, DeleteDateColumn } from 'typeorm';
 import { PlanTratamiento } from '../../tratamientos/entidades/plan-tratamiento.entidad';
 import { ArchivoAdjunto } from '../../archivos-adjuntos/entidades/archivo-adjunto.entidad';
 import { PacienteAlergia } from './paciente-alergia.entidad';
@@ -11,7 +11,7 @@ export class Paciente {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @ManyToOne(() => Usuario, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Usuario, { onDelete: 'CASCADE', onUpdate: 'CASCADE' })
   usuario: Usuario;
 
   @Column()
@@ -52,4 +52,7 @@ export class Paciente {
 
   @OneToMany(() => PacienteMedicamento, (pm) => pm.paciente, { cascade: true })
   paciente_medicamentos: PacienteMedicamento[];
+
+  @DeleteDateColumn({ nullable: true })
+  eliminado_en?: Date | null;
 }

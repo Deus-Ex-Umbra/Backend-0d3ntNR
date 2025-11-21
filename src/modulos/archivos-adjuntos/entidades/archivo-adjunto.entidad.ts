@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, CreateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, CreateDateColumn, DeleteDateColumn } from 'typeorm';
 import { Paciente } from '../../pacientes/entidades/paciente.entidad';
 import { PlanTratamiento } from '../../tratamientos/entidades/plan-tratamiento.entidad';
 import { Usuario } from '../../usuarios/entidades/usuario.entidad';
@@ -8,7 +8,7 @@ export class ArchivoAdjunto {
   @PrimaryGeneratedColumn()
   id: number;
   
-  @ManyToOne(() => Usuario, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Usuario, { onDelete: 'CASCADE', onUpdate: 'CASCADE' })
   usuario: Usuario;
 
   @Column()
@@ -26,9 +26,12 @@ export class ArchivoAdjunto {
   @CreateDateColumn()
   fecha_subida: Date;
 
-  @ManyToOne(() => Paciente, (paciente) => paciente.archivos_adjuntos, { onDelete: 'CASCADE' })
+  @DeleteDateColumn({ nullable: true })
+  eliminado_en?: Date | null;
+
+  @ManyToOne(() => Paciente, (paciente) => paciente.archivos_adjuntos, { onDelete: 'CASCADE', onUpdate: 'CASCADE' })
   paciente: Paciente;
 
-  @ManyToOne(() => PlanTratamiento, (plan) => plan.archivos_adjuntos, { nullable: true, onDelete: 'SET NULL' })
+  @ManyToOne(() => PlanTratamiento, (plan) => plan.archivos_adjuntos, { nullable: true, onDelete: 'CASCADE', onUpdate: 'CASCADE' })
   plan_tratamiento: PlanTratamiento | null;
 }

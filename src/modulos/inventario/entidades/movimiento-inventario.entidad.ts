@@ -47,16 +47,16 @@ export class MovimientoInventario {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @ManyToOne(() => Inventario, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Inventario, { onDelete: 'CASCADE', onUpdate: 'CASCADE' })
   inventario: Inventario;
 
-  @ManyToOne(() => Producto, { onDelete: 'SET NULL', nullable: true })
+  @ManyToOne(() => Producto, { onDelete: 'CASCADE', onUpdate: 'CASCADE', nullable: true })
   producto: Producto;
 
-  @ManyToOne(() => Lote, { onDelete: 'SET NULL', nullable: true })
+  @ManyToOne(() => Lote, { onDelete: 'CASCADE', onUpdate: 'CASCADE', nullable: true })
   lote: Lote;
 
-  @ManyToOne(() => Activo, { onDelete: 'SET NULL', nullable: true })
+  @ManyToOne(() => Activo, { onDelete: 'CASCADE', onUpdate: 'CASCADE', nullable: true })
   activo: Activo;
 
   @Column({
@@ -97,6 +97,6 @@ export class MovimientoInventario {
   @CreateDateColumn()
   fecha: Date;
 
-  @ManyToOne(() => Usuario, { onDelete: 'SET NULL', nullable: true })
+  @ManyToOne(() => Usuario, { onDelete: 'CASCADE', onUpdate: 'CASCADE', nullable: true })
   usuario: Usuario;
 }

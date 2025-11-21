@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, DeleteDateColumn } from 'typeorm';
 import { Producto } from './producto.entidad';
 import { CitaConsumible } from './cita-consumible.entidad';
 import { PromesaUsoLote } from './promesa-uso-lote.entidad';
@@ -26,7 +26,7 @@ export class Lote {
   @Column({ default: true })
   activo: boolean;
 
-  @ManyToOne(() => Producto, (producto) => producto.lotes, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Producto, (producto) => producto.lotes, { onDelete: 'CASCADE', onUpdate: 'CASCADE' })
   producto: Producto;
 
   @OneToMany(() => CitaConsumible, (cc) => cc.lote)
@@ -34,4 +34,7 @@ export class Lote {
 
   @OneToMany(() => PromesaUsoLote, (promesa) => promesa.lote)
   promesas_uso: PromesaUsoLote[];
+
+  @DeleteDateColumn({ nullable: true })
+  eliminado_en?: Date | null;
 }

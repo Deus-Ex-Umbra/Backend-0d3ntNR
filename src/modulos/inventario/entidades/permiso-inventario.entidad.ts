@@ -17,9 +17,9 @@ export class PermisoInventario {
   })
   rol: RolInventario;
 
-  @ManyToOne(() => Inventario, (inventario) => inventario.permisos, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Inventario, (inventario) => inventario.permisos, { onDelete: 'CASCADE', onUpdate: 'CASCADE' })
   inventario: Inventario;
 
-  @ManyToOne(() => Usuario, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Usuario, { onDelete: 'CASCADE', onUpdate: 'CASCADE' })
   usuario_invitado: Usuario;
 }

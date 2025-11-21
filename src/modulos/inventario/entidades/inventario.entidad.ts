@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, DeleteDateColumn } from 'typeorm';
 import { Usuario } from '../../usuarios/entidades/usuario.entidad';
 import { PermisoInventario } from './permiso-inventario.entidad';
 import { Producto } from './producto.entidad';
@@ -28,7 +28,7 @@ export class Inventario {
   @Column({ default: false })
   modo_estricto: boolean;
 
-  @ManyToOne(() => Usuario, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Usuario, { onDelete: 'CASCADE', onUpdate: 'CASCADE' })
   propietario: Usuario;
 
   @OneToMany(() => PermisoInventario, (permiso) => permiso.inventario)
@@ -36,4 +36,7 @@ export class Inventario {
 
   @OneToMany(() => Producto, (producto) => producto.inventario)
   productos: Producto[];
+
+  @DeleteDateColumn({ nullable: true })
+  eliminado_en?: Date | null;
 }

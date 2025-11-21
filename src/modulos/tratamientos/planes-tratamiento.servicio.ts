@@ -201,10 +201,10 @@ async asignarPlan(usuario_id: number, asignar_plan_dto: AsignarPlanTratamientoDt
   }
 
   async eliminarPlan(usuario_id: number, id: number): Promise<void> {
-    const resultado = await this.plan_repositorio.delete({ id, usuario: { id: usuario_id } });
-
-    if (resultado.affected === 0) {
+    const plan = await this.plan_repositorio.findOne({ where: { id, usuario: { id: usuario_id } } });
+    if (!plan) {
       throw new NotFoundException(`Plan de tratamiento con ID "${id}" no encontrado o no le pertenece.`);
     }
+    await this.plan_repositorio.softRemove(plan);
   }
 }

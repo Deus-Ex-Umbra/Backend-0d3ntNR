@@ -7,9 +7,9 @@ export class PacienteMedicamento {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @ManyToOne(() => Paciente, (paciente) => paciente.paciente_medicamentos, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Paciente, (paciente) => paciente.paciente_medicamentos, { onDelete: 'CASCADE', onUpdate: 'CASCADE' })
   paciente: Paciente;
 
-  @ManyToOne(() => Medicamento)
+  @ManyToOne(() => Medicamento, { onDelete: 'CASCADE', onUpdate: 'CASCADE' })
   medicamento: Medicamento;
 }

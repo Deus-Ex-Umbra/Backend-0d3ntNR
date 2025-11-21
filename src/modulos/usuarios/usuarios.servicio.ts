@@ -6,12 +6,14 @@ import * as bcrypt from 'bcrypt';
 import { RegistroUsuarioDto } from '../autenticacion/dto/registro-usuario.dto';
 import { ActualizarUsuarioDto } from './dto/actualizar-usuario.dto';
 import { CambiarContrasenaDto } from './dto/cambiar-contrasena.dto';
+import { AlmacenamientoServicio, TipoDocumento } from '../almacenamiento/almacenamiento.servicio';
 
 @Injectable()
 export class UsuariosServicio {
   constructor(
     @InjectRepository(Usuario)
     private readonly usuario_repositorio: Repository<Usuario>,
+    private readonly almacenamiento_servicio: AlmacenamientoServicio,
   ) {}
 
   async crear(registro_usuario_dto: RegistroUsuarioDto): Promise<Omit<Usuario, 'contrasena'>> {
@@ -68,6 +70,22 @@ export class UsuariosServicio {
 
     if (!usuario) {
         throw new NotFoundException(`Usuario con ID "${id}" no encontrado`);
+    }
+
+    // Si llega avatar en base64, guardarlo en almacenamiento y persistir solo la ruta
+    if (actualizar_usuario_dto.avatar) {
+      try {
+        const ruta = await this.almacenamiento_servicio.guardarArchivo(
+          actualizar_usuario_dto.avatar,
+          'png',
+          TipoDocumento.ARCHIVO_ADJUNTO,
+        );
+        (usuario as any).avatar_ruta = ruta;
+        // Evitar asignar el base64 al modelo
+        (usuario as any).avatar = undefined;
+      } catch (_) {
+        // Si falla, continuamos sin actualizar avatar
+      }
     }
 
     const usuario_actualizado = await this.usuario_repositorio.save(usuario);

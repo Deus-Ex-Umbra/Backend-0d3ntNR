@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, DeleteDateColumn } from 'typeorm';
 import { Producto } from './producto.entidad';
 import { ActivoHistorial } from './activo-historial.entidad';
 import { PromesaUsoActivo } from './promesa-uso-activo.entidad';
@@ -45,4 +45,7 @@ export class Activo {
 
   @OneToMany(() => PromesaUsoActivo, (promesa) => promesa.activo)
   promesas_uso: PromesaUsoActivo[];
+
+  @DeleteDateColumn({ nullable: true })
+  eliminado_en?: Date | null;
 }

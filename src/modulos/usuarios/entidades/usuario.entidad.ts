@@ -16,7 +16,7 @@ export class Usuario {
   contrasena: string;
 
   @Column({ type: 'text', nullable: true })
-  avatar: string;
+  avatar_ruta: string | null;
 
   @OneToMany(() => NotaDiaria, (nota) => nota.usuario)
   notas: NotaDiaria[];

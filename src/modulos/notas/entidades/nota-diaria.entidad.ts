@@ -12,6 +12,6 @@ export class NotaDiaria {
   @Column('text')
   contenido: string;
 
-  @ManyToOne(() => Usuario, (usuario) => usuario.notas)
+  @ManyToOne(() => Usuario, (usuario) => usuario.notas, { onDelete: 'CASCADE', onUpdate: 'CASCADE' })
   usuario: Usuario;
 }

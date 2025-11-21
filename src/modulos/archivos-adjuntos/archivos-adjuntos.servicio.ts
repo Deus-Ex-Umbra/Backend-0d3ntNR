@@ -80,7 +80,7 @@ export class ArchivosAdjuntosServicio {
       throw new NotFoundException(`Archivo con ID "${id}" no encontrado o no le pertenece.`);
     }
 
-    await this.almacenamiento_servicio.eliminarArchivo(archivo.ruta_archivo, TipoDocumento.ARCHIVO_ADJUNTO);
-    await this.archivo_repositorio.remove(archivo);
+    // Borrado lógico: conservamos el archivo físico y marcamos eliminado en BD
+    await this.archivo_repositorio.softRemove(archivo);
   }
 }

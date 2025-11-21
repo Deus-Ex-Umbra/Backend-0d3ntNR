@@ -349,10 +349,7 @@ private formatearHora(fecha: Date): string {
 
     await this.finanzas_servicio.eliminarPagosPorCita(usuario_id, id);
 
-    const resultado = await this.cita_repositorio.delete({ id, usuario: { id: usuario_id } });
-    if (resultado.affected === 0) {
-      throw new NotFoundException(`Cita con ID "${id}" no encontrada.`);
-    }
+    await this.cita_repositorio.softDelete({ id, usuario: { id: usuario_id } });
   }
 
   async obtenerCitasSinPagar(usuario_id: number): Promise<Cita[]> {

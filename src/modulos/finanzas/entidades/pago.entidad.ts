@@ -8,7 +8,7 @@ export class Pago {
   @PrimaryGeneratedColumn()
   id: number;
   
-  @ManyToOne(() => Usuario, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Usuario, { onDelete: 'CASCADE', onUpdate: 'CASCADE' })
   usuario: Usuario;
   
   @Column()
@@ -20,9 +20,9 @@ export class Pago {
   @Column()
   concepto: string;
 
-  @ManyToOne(() => PlanTratamiento, (plan) => plan.pagos, { nullable: true, onDelete: 'CASCADE' })
+  @ManyToOne(() => PlanTratamiento, (plan) => plan.pagos, { nullable: true, onDelete: 'CASCADE', onUpdate: 'CASCADE' })
   plan_tratamiento: PlanTratamiento;
 
-  @ManyToOne(() => Cita, { nullable: true, onDelete: 'SET NULL' })
+  @ManyToOne(() => Cita, { nullable: true, onDelete: 'CASCADE', onUpdate: 'CASCADE' })
   cita: Cita;
 }
