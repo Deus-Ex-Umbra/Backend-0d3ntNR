@@ -10,7 +10,7 @@ import { JwtAuthGuard } from '../autenticacion/guardias/jwt-auth.guardia';
 @UseGuards(JwtAuthGuard)
 @Controller('ediciones-imagenes')
 export class EdicionesImagenesControlador {
-  constructor(private readonly ediciones_servicio: EdicionesImagenesServicio) {}
+  constructor(private readonly ediciones_servicio: EdicionesImagenesServicio) { }
 
   @Post()
   @ApiOperation({ summary: 'Crear nueva edición/versión de imagen' })
@@ -46,5 +46,35 @@ export class EdicionesImagenesControlador {
   @ApiOperation({ summary: 'Duplicar edición como nueva versión' })
   duplicar(@Param('id') id: string, @Request() req) {
     return this.ediciones_servicio.duplicar(+id, req.user.id);
+  }
+
+  @Post(':edicion_id/comentarios')
+  @ApiOperation({ summary: 'Crear comentario en edición de imagen' })
+  crearComentario(@Param('edicion_id') edicion_id: string, @Request() req, @Body() dto: any) {
+    return this.ediciones_servicio.crearComentario(req.user.id, +edicion_id, dto);
+  }
+
+  @Get(':edicion_id/comentarios')
+  @ApiOperation({ summary: 'Obtener comentarios de una edición' })
+  obtenerComentarios(@Param('edicion_id') edicion_id: string, @Request() req) {
+    return this.ediciones_servicio.obtenerComentariosPorEdicion(req.user.id, +edicion_id);
+  }
+
+  @Get('comentarios/:comentario_id')
+  @ApiOperation({ summary: 'Obtener comentario por ID' })
+  obtenerComentario(@Param('comentario_id') comentario_id: string, @Request() req) {
+    return this.ediciones_servicio.obtenerComentarioPorId(req.user.id, +comentario_id);
+  }
+
+  @Put('comentarios/:comentario_id')
+  @ApiOperation({ summary: 'Actualizar comentario' })
+  actualizarComentario(@Param('comentario_id') comentario_id: string, @Request() req, @Body() dto: any) {
+    return this.ediciones_servicio.actualizarComentario(req.user.id, +comentario_id, dto);
+  }
+
+  @Delete('comentarios/:comentario_id')
+  @ApiOperation({ summary: 'Eliminar comentario' })
+  eliminarComentario(@Param('comentario_id') comentario_id: string, @Request() req) {
+    return this.ediciones_servicio.eliminarComentario(req.user.id, +comentario_id);
   }
 }

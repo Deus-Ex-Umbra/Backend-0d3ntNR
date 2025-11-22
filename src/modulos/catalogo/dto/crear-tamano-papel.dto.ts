@@ -6,12 +6,12 @@ export class CrearTamanoPapelDto {
 
   @IsInt()
   @Min(1)
-  ancho: number; // mm
+  ancho: number;
 
   @IsInt()
   @Min(1)
-  alto: number; // mm
+  alto: number;
 
   @IsOptional()
-  descripcion?: string; // Texto entre paréntesis
+  descripcion?: string;
 }

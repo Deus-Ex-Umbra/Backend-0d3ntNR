@@ -71,8 +71,6 @@ export class UsuariosServicio {
     if (!usuario) {
         throw new NotFoundException(`Usuario con ID "${id}" no encontrado`);
     }
-
-    // Si llega avatar en base64, guardarlo en almacenamiento y persistir solo la ruta
     if (actualizar_usuario_dto.avatar) {
       try {
         const ruta = await this.almacenamiento_servicio.guardarArchivo(
@@ -81,10 +79,8 @@ export class UsuariosServicio {
           TipoDocumento.ARCHIVO_ADJUNTO,
         );
         (usuario as any).avatar_ruta = ruta;
-        // Evitar asignar el base64 al modelo
         (usuario as any).avatar = undefined;
       } catch (_) {
-        // Si falla, continuamos sin actualizar avatar
       }
     }
 

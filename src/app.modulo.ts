@@ -40,6 +40,7 @@ import { Etiqueta } from './modulos/catalogo/entidades/etiqueta.entidad';
 import { EtiquetaPlantilla } from './modulos/catalogo/entidades/etiqueta-plantilla.entidad';
 import { ArchivoAdjunto } from './modulos/archivos-adjuntos/entidades/archivo-adjunto.entidad';
 import { EdicionImagen } from './modulos/ediciones-imagenes/entidades/edicion-imagen.entidad';
+import { ComentarioImagen } from './modulos/ediciones-imagenes/entidades/comentario-imagen.entidad';
 import { PlantillaConsentimiento } from './modulos/plantillas-consentimiento/entidades/plantilla-consentimiento.entidad';
 import { Inventario } from './modulos/inventario/entidades/inventario.entidad';
 import { PermisoInventario } from './modulos/inventario/entidades/permiso-inventario.entidad';
@@ -88,6 +89,7 @@ import { TamanoPapel } from './modulos/catalogo/entidades/tamano-papel.entidad';
         EtiquetaPlantilla,
         ArchivoAdjunto,
         EdicionImagen,
+        ComentarioImagen,
         PlantillaConsentimiento,
         Inventario,
         PermisoInventario,
@@ -107,7 +109,7 @@ import { TamanoPapel } from './modulos/catalogo/entidades/tamano-papel.entidad';
       ],
       synchronize: true,
       ssl: {
-        rejectUnauthorized: false, 
+        rejectUnauthorized: false,
       },
     }),
     PacientesModule,
@@ -131,4 +133,4 @@ import { TamanoPapel } from './modulos/catalogo/entidades/tamano-papel.entidad';
   controllers: [AppControlador],
   providers: [AppServicio],
 })
-export class AppModule {}
+export class AppModule { }

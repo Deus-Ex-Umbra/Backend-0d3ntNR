@@ -1,6 +1,7 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, CreateDateColumn, DeleteDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, CreateDateColumn, DeleteDateColumn, OneToMany } from 'typeorm';
 import { ArchivoAdjunto } from '../../archivos-adjuntos/entidades/archivo-adjunto.entidad';
 import { Usuario } from '../../usuarios/entidades/usuario.entidad';
+import { ComentarioImagen } from './comentario-imagen.entidad';
 
 @Entity()
 export class EdicionImagen {
@@ -36,4 +37,7 @@ export class EdicionImagen {
 
   @ManyToOne(() => Usuario, { onDelete: 'CASCADE', onUpdate: 'CASCADE' })
   usuario: Usuario;
+
+  @OneToMany(() => ComentarioImagen, (comentario) => comentario.edicion)
+  comentarios: ComentarioImagen[];
 }

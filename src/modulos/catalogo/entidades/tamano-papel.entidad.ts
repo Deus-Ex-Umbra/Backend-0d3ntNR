@@ -7,20 +7,20 @@ export class TamanoPapel {
 
   @Index({ unique: true })
   @Column()
-  nombre: string; // Carta, Legal, A4, etc.
+  nombre: string;
 
   @Column('decimal', { precision: 6, scale: 2 })
-  ancho: number; // mm
+  ancho: number;
 
   @Column('decimal', { precision: 6, scale: 2 })
-  alto: number; // mm
+  alto: number;
 
   @Column({ nullable: true })
-  descripcion: string; // Texto que se mostrará entre paréntesis (solo mm o mm + pulgadas)
+  descripcion: string;
 
   @Column({ default: false })
-  protegido: boolean; // No se puede actualizar ni eliminar cuando true
+  protegido: boolean;
 
   @Column({ default: true })
-  activo: boolean; // Borrado lógico
+  activo: boolean;
 }

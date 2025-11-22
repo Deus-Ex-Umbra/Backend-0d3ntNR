@@ -2,8 +2,11 @@ import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/commo
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { EdicionImagen } from './entidades/edicion-imagen.entidad';
+import { ComentarioImagen } from './entidades/comentario-imagen.entidad';
 import { CrearEdicionDto } from './dto/crear-edicion.dto';
 import { ActualizarEdicionDto } from './dto/actualizar-edicion.dto';
+import { CrearComentarioDto } from './dto/crear-comentario.dto';
+import { ActualizarComentarioDto } from './dto/actualizar-comentario.dto';
 import { ArchivoAdjunto } from '../archivos-adjuntos/entidades/archivo-adjunto.entidad';
 import { Usuario } from '../usuarios/entidades/usuario.entidad';
 import { AlmacenamientoServicio, TipoDocumento } from '../almacenamiento/almacenamiento.servicio';
@@ -15,8 +18,10 @@ export class EdicionesImagenesServicio {
     private readonly edicion_repositorio: Repository<EdicionImagen>,
     @InjectRepository(ArchivoAdjunto)
     private readonly archivo_repositorio: Repository<ArchivoAdjunto>,
+    @InjectRepository(ComentarioImagen)
+    private readonly comentario_repositorio: Repository<ComentarioImagen>,
     private readonly almacenamiento_servicio: AlmacenamientoServicio,
-  ) {}
+  ) { }
 
   async crear(usuario_id: number, dto: CrearEdicionDto): Promise<EdicionImagen> {
     const archivo = await this.archivo_repositorio.findOne({
@@ -52,7 +57,6 @@ export class EdicionesImagenesServicio {
       }
     }
 
-    // Guardar imagen resultado en almacenamiento y persistir solo la ruta
     const nombre_archivo_resultado = await this.almacenamiento_servicio.guardarArchivo(
       dto.imagen_resultado_base64,
       'png',
@@ -71,7 +75,6 @@ export class EdicionesImagenesServicio {
     });
 
     const guardada = await this.edicion_repositorio.save(nueva_edicion);
-    // Responder manteniendo compatibilidad: incluir base64 sin persistirlo
     return Object.assign({}, guardada, { imagen_resultado_base64: dto.imagen_resultado_base64 }) as any;
   }
 
@@ -80,7 +83,7 @@ export class EdicionesImagenesServicio {
     if (!archivo) {
       throw new NotFoundException('Archivo no encontrado o no le pertenece.');
     }
-    
+
     const ediciones = await this.edicion_repositorio.find({
       where: { archivo_original: { id: archivo_id } },
       relations: ['usuario', 'edicion_padre'],
@@ -156,15 +159,11 @@ export class EdicionesImagenesServicio {
     if (edicion.usuario.id !== usuario_id) {
       throw new ForbiddenException('No tienes permiso para eliminar esta versión');
     }
-
-    // Borrado lógico para preservar historial y archivos
     await this.edicion_repositorio.softRemove(edicion);
   }
 
   async duplicar(id: number, usuario_id: number): Promise<any> {
     const edicion_original = await this.obtenerPorId(usuario_id, id);
-
-    // Duplicar archivo de resultado para independencia de versiones
     let nueva_ruta = edicion_original.ruta_imagen_resultado;
     try {
       const buffer = await this.almacenamiento_servicio.leerArchivoComoBuffer(
@@ -177,7 +176,6 @@ export class EdicionesImagenesServicio {
         TipoDocumento.EDICION_IMAGEN,
       );
     } catch (_) {
-      // Si falla la duplicación, reusar la ruta existente
     }
 
     const nueva_edicion = this.edicion_repositorio.create({
@@ -194,5 +192,108 @@ export class EdicionesImagenesServicio {
     const guardada = await this.edicion_repositorio.save(nueva_edicion);
     const imagen_base64 = await this.almacenamiento_servicio.leerArchivo(guardada.ruta_imagen_resultado, TipoDocumento.EDICION_IMAGEN);
     return Object.assign({}, guardada, { imagen_resultado_base64: imagen_base64 });
+  }
+
+  async crearComentario(usuario_id: number, edicion_id: number, dto: CrearComentarioDto): Promise<ComentarioImagen> {
+    const edicion = await this.edicion_repositorio.findOne({
+      where: { id: edicion_id },
+      relations: ['archivo_original', 'archivo_original.usuario'],
+    });
+
+    if (!edicion) {
+      throw new NotFoundException('Edición no encontrada');
+    }
+
+    if (edicion.archivo_original.usuario.id !== usuario_id) {
+      throw new ForbiddenException('No tienes permiso para agregar comentarios a esta edición');
+    }
+
+    const comentario = this.comentario_repositorio.create({
+      edicion: { id: edicion_id } as EdicionImagen,
+      usuario: { id: usuario_id } as Usuario,
+      x: dto.x,
+      y: dto.y,
+      titulo: dto.titulo,
+      contenido: dto.contenido,
+      color: dto.color || '#FF0000',
+    });
+
+    return await this.comentario_repositorio.save(comentario);
+  }
+
+  async obtenerComentariosPorEdicion(usuario_id: number, edicion_id: number): Promise<ComentarioImagen[]> {
+    const edicion = await this.edicion_repositorio.findOne({
+      where: { id: edicion_id },
+      relations: ['archivo_original', 'archivo_original.usuario'],
+    });
+
+    if (!edicion) {
+      throw new NotFoundException('Edición no encontrada');
+    }
+
+    if (edicion.archivo_original.usuario.id !== usuario_id) {
+      throw new ForbiddenException('No tienes permiso para ver comentarios de esta edición');
+    }
+
+    return await this.comentario_repositorio.find({
+      where: { edicion: { id: edicion_id } },
+      relations: ['usuario'],
+      order: { fecha_creacion: 'ASC' },
+    });
+  }
+
+  async obtenerComentarioPorId(usuario_id: number, comentario_id: number): Promise<ComentarioImagen> {
+    const comentario = await this.comentario_repositorio.findOne({
+      where: { id: comentario_id },
+      relations: ['edicion', 'edicion.archivo_original', 'edicion.archivo_original.usuario', 'usuario'],
+    });
+
+    if (!comentario) {
+      throw new NotFoundException('Comentario no encontrado');
+    }
+
+    if (comentario.edicion.archivo_original.usuario.id !== usuario_id) {
+      throw new ForbiddenException('No tienes permiso para ver este comentario');
+    }
+
+    return comentario;
+  }
+
+  async actualizarComentario(usuario_id: number, comentario_id: number, dto: ActualizarComentarioDto): Promise<ComentarioImagen> {
+    const comentario = await this.comentario_repositorio.findOne({
+      where: { id: comentario_id },
+      relations: ['usuario', 'edicion', 'edicion.archivo_original', 'edicion.archivo_original.usuario'],
+    });
+
+    if (!comentario) {
+      throw new NotFoundException('Comentario no encontrado');
+    }
+    if (comentario.usuario.id !== usuario_id && comentario.edicion.archivo_original.usuario.id !== usuario_id) {
+      throw new ForbiddenException('No tienes permiso para editar este comentario');
+    }
+
+    if (dto.x !== undefined) comentario.x = dto.x;
+    if (dto.y !== undefined) comentario.y = dto.y;
+    if (dto.titulo !== undefined) comentario.titulo = dto.titulo;
+    if (dto.contenido !== undefined) comentario.contenido = dto.contenido;
+    if (dto.color !== undefined) comentario.color = dto.color;
+
+    return await this.comentario_repositorio.save(comentario);
+  }
+
+  async eliminarComentario(usuario_id: number, comentario_id: number): Promise<void> {
+    const comentario = await this.comentario_repositorio.findOne({
+      where: { id: comentario_id },
+      relations: ['usuario', 'edicion', 'edicion.archivo_original', 'edicion.archivo_original.usuario'],
+    });
+
+    if (!comentario) {
+      throw new NotFoundException('Comentario no encontrado');
+    }
+    if (comentario.usuario.id !== usuario_id && comentario.edicion.archivo_original.usuario.id !== usuario_id) {
+      throw new ForbiddenException('No tienes permiso para eliminar este comentario');
+    }
+
+    await this.comentario_repositorio.remove(comentario);
   }
 }

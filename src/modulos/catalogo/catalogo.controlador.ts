@@ -144,7 +144,6 @@ export class CatalogoControlador {
     return this.catalogo_servicio.eliminarEtiquetaPlantilla(+id, req.user.id);
   }
 
-  // Tamaños de papel
   @Post('tamanos-papel')
   crearTamanoPapel(@Body() dto: CrearTamanoPapelDto) {
     return this.catalogo_servicio.crearTamanoPapel(dto);

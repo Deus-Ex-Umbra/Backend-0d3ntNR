@@ -47,8 +47,6 @@ export class CatalogoServicio implements OnModuleInit {
 
   private async seedTamanosPapel() {
     const existentes = await this.tamano_papel_repositorio.find();
-
-    // Migración suave: si existen registros en cm (valores típicos < 50), convertirlos a mm
     for (const e of existentes) {
       if (typeof e.ancho === 'number' && typeof e.alto === 'number' && e.ancho > 0 && e.alto > 0 && e.ancho < 50 && e.alto < 60) {
         const anchoMm = Math.round(e.ancho * 10);
@@ -66,7 +64,6 @@ export class CatalogoServicio implements OnModuleInit {
     if (faltantes.length === 0) return;
 
     const definiciones: Record<string, { ancho: number; alto: number; descripcion: string }> = {
-      // Todas las medidas en milímetros (mm)
       'Carta': { ancho: 216, alto: 279, descripcion: '216 × 279 mm (8.5" × 11")' },
       'Legal': { ancho: 216, alto: 356, descripcion: '216 × 356 mm (8.5" × 14")' },
       'A4': { ancho: 210, alto: 297, descripcion: '210 × 297 mm (8.27" × 11.7")' },
@@ -87,7 +84,6 @@ export class CatalogoServicio implements OnModuleInit {
     }
   }
 
-  // Tamaños de papel
   async crearTamanoPapel(dto: CrearTamanoPapelDto): Promise<TamanoPapel> {
     const existe = await this.tamano_papel_repositorio.findOne({ where: { nombre: dto.nombre } });
     if (existe) throw new ConflictException('Este tamaño de papel ya existe');

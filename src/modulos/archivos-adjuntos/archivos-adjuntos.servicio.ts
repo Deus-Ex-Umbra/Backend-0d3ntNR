@@ -79,8 +79,6 @@ export class ArchivosAdjuntosServicio {
     if (!archivo) {
       throw new NotFoundException(`Archivo con ID "${id}" no encontrado o no le pertenece.`);
     }
-
-    // Borrado lógico: conservamos el archivo físico y marcamos eliminado en BD
     await this.archivo_repositorio.softRemove(archivo);
   }
 }
