@@ -17,7 +17,6 @@ import { PlanTratamiento } from '../tratamientos/entidades/plan-tratamiento.enti
 import { InventarioControlador } from './inventario.controlador';
 import { InventarioServicio } from './inventario.servicio';
 import { PermisoInventarioGuardia } from './guardias/permiso-inventario.guardia';
-import { InventarioSubscriber } from './inventario.subscriber';
 import { FinanzasModule } from '../finanzas/finanzas.modulo';
 
 @Module({
@@ -41,7 +40,7 @@ import { FinanzasModule } from '../finanzas/finanzas.modulo';
     forwardRef(() => FinanzasModule),
   ],
   controllers: [InventarioControlador],
-  providers: [InventarioServicio, PermisoInventarioGuardia, InventarioSubscriber],
+  providers: [InventarioServicio, PermisoInventarioGuardia],
   exports: [InventarioServicio],
 })
 export class InventarioModule {}
