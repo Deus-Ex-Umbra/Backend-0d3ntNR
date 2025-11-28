@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsArray, ValidateNested, IsInt, IsNumber, Min } from 'class-validator';
+import { IsArray, ValidateNested, IsInt, IsNumber, Min, IsOptional } from 'class-validator';
 import { Type } from 'class-transformer';
 
 class MaterialUsadoDto {
@@ -11,6 +11,21 @@ class MaterialUsadoDto {
   @IsNumber()
   @Min(0)
   cantidad_usada: number;
+
+  @ApiProperty({ description: 'ID del inventario (informativo)', required: false })
+  @IsInt()
+  @IsOptional()
+  inventario_id?: number;
+
+  @ApiProperty({ description: 'ID del lote utilizado (opcional)', required: false })
+  @IsInt()
+  @IsOptional()
+  lote_id?: number;
+
+  @ApiProperty({ description: 'ID del activo utilizado (opcional)', required: false })
+  @IsInt()
+  @IsOptional()
+  activo_id?: number;
 }
 
 export class ConfirmarMaterialesCitaDto {

@@ -163,11 +163,17 @@ export class InventarioControlador {
   }
 
   @Post('citas/:cita_id/asignar-materiales')
-  @ApiOperation({ summary: 'Asignar materiales planeados a una cita' })
+  @ApiOperation({ summary: 'Asignar materiales planeados a una cita (Reemplaza existentes)' })
   asignarMaterialesCita(@Request() req, @Param('cita_id') cita_id: string, @Body() dto: AsignarMaterialesCitaDto) {
     return this.inventario_servicio.asignarMaterialesCita(req.user.id, +cita_id, dto);
   }
 
+  @Post('citas/:cita_id/agregar-materiales')
+  @ApiOperation({ summary: 'Agregar materiales adicionales a una cita (Sin borrar existentes)' })
+  agregarMaterialesCita(@Request() req, @Param('cita_id') cita_id: string, @Body() dto: AsignarMaterialesCitaDto) {
+    return this.inventario_servicio.agregarMaterialesCita(req.user.id, +cita_id, dto);
+  }
+  
   @Get('citas/:cita_id/materiales')
   @ApiOperation({ summary: 'Obtener materiales asignados a una cita' })
   obtenerMaterialesCita(@Request() req, @Param('cita_id') cita_id: string) {

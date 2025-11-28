@@ -892,146 +892,223 @@ async obtenerStockProducto(usuario_id: number, inventario_id: number, producto_i
 }
 
 async asignarMaterialesCita(
-  usuario_id: number,
-  cita_id: number,
-  dto: AsignarMaterialesCitaDto,
-): Promise<any> {
-  const cita = await this.cita_repositorio.findOne({
-    where: { id: cita_id, usuario: { id: usuario_id } },
-  });
-
-  if (!cita) {
-    throw new NotFoundException('Cita no encontrada');
-  }
-
-  await this.material_cita_repositorio.delete({ cita: { id: cita_id } });
-
-  const materiales_asignados: MaterialCita[] = [];
-
-  for (const material_dto of dto.materiales) {
-    const puede_asignar = await this.verificarStockDisponible(
-      material_dto.producto_id,
-      material_dto.cantidad_planeada,
-    );
-
-    if (!puede_asignar) {
-      const producto = await this.producto_repositorio.findOne({
-        where: { id: material_dto.producto_id },
-      });
-      
-      throw new BadRequestException(
-        `Stock insuficiente para ${producto?.nombre || 'el producto'}. Cantidad requerida: ${material_dto.cantidad_planeada}`,
-      );
-    }
-
-    const material = this.material_cita_repositorio.create({
-      cita: cita,
-      producto: { id: material_dto.producto_id } as Producto,
-      cantidad_planeada: material_dto.cantidad_planeada,
+    usuario_id: number,
+    cita_id: number,
+    dto: AsignarMaterialesCitaDto,
+  ): Promise<any> {
+    const cita = await this.cita_repositorio.findOne({
+      where: { id: cita_id, usuario: { id: usuario_id } },
     });
 
-    const material_guardado = await this.material_cita_repositorio.save(material);
-    materiales_asignados.push(material_guardado);
-  }
-
-  return {
-    mensaje: 'Materiales asignados a la cita',
-    cita_id: cita_id,
-    materiales: materiales_asignados,
-  };
-}
-
-async confirmarMaterialesCita(
-  usuario_id: number,
-  cita_id: number,
-  dto: ConfirmarMaterialesCitaDto,
-): Promise<any> {
-  const cita = await this.cita_repositorio.findOne({
-    where: { id: cita_id, usuario: { id: usuario_id } },
-  });
-
-  if (!cita) {
-    throw new NotFoundException('Cita no encontrada');
-  }
-
-  if (cita.materiales_confirmados) {
-    throw new BadRequestException('Los materiales de esta cita ya fueron confirmados');
-  }
-
-  const materiales_confirmados: MaterialCita[] = [];
-
-  for (const material_dto of dto.materiales) {
-    const material = await this.material_cita_repositorio.findOne({
-      where: { id: material_dto.material_cita_id },
-      relations: ['producto', 'producto.lotes'],
-    });
-
-    if (!material) {
-      throw new NotFoundException(`Material con ID ${material_dto.material_cita_id} no encontrado`);
+    if (!cita) {
+      throw new NotFoundException('Cita no encontrada');
     }
 
-    const puede_usar = await this.verificarStockDisponible(
-      material.producto.id,
-      material_dto.cantidad_usada,
-    );
+    await this.material_cita_repositorio.delete({ cita: { id: cita_id } });
 
-    if (!puede_usar) {
-      throw new BadRequestException(
-        `Stock insuficiente para ${material.producto.nombre}. Cantidad requerida: ${material_dto.cantidad_usada}`,
+    const materiales_asignados: MaterialCita[] = [];
+
+    for (const material_dto of dto.materiales) {
+      const puede_asignar = await this.verificarStockDisponible(
+        material_dto.producto_id,
+        material_dto.cantidad_planeada,
       );
-    }
 
-    if (material.producto.tipo_gestion === TipoGestion.CONSUMIBLE) {
-      const lotes = await this.lote_repositorio.find({
-        where: { producto: { id: material.producto.id }, activo: true },
-        order: { fecha_vencimiento: 'ASC' },
-      });
-
-      let cantidad_restante = material_dto.cantidad_usada;
-      const stock_anterior = lotes.reduce((total, lote) => total + Number(lote.cantidad_actual), 0);
-
-      for (const lote of lotes) {
-        if (cantidad_restante <= 0) break;
-
-        const cantidad_a_descontar = Math.min(cantidad_restante, Number(lote.cantidad_actual));
-
-        if (cantidad_a_descontar > 0) {
-          lote.cantidad_actual = Number(lote.cantidad_actual) - cantidad_a_descontar;
-          await this.lote_repositorio.save(lote);
-          cantidad_restante -= cantidad_a_descontar;
-        }
+      if (!puede_asignar) {
+        const producto = await this.producto_repositorio.findOne({
+          where: { id: material_dto.producto_id },
+        });
+        
+        throw new BadRequestException(
+          `Stock insuficiente para ${producto?.nombre || 'el producto'}. Cantidad requerida: ${material_dto.cantidad_planeada}`,
+        );
       }
 
-      const stock_nuevo = lotes.reduce((total, lote) => total + Number(lote.cantidad_actual), 0);
+      const material = this.material_cita_repositorio.create({
+        cita: cita,
+        producto: { id: material_dto.producto_id } as Producto,
+        cantidad_planeada: material_dto.cantidad_planeada,
+      });
 
-      await this.registrarMovimiento(
-        material.producto,
-        TipoMovimiento.SALIDA_LOTE,
-        material_dto.cantidad_usada,
-        stock_anterior,
-        stock_nuevo,
-        usuario_id,
-        `Cita ID: ${cita_id}`,
-        `Uso confirmado en cita`,
-      );
+      const material_guardado = await this.material_cita_repositorio.save(material);
+      materiales_asignados.push(material_guardado);
     }
 
-    material.cantidad_usada = material_dto.cantidad_usada;
-    material.confirmado = true;
-    await this.material_cita_repositorio.save(material);
-
-    materiales_confirmados.push(material);
+    return {
+      mensaje: 'Materiales asignados a la cita',
+      cita_id: cita_id,
+      materiales: materiales_asignados,
+    };
   }
 
-  cita.materiales_confirmados = true;
-  await this.cita_repositorio.save(cita);
+  async agregarMaterialesCita(
+    usuario_id: number,
+    cita_id: number,
+    dto: AsignarMaterialesCitaDto,
+  ): Promise<any> {
+    const cita = await this.cita_repositorio.findOne({
+      where: { id: cita_id, usuario: { id: usuario_id } },
+    });
 
-  return {
-    mensaje: 'Materiales confirmados exitosamente',
-    cita_id: cita_id,
-    materiales_confirmados: materiales_confirmados.length,
-  };
-}
+    if (!cita) {
+      throw new NotFoundException('Cita no encontrada');
+    }
+
+    const materiales_agregados: MaterialCita[] = [];
+
+    for (const material_dto of dto.materiales) {
+      const puede_asignar = await this.verificarStockDisponible(
+        material_dto.producto_id,
+        material_dto.cantidad_planeada,
+      );
+
+      if (!puede_asignar) {
+        const producto = await this.producto_repositorio.findOne({
+          where: { id: material_dto.producto_id },
+        });
+        
+        throw new BadRequestException(
+          `Stock insuficiente para ${producto?.nombre || 'el producto'}. Cantidad requerida: ${material_dto.cantidad_planeada}`,
+        );
+      }
+
+      const material = this.material_cita_repositorio.create({
+        cita: cita,
+        producto: { id: material_dto.producto_id } as Producto,
+        cantidad_planeada: material_dto.cantidad_planeada,
+      });
+
+      const material_guardado = await this.material_cita_repositorio.save(material);
+      materiales_agregados.push(material_guardado);
+    }
+
+    return {
+      mensaje: 'Materiales agregados a la cita correctamente',
+      cita_id: cita_id,
+      materiales: materiales_agregados,
+    };
+  }
+
+async confirmarMaterialesCita(
+    usuario_id: number,
+    cita_id: number,
+    dto: ConfirmarMaterialesCitaDto,
+  ): Promise<any> {
+    const cita = await this.cita_repositorio.findOne({
+      where: { id: cita_id, usuario: { id: usuario_id } },
+    });
+
+    if (!cita) {
+      throw new NotFoundException('Cita no encontrada');
+    }
+
+    if (cita.materiales_confirmados) {
+      throw new BadRequestException('Los materiales de esta cita ya fueron confirmados');
+    }
+
+    const totales_por_material: Record<number, number> = {};
+
+    for (const material_dto of dto.materiales) {
+      const material = await this.material_cita_repositorio.findOne({
+        where: { id: material_dto.material_cita_id },
+        relations: ['producto', 'producto.lotes'],
+      });
+
+      if (!material) {
+        throw new NotFoundException(`Material con ID ${material_dto.material_cita_id} no encontrado`);
+      }
+
+      if (!totales_por_material[material.id]) {
+        totales_por_material[material.id] = 0;
+      }
+      totales_por_material[material.id] += material_dto.cantidad_usada;
+
+      const puede_usar = await this.verificarStockDisponible(
+        material.producto.id,
+        material_dto.cantidad_usada,
+      );
+
+      if (!puede_usar) {
+        throw new BadRequestException(
+          `Stock insuficiente para ${material.producto.nombre}. Cantidad requerida: ${material_dto.cantidad_usada}`,
+        );
+      }
+
+      if (material.producto.tipo_gestion === TipoGestion.CONSUMIBLE) {
+        if (material_dto.lote_id) {
+          const lote_especifico = await this.lote_repositorio.findOne({ where: { id: material_dto.lote_id } });
+          
+          if (lote_especifico) {
+             const stock_anterior = Number(lote_especifico.cantidad_actual);
+             lote_especifico.cantidad_actual = Number(lote_especifico.cantidad_actual) - material_dto.cantidad_usada;
+             await this.lote_repositorio.save(lote_especifico);
+             
+             await this.registrarMovimiento(
+                material.producto,
+                TipoMovimiento.SALIDA_LOTE,
+                material_dto.cantidad_usada,
+                stock_anterior,
+                Number(lote_especifico.cantidad_actual),
+                usuario_id,
+                `Cita ID: ${cita_id} - Lote: ${lote_especifico.nro_lote}`,
+                `Uso confirmado en cita (Lote seleccionado)`
+             );
+          } else {
+             throw new NotFoundException(`El lote especificado para ${material.producto.nombre} no existe`);
+          }
+        } else {
+          const lotes = await this.lote_repositorio.find({
+            where: { producto: { id: material.producto.id }, activo: true },
+            order: { fecha_vencimiento: 'ASC' },
+          });
+
+          let cantidad_restante = material_dto.cantidad_usada;
+          const stock_anterior_total = lotes.reduce((total, lote) => total + Number(lote.cantidad_actual), 0);
+
+          for (const lote of lotes) {
+            if (cantidad_restante <= 0) break;
+
+            const cantidad_a_descontar = Math.min(cantidad_restante, Number(lote.cantidad_actual));
+
+            if (cantidad_a_descontar > 0) {
+              lote.cantidad_actual = Number(lote.cantidad_actual) - cantidad_a_descontar;
+              await this.lote_repositorio.save(lote);
+              cantidad_restante -= cantidad_a_descontar;
+            }
+          }
+          
+          const stock_nuevo_total = lotes.reduce((total, lote) => total + Number(lote.cantidad_actual), 0);
+
+          await this.registrarMovimiento(
+            material.producto,
+            TipoMovimiento.SALIDA_LOTE,
+            material_dto.cantidad_usada,
+            stock_anterior_total,
+            stock_nuevo_total,
+            usuario_id,
+            `Cita ID: ${cita_id}`,
+            `Uso confirmado en cita (FIFO)`,
+          );
+        }
+      }
+    }
+
+    for (const [id, total_usado] of Object.entries(totales_por_material)) {
+        await this.material_cita_repositorio.update(
+            { id: Number(id) },
+            { cantidad_usada: total_usado, confirmado: true }
+        );
+    }
+
+    cita.materiales_confirmados = true;
+    await this.cita_repositorio.save(cita);
+
+    return {
+      mensaje: 'Materiales confirmados exitosamente',
+      cita_id: cita_id,
+      materiales_confirmados: dto.materiales.length,
+    };
+  }
 
 async obtenerMaterialesCita(usuario_id: number, cita_id: number): Promise<any> {
   const cita = await this.cita_repositorio.findOne({
