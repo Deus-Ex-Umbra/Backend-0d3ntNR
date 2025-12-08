@@ -18,8 +18,6 @@ import { RespuestaAnamnesisDto } from './dto/respuesta-anamnesis.dto';
 import { Usuario } from '../usuarios/entidades/usuario.entidad';
 import { AlmacenamientoServicio, TipoDocumento } from '../almacenamiento/almacenamiento.servicio';
 import PDFDocument from 'pdfkit';
-import * as fs from 'fs/promises';
-import * as path from 'path';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -342,22 +340,37 @@ export class PacientesServicio {
     if (!plantilla) {
       throw new NotFoundException(`Plantilla con ID ${plantilla_id} no encontrada`);
     }
+    
     const contenido_procesado = this.reemplazarVariablesPaciente(plantilla.contenido, paciente);
     const timestamp = Date.now();
     const nombre_archivo_base = `consentimiento_${timestamp}_${paciente_id}`;
-    const pdf_buffer = await this.generarPDFConsentimientoEnMemoria(contenido_procesado, nombre);
+    
+    const configPdf = {
+      tamano: (plantilla as any).tamano_papel || 'LETTER',
+      margenes: {
+        top: ((plantilla as any).margen_superior || 20) * 2.83465, 
+        bottom: ((plantilla as any).margen_inferior || 20) * 2.83465,
+        left: ((plantilla as any).margen_izquierdo || 20) * 2.83465,
+        right: ((plantilla as any).margen_derecho || 20) * 2.83465,
+      }
+    };
+
+    const pdf_buffer = await this.generarPDFConsentimientoEnMemoria(contenido_procesado, nombre, configPdf);
+    
     const nombre_archivo = await this.almacenamiento_servicio.guardarArchivoDesdeBuffer(
       pdf_buffer,
       'pdf',
       TipoDocumento.PLANTILLA_CONSENTIMIENTO,
       nombre_archivo_base
     );
+    
     const consentimiento = new ConsentimientoInformado();
     consentimiento.paciente = paciente;
     consentimiento.usuario = { id: usuario_id } as Usuario;
     consentimiento.nombre = nombre;
     consentimiento.contenido_html = contenido_procesado;
     consentimiento.ruta_archivo = nombre_archivo;
+    
     return await this.consentimiento_repositorio.save(consentimiento);
   }
 
@@ -418,101 +431,105 @@ export class PacientesServicio {
   private async generarPDFConsentimientoEnMemoria(
     contenido_html: string,
     titulo: string,
+    config: any = {}
   ): Promise<Buffer> {
     return new Promise((resolve, reject) => {
       const doc = new PDFDocument({
-        size: 'LETTER',
-        margins: { top: 50, bottom: 50, left: 50, right: 50 },
+        size: config.tamano ? config.tamano.toUpperCase() : 'LETTER',
+        margins: config.margenes || { top: 56, bottom: 56, left: 56, right: 56 }, 
       });
 
       const buffers: Buffer[] = [];
       doc.on('data', buffers.push.bind(buffers));
       doc.on('end', () => resolve(Buffer.concat(buffers)));
       doc.on('error', reject);
-      doc.font('Times-Roman');
+
+      doc.font('Times-Roman').fontSize(11);
+
       doc.font('Times-Bold').fontSize(16).text(titulo, { align: 'center' });
-      doc.moveDown();
-      const lineas = contenido_html
-        .replace(/<br\s*\/?>/gi, '\n')
-        .replace(/<\/p>/gi, '\n\n')
-        .replace(/<p>/gi, '')
-        .replace(/<strong>|<b>/gi, '**')
-        .replace(/<\/strong>|<\/b>/gi, '**')
-        .replace(/<em>|<i>/gi, '_')
-        .replace(/<\/em>|<\/i>/gi, '_')
-        .replace(/<h1>(.*?)<\/h1>/gi, '\n$1\n')
-        .replace(/<h2>(.*?)<\/h2>/gi, '\n$1\n')
-        .replace(/<h3>(.*?)<\/h3>/gi, '\n$1\n')
-        .replace(/<[^>]+>/g, '');
+      doc.moveDown(1.5);
 
-      const parrafos = lineas.split('\n\n');
-      
-      for (const parrafo of parrafos) {
-        if (parrafo.trim()) {
-          const partes = parrafo.split('**');
-          for (let i = 0; i < partes.length; i++) {
-            if (i % 2 === 0) {
-              doc.font('Times-Roman').fontSize(11).text(partes[i], { continued: i < partes.length - 1 });
-            } else {
-              doc.font('Times-Bold').fontSize(11).text(partes[i], { continued: i < partes.length - 1 });
-            }
+      const regex = /(<\/?(?:b|strong|i|em|u|p|br|h[1-6]|ul|li|div)(?:\s+[^>]*)?>)/gi;
+      const tokens = contenido_html.split(regex).filter(t => t.length > 0);
+
+      const estado = {
+        bold: false,
+        italic: false,
+        underline: false,
+        list: false,
+        align: 'left' as 'left' | 'center' | 'right' | 'justify',
+      };
+
+      doc.fontSize(11);
+
+      tokens.forEach((token) => {
+        const lowerToken = token.toLowerCase();
+
+        if (lowerToken.startsWith('<')) {
+          if (lowerToken === '<b>' || lowerToken === '<strong>') estado.bold = true;
+          else if (lowerToken === '</b>' || lowerToken === '</strong>') estado.bold = false;
+          else if (lowerToken === '<i>' || lowerToken === '<em>') estado.italic = true;
+          else if (lowerToken === '</i>' || lowerToken === '</em>') estado.italic = false;
+          else if (lowerToken === '<u>') estado.underline = true;
+          else if (lowerToken === '</u>') estado.underline = false;
+          else if (lowerToken === '<br>' || lowerToken === '<br/>') {
+             doc.text('', { continued: false });
           }
-          doc.moveDown();
+          else if (lowerToken === '<p>' || lowerToken.startsWith('<p ')) {
+             doc.moveDown(0.5);
+             if (lowerToken.includes('text-align: center')) estado.align = 'center';
+             else if (lowerToken.includes('text-align: right')) estado.align = 'right';
+             else estado.align = 'left';
+          }
+          else if (lowerToken === '</p>') { 
+            doc.text('', { continued: false });
+            doc.moveDown(0.5); 
+            estado.align = 'left';
+          }
+          else if (lowerToken.startsWith('<h')) {
+             doc.moveDown(1);
+             doc.font('Times-Bold').fontSize(14);
+          }
+          else if (lowerToken.startsWith('</h')) {
+             doc.text('', { continued: false });
+             doc.font('Times-Roman').fontSize(11);
+             doc.moveDown(0.5);
+          }
+          else if (lowerToken === '<ul>') estado.list = true;
+          else if (lowerToken === '</ul>') estado.list = false;
+          else if (lowerToken === '<li>') {
+            doc.text('', { continued: false });
+            doc.moveDown(0.2);
+            doc.text('• ', { continued: true, indent: 10 });
+          }
+          else if (lowerToken === '</li>') {
+             doc.text('', { continued: false });
+          }
+        } else {
+          let texto = token
+            .replace(/&nbsp;/g, ' ')
+            .replace(/&amp;/g, '&')
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>');
+
+          let font = 'Times-Roman';
+          if (estado.bold && estado.italic) font = 'Times-BoldItalic';
+          else if (estado.bold) font = 'Times-Bold';
+          else if (estado.italic) font = 'Times-Italic';
+
+          doc.font(font);
+          
+          doc.text(texto, {
+            continued: true,
+            underline: estado.underline,
+            align: estado.align,
+          });
         }
-      }
-
-      doc.end();
-    });
-  }
-
-  private async generarPDFConsentimiento(
-    contenido_html: string,
-    ruta_archivo: string,
-    titulo: string,
-  ): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const doc = new PDFDocument({
-        size: 'LETTER',
-        margins: { top: 50, bottom: 50, left: 50, right: 50 },
       });
-
-      const stream = require('fs').createWriteStream(ruta_archivo);
-      doc.pipe(stream);
-      doc.font('Times-Roman');
-      doc.font('Times-Bold').fontSize(16).text(titulo, { align: 'center' });
-      doc.moveDown();
-      const lineas = contenido_html
-        .replace(/<br\s*\/?>/gi, '\n')
-        .replace(/<\/p>/gi, '\n\n')
-        .replace(/<p>/gi, '')
-        .replace(/<strong>|<b>/gi, '**')
-        .replace(/<\/strong>|<\/b>/gi, '**')
-        .replace(/<em>|<i>/gi, '_')
-        .replace(/<\/em>|<\/i>/gi, '_')
-        .replace(/<h1>(.*?)<\/h1>/gi, '\n$1\n')
-        .replace(/<h2>(.*?)<\/h2>/gi, '\n$1\n')
-        .replace(/<h3>(.*?)<\/h3>/gi, '\n$1\n')
-        .replace(/<[^>]+>/g, '');
-      const parrafos = lineas.split('\n\n');
       
-      for (const parrafo of parrafos) {
-        if (parrafo.trim()) {
-          const partes = parrafo.split('**');
-          for (let i = 0; i < partes.length; i++) {
-            if (i % 2 === 0) {
-              doc.font('Times-Roman').fontSize(11).text(partes[i], { continued: i < partes.length - 1 });
-            } else {
-              doc.font('Times-Bold').fontSize(11).text(partes[i], { continued: i < partes.length - 1 });
-            }
-          }
-          doc.moveDown();
-        }
-      }
+      doc.text('', { continued: false });
 
       doc.end();
-
-      stream.on('finish', () => resolve());
-      stream.on('error', reject);
     });
   }
 }
