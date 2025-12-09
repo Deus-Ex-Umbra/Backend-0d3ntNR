@@ -32,8 +32,14 @@ export class Paciente {
   @Column('text', { nullable: true })
   notas_generales: string;
 
+  @Column('json', { nullable: true })
+  notas_generales_config: any;
+
   @Column('text', { nullable: true })
   notas_medicas: string;
+
+  @Column('json', { nullable: true })
+  notas_medicas_config: any;
 
   @Column({ nullable: true })
   color_categoria: string;

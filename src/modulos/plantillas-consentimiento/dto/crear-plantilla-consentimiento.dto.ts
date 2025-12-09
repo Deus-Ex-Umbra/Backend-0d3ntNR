@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, IsInt, IsOptional, Min, Max, IsIn } from 'class-validator';
+import { IsString, IsNotEmpty, IsInt, IsOptional, Min, IsIn } from 'class-validator';
 
 export class CrearPlantillaConsentimientoDto {
   @ApiProperty({ description: 'Nombre de la plantilla' })
@@ -17,6 +17,23 @@ export class CrearPlantillaConsentimientoDto {
   @IsString()
   @IsIn(['carta', 'legal', 'a4'])
   tamano_papel?: 'carta' | 'legal' | 'a4';
+
+  @ApiProperty({ description: 'ID del tamaño de hoja personalizado', required: false, nullable: true })
+  @IsOptional()
+  @IsInt()
+  tamano_hoja_id?: number | null;
+
+  @ApiProperty({ description: 'Ancho de la hoja en mm (si se usa tamaño personalizado)', required: false, nullable: true, example: 216 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  ancho_mm?: number | null;
+
+  @ApiProperty({ description: 'Alto de la hoja en mm (si se usa tamaño personalizado)', required: false, nullable: true, example: 279 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  alto_mm?: number | null;
 
   @ApiProperty({ description: 'Margen superior en mm', required: false, default: 20 })
   @IsOptional()
