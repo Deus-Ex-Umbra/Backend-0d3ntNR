@@ -17,6 +17,7 @@ import { CatalogoModule } from './modulos/catalogo/catalogo.modulo';
 import { ArchivosAdjuntosModule } from './modulos/archivos-adjuntos/archivos-adjuntos.modulo';
 import { EdicionesImagenesModule } from './modulos/ediciones-imagenes/ediciones-imagenes.modulo';
 import { PlantillasConsentimientoModule } from './modulos/plantillas-consentimiento/plantillas-consentimiento.modulo';
+import { PlantillasRecetasModule } from './modulos/plantillas-recetas/plantillas-recetas.modulo';
 import { InventarioModule } from './modulos/inventario/inventario.modulo';
 import { AlmacenamientoModule } from './modulos/almacenamiento/almacenamiento.modulo';
 import { ReportesModule } from './modulos/reportes/reportes.modulo';
@@ -42,6 +43,7 @@ import { ArchivoAdjunto } from './modulos/archivos-adjuntos/entidades/archivo-ad
 import { EdicionImagen } from './modulos/ediciones-imagenes/entidades/edicion-imagen.entidad';
 import { ComentarioImagen } from './modulos/ediciones-imagenes/entidades/comentario-imagen.entidad';
 import { PlantillaConsentimiento } from './modulos/plantillas-consentimiento/entidades/plantilla-consentimiento.entidad';
+import { PlantillaReceta } from './modulos/plantillas-recetas/entidades/plantilla-receta.entidad';
 import { Inventario } from './modulos/inventario/entidades/inventario.entidad';
 import { PermisoInventario } from './modulos/inventario/entidades/permiso-inventario.entidad';
 import { Producto } from './modulos/inventario/entidades/producto.entidad';
@@ -92,6 +94,7 @@ import { HistoriaClinicaVersion } from './modulos/pacientes/entidades/historia-c
         EdicionImagen,
         ComentarioImagen,
         PlantillaConsentimiento,
+        PlantillaReceta,
         Inventario,
         PermisoInventario,
         Producto,
@@ -128,6 +131,7 @@ import { HistoriaClinicaVersion } from './modulos/pacientes/entidades/historia-c
     ArchivosAdjuntosModule,
     EdicionesImagenesModule,
     PlantillasConsentimientoModule,
+    PlantillasRecetasModule,
     InventarioModule,
     AlmacenamientoModule,
     ReportesModule,
