@@ -5,6 +5,7 @@ import { PacienteAlergia } from './entidades/paciente-alergia.entidad';
 import { PacienteEnfermedad } from './entidades/paciente-enfermedad.entidad';
 import { PacienteMedicamento } from './entidades/paciente-medicamento.entidad';
 import { ConsentimientoInformado } from './entidades/consentimiento-informado.entidad';
+import { HistoriaClinicaVersion } from './entidades/historia-clinica-version.entidad';
 import { Alergia } from '../catalogo/entidades/alergia.entidad';
 import { Enfermedad } from '../catalogo/entidades/enfermedad.entidad';
 import { Medicamento } from '../catalogo/entidades/medicamento.entidad';
@@ -24,6 +25,7 @@ import { AlmacenamientoModule } from '../almacenamiento/almacenamiento.modulo';
       PacienteEnfermedad,
       PacienteMedicamento,
       ConsentimientoInformado,
+      HistoriaClinicaVersion,
       PlantillaConsentimiento,
       Alergia,
       Enfermedad,

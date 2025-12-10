@@ -63,3 +63,7 @@ database.sqlite
 /docs-0d3nt
 /archivos-adjuntos
 /test
+.env
+env
+.env.test
+env.test

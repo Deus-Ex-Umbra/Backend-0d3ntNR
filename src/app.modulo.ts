@@ -57,6 +57,7 @@ import { PromesaUsoActivo } from './modulos/inventario/entidades/promesa-uso-act
 import { Reporte } from './modulos/reportes/entidades/reporte.entidad';
 import { ConsentimientoInformado } from './modulos/pacientes/entidades/consentimiento-informado.entidad';
 import { TamanoPapel } from './modulos/catalogo/entidades/tamano-papel.entidad';
+import { HistoriaClinicaVersion } from './modulos/pacientes/entidades/historia-clinica-version.entidad';
 
 @Module({
   imports: [
@@ -105,6 +106,7 @@ import { TamanoPapel } from './modulos/catalogo/entidades/tamano-papel.entidad';
         PromesaUsoActivo,
         Reporte,
         ConsentimientoInformado,
+        HistoriaClinicaVersion,
         TamanoPapel,
       ],
       synchronize: true,

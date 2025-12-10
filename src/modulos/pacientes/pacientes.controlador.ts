@@ -18,6 +18,8 @@ import { PacientesServicio } from './pacientes.servicio';
 import { CrearPacienteDto } from './dto/crear-paciente.dto';
 import { ActualizarPacienteDto } from './dto/actualizar-paciente.dto';
 import { RespuestaAnamnesisDto } from './dto/respuesta-anamnesis.dto';
+import { CrearHistoriaClinicaDto } from './dto/crear-historia-clinica.dto';
+import { ActualizarHistoriaClinicaDto } from './dto/actualizar-historia-clinica.dto';
 import {
   ApiTags,
   ApiBearerAuth,
@@ -68,6 +70,74 @@ export class PacientesControlador {
   @ApiResponse({ status: 404, description: 'Paciente no encontrado' })
   obtenerAnamnesis(@Request() req, @Param('id') id: string): Promise<RespuestaAnamnesisDto> {
     return this.pacientes_servicio.obtenerAnamnesisPorPaciente(req.user.id, +id);
+  }
+
+  @Get(':id/historias-clinicas')
+  @ApiOperation({ summary: 'Listar versiones de historia clínica de un paciente' })
+  @ApiResponse({ status: 200, description: 'Lista de versiones' })
+  listarHistoriasClinicas(@Request() req, @Param('id') id: string) {
+    return this.pacientes_servicio.listarHistoriasClinicas(req.user.id, +id);
+  }
+
+  @Get(':id/historias-clinicas/:versionId')
+  @ApiOperation({ summary: 'Obtener una versión específica de historia clínica' })
+  @ApiResponse({ status: 200, description: 'Versión encontrada' })
+  obtenerHistoriaClinica(
+    @Request() req,
+    @Param('id') id: string,
+    @Param('versionId') versionId: string,
+  ) {
+    return this.pacientes_servicio.obtenerHistoriaClinica(req.user.id, +id, +versionId);
+  }
+
+  @Post(':id/historias-clinicas')
+  @ApiOperation({ summary: 'Crear una nueva versión de la historia clínica' })
+  @ApiResponse({ status: 201, description: 'Versión creada' })
+  crearHistoriaClinica(
+    @Request() req,
+    @Param('id') paciente_id: string,
+    @Body() crear_historia_dto: CrearHistoriaClinicaDto,
+  ) {
+    return this.pacientes_servicio.crearHistoriaClinica(req.user.id, +paciente_id, crear_historia_dto);
+  }
+
+  @Put(':id/historias-clinicas/:versionId')
+  @ApiOperation({ summary: 'Actualizar una versión de historia clínica (no finalizada)' })
+  @ApiResponse({ status: 200, description: 'Versión actualizada' })
+  actualizarHistoriaClinica(
+    @Request() req,
+    @Param('id') paciente_id: string,
+    @Param('versionId') version_id: string,
+    @Body() actualizar_historia_dto: ActualizarHistoriaClinicaDto,
+  ) {
+    return this.pacientes_servicio.actualizarHistoriaClinica(
+      req.user.id,
+      +paciente_id,
+      +version_id,
+      actualizar_historia_dto,
+    );
+  }
+
+  @Post(':id/historias-clinicas/:versionId/finalizar')
+  @ApiOperation({ summary: 'Finalizar una versión de historia clínica' })
+  @ApiResponse({ status: 200, description: 'Versión finalizada' })
+  finalizarHistoriaClinica(
+    @Request() req,
+    @Param('id') paciente_id: string,
+    @Param('versionId') version_id: string,
+  ) {
+    return this.pacientes_servicio.finalizarHistoriaClinica(req.user.id, +paciente_id, +version_id);
+  }
+
+  @Post(':id/historias-clinicas/:versionId/clonar')
+  @ApiOperation({ summary: 'Crear una nueva versión clonando la actual y finalizar la anterior' })
+  @ApiResponse({ status: 201, description: 'Versión clonada' })
+  clonarHistoriaClinica(
+    @Request() req,
+    @Param('id') paciente_id: string,
+    @Param('versionId') version_id: string,
+  ) {
+    return this.pacientes_servicio.clonarHistoriaClinica(req.user.id, +paciente_id, +version_id);
   }
 
   @Put(':id')

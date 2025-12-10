@@ -5,6 +5,7 @@ import { PacienteAlergia } from './paciente-alergia.entidad';
 import { PacienteEnfermedad } from './paciente-enfermedad.entidad';
 import { PacienteMedicamento } from './paciente-medicamento.entidad';
 import { Usuario } from '../../usuarios/entidades/usuario.entidad';
+import { HistoriaClinicaVersion } from './historia-clinica-version.entidad';
 
 @Entity()
 export class Paciente {
@@ -58,6 +59,9 @@ export class Paciente {
 
   @OneToMany(() => PacienteMedicamento, (pm) => pm.paciente, { cascade: true })
   paciente_medicamentos: PacienteMedicamento[];
+
+  @OneToMany(() => HistoriaClinicaVersion, (historia) => historia.paciente)
+  historias_clinicas: HistoriaClinicaVersion[];
 
   @DeleteDateColumn({ nullable: true })
   eliminado_en?: Date | null;

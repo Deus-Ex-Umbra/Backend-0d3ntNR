@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, ILike, In, LessThan } from 'typeorm';
 import { Paciente } from './entidades/paciente.entidad';
@@ -6,6 +6,7 @@ import { PacienteAlergia } from './entidades/paciente-alergia.entidad';
 import { PacienteEnfermedad } from './entidades/paciente-enfermedad.entidad';
 import { PacienteMedicamento } from './entidades/paciente-medicamento.entidad';
 import { ConsentimientoInformado } from './entidades/consentimiento-informado.entidad';
+import { HistoriaClinicaVersion } from './entidades/historia-clinica-version.entidad';
 import { Alergia } from '../catalogo/entidades/alergia.entidad';
 import { Enfermedad } from '../catalogo/entidades/enfermedad.entidad';
 import { Medicamento } from '../catalogo/entidades/medicamento.entidad';
@@ -14,6 +15,8 @@ import { PlanTratamiento } from '../tratamientos/entidades/plan-tratamiento.enti
 import { PlantillaConsentimiento } from '../plantillas-consentimiento/entidades/plantilla-consentimiento.entidad';
 import { CrearPacienteDto } from './dto/crear-paciente.dto';
 import { ActualizarPacienteDto } from './dto/actualizar-paciente.dto';
+import { CrearHistoriaClinicaDto } from './dto/crear-historia-clinica.dto';
+import { ActualizarHistoriaClinicaDto } from './dto/actualizar-historia-clinica.dto';
 import { RespuestaAnamnesisDto } from './dto/respuesta-anamnesis.dto';
 import { Usuario } from '../usuarios/entidades/usuario.entidad';
 import { AlmacenamientoServicio, TipoDocumento } from '../almacenamiento/almacenamiento.servicio';
@@ -32,6 +35,8 @@ export class PacientesServicio {
     private readonly paciente_enfermedad_repositorio: Repository<PacienteEnfermedad>,
     @InjectRepository(PacienteMedicamento)
     private readonly paciente_medicamento_repositorio: Repository<PacienteMedicamento>,
+    @InjectRepository(HistoriaClinicaVersion)
+    private readonly historia_clinica_repositorio: Repository<HistoriaClinicaVersion>,
     @InjectRepository(ConsentimientoInformado)
     private readonly consentimiento_repositorio: Repository<ConsentimientoInformado>,
     @InjectRepository(PlantillaConsentimiento)
@@ -48,6 +53,21 @@ export class PacientesServicio {
     private readonly plan_tratamiento_repositorio: Repository<PlanTratamiento>,
     private readonly almacenamiento_servicio: AlmacenamientoServicio,
   ) {}
+
+  private async obtenerPacientePropietario(usuario_id: number, paciente_id: number): Promise<Paciente> {
+    const paciente = await this.paciente_repositorio.findOne({ where: { id: paciente_id, usuario: { id: usuario_id } } });
+    if (!paciente) {
+      throw new NotFoundException(`Paciente con ID "${paciente_id}" no encontrado o no le pertenece.`);
+    }
+    return paciente;
+  }
+
+  private async sincronizarNotasMedicasDesdeHistoria(paciente_id: number, historia: HistoriaClinicaVersion): Promise<void> {
+    await this.paciente_repositorio.update(paciente_id, {
+      notas_medicas: historia.contenido_html,
+      notas_medicas_config: historia.config,
+    });
+  }
 
   async crear(usuario_id: number, crear_paciente_dto: CrearPacienteDto): Promise<Paciente> {
     const { alergias_ids, enfermedades_ids, medicamentos_ids, ...datos_paciente } = crear_paciente_dto;
@@ -109,13 +129,28 @@ export class PacientesServicio {
     if (!paciente) {
       throw new NotFoundException(`Paciente con ID "${id}" no encontrado o no le pertenece.`);
     }
-    
-    return {
+    const ultima_historia = await this.historia_clinica_repositorio.findOne({
+      where: { paciente: { id }, usuario: { id: usuario_id } },
+      order: { numero_version: 'DESC', id: 'DESC' },
+    });
+
+    const respuesta: any = {
       ...paciente,
       alergias: paciente.paciente_alergias?.map(pa => pa.alergia.id) || [],
       enfermedades: paciente.paciente_enfermedades?.map(pe => pe.enfermedad.id) || [],
       medicamentos: paciente.paciente_medicamentos?.map(pm => pm.medicamento.id) || [],
     };
+
+    if (ultima_historia) {
+      respuesta.notas_medicas = ultima_historia.contenido_html;
+      respuesta.notas_medicas_config = ultima_historia.config;
+      respuesta.historia_clinica_activa_id = ultima_historia.id;
+    }
+    respuesta.total_versiones_historia_clinica = await this.historia_clinica_repositorio.count({
+      where: { paciente: { id }, usuario: { id: usuario_id } },
+    });
+
+    return respuesta;
   }
 
   async actualizar(usuario_id: number, id: number, actualizar_paciente_dto: ActualizarPacienteDto): Promise<Paciente> {
@@ -318,6 +353,134 @@ export class PacientesServicio {
         estado_pago: cita.estado_pago,
       })),
     };
+  }
+
+  async listarHistoriasClinicas(usuario_id: number, paciente_id: number): Promise<HistoriaClinicaVersion[]> {
+    await this.obtenerPacientePropietario(usuario_id, paciente_id);
+    return this.historia_clinica_repositorio.find({
+      where: { paciente: { id: paciente_id }, usuario: { id: usuario_id } },
+      order: { numero_version: 'DESC', id: 'DESC' },
+    });
+  }
+
+  async obtenerHistoriaClinica(
+    usuario_id: number,
+    paciente_id: number,
+    version_id: number,
+  ): Promise<HistoriaClinicaVersion> {
+    await this.obtenerPacientePropietario(usuario_id, paciente_id);
+    const version = await this.historia_clinica_repositorio.findOne({
+      where: { id: version_id, paciente: { id: paciente_id }, usuario: { id: usuario_id } },
+    });
+    if (!version) {
+      throw new NotFoundException(`Historia clínica con ID ${version_id} no encontrada para este paciente.`);
+    }
+    return version;
+  }
+
+  async crearHistoriaClinica(
+    usuario_id: number,
+    paciente_id: number,
+    crear_historia_dto: CrearHistoriaClinicaDto,
+  ): Promise<HistoriaClinicaVersion> {
+    const paciente = await this.obtenerPacientePropietario(usuario_id, paciente_id);
+
+    const total_versiones = await this.historia_clinica_repositorio.count({
+      where: { paciente: { id: paciente_id } },
+    });
+
+    let contenido_html = crear_historia_dto.contenido_html ?? '';
+    let config = crear_historia_dto.config ?? {
+      tamano_hoja_id: null,
+      nombre_tamano: 'Carta',
+      widthMm: 216,
+      heightMm: 279,
+      margenes: { top: 20, right: 20, bottom: 20, left: 20 },
+    };
+
+    if (crear_historia_dto.clonar_de_version_id) {
+      const version_base = await this.obtenerHistoriaClinica(
+        usuario_id,
+        paciente_id,
+        crear_historia_dto.clonar_de_version_id,
+      );
+      contenido_html = version_base.contenido_html;
+      config = version_base.config;
+      if (!version_base.finalizada) {
+        version_base.finalizada = true;
+        await this.historia_clinica_repositorio.save(version_base);
+      }
+    }
+
+    const nueva_version = this.historia_clinica_repositorio.create({
+      nombre:
+        crear_historia_dto.nombre ||
+        format(new Date(), "dd/MM/yyyy HH:mm", {
+          locale: es,
+        }),
+      numero_version: total_versiones + 1,
+      contenido_html,
+      config,
+      finalizada: false,
+      paciente,
+      usuario: { id: usuario_id } as Usuario,
+    });
+
+    const version_guardada = await this.historia_clinica_repositorio.save(nueva_version);
+    await this.sincronizarNotasMedicasDesdeHistoria(paciente_id, version_guardada);
+    return version_guardada;
+  }
+
+  async actualizarHistoriaClinica(
+    usuario_id: number,
+    paciente_id: number,
+    version_id: number,
+    actualizar_historia_dto: ActualizarHistoriaClinicaDto,
+  ): Promise<HistoriaClinicaVersion> {
+    const version = await this.obtenerHistoriaClinica(usuario_id, paciente_id, version_id);
+    if (version.finalizada) {
+      throw new BadRequestException('No se puede modificar una versión finalizada de la historia clínica.');
+    }
+
+    version.nombre = actualizar_historia_dto.nombre ?? version.nombre;
+    version.contenido_html = actualizar_historia_dto.contenido_html ?? version.contenido_html;
+    version.config = actualizar_historia_dto.config ?? version.config;
+
+    const guardada = await this.historia_clinica_repositorio.save(version);
+    await this.sincronizarNotasMedicasDesdeHistoria(paciente_id, guardada);
+    return guardada;
+  }
+
+  async finalizarHistoriaClinica(
+    usuario_id: number,
+    paciente_id: number,
+    version_id: number,
+  ): Promise<HistoriaClinicaVersion> {
+    const version = await this.obtenerHistoriaClinica(usuario_id, paciente_id, version_id);
+    if (version.finalizada) {
+      return version;
+    }
+    version.finalizada = true;
+    const guardada = await this.historia_clinica_repositorio.save(version);
+    await this.sincronizarNotasMedicasDesdeHistoria(paciente_id, guardada);
+    return guardada;
+  }
+
+  async clonarHistoriaClinica(
+    usuario_id: number,
+    paciente_id: number,
+    version_id: number,
+  ): Promise<HistoriaClinicaVersion> {
+    const version_original = await this.obtenerHistoriaClinica(usuario_id, paciente_id, version_id);
+    if (!version_original.finalizada) {
+      version_original.finalizada = true;
+      await this.historia_clinica_repositorio.save(version_original);
+    }
+
+    return this.crearHistoriaClinica(usuario_id, paciente_id, {
+      contenido_html: version_original.contenido_html,
+      config: version_original.config,
+    });
   }
 
   async crearConsentimientoInformado(
