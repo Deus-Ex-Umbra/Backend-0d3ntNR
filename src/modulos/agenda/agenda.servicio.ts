@@ -29,8 +29,7 @@ export class AgendaServicio {
     return fecha.toLocaleTimeString('es-BO', {
       hour: '2-digit',
       minute: '2-digit',
-      hour12: false,
-      timeZone: 'America/La_Paz'
+      hour12: false
     });
   }
 

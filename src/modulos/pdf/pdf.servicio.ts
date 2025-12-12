@@ -145,13 +145,6 @@ export class PdfServicio {
   async generarPdfDesdeHtml(dto: GenerarPdfDto): Promise<string> {
     const { contenido_html, config } = dto;
     const { widthMm, heightMm, margenes } = config;
-
-    console.log('--- INICIO GENERACIÓN PDF ---');
-    console.log('Configuración recibida:', JSON.stringify(config, null, 2));
-    console.log('Márgenes aplicados (mm):', `Top: ${margenes.top}, Right: ${margenes.right}, Bottom: ${margenes.bottom}, Left: ${margenes.left}`);
-
-    // Lanzar una nueva instancia del navegador para cada solicitud
-    // Esto asegura un estado limpio y evita problemas de caché o configuración residual
     const browser = await puppeteer.launch({
       headless: true,
       args: [
@@ -188,17 +181,11 @@ export class PdfServicio {
       `;
 
       await pagina.setContent(htmlCompleto, { waitUntil: 'networkidle0' });
-
-      // Generar PDF usando preferCSSPageSize para respetar las reglas @page
       const pdfBuffer = await pagina.pdf({
         printBackground: true,
         preferCSSPageSize: true,
         displayHeaderFooter: false,
       });
-
-      console.log('PDF generado exitosamente. Tamaño del buffer:', pdfBuffer.length);
-      console.log('--- FIN GENERACIÓN PDF ---');
-
       return Buffer.from(pdfBuffer).toString('base64');
     } finally {
       await browser.close();
