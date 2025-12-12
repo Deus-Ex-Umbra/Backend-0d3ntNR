@@ -3,9 +3,8 @@ import { PlanTratamiento } from '../../tratamientos/entidades/plan-tratamiento.e
 import { Producto } from './producto.entidad';
 
 export enum TipoMaterialTratamiento {
-  INICIO = 'inicio',
-  POR_CITA = 'por_cita',
-  FINAL = 'final',
+  UNICO = 'unico', // Solo consumibles, confirmado al finalizar tratamiento
+  POR_CITA = 'por_cita', // Consumibles + activos, por cada cita del tratamiento
 }
 
 @Entity()
@@ -20,6 +19,7 @@ export class MaterialTratamiento {
   producto: Producto;
 
   @Column({
+    type: 'varchar',
     enum: TipoMaterialTratamiento,
   })
   tipo: TipoMaterialTratamiento;

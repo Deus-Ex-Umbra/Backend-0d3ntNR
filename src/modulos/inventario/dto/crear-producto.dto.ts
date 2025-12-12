@@ -1,6 +1,6 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, IsEnum, IsInt, Min, IsOptional, IsBoolean } from 'class-validator';
-import { TipoGestion } from '../entidades/producto.entidad';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsString, IsNotEmpty, IsEnum, IsInt, Min, IsOptional, IsBoolean, ValidateIf } from 'class-validator';
+import { TipoProducto, SubtipoMaterial, SubtipoActivoFijo } from '../entidades/producto.entidad';
 
 export class CrearProductoDto {
   @ApiProperty({ description: 'ID del inventario' })
@@ -12,27 +12,37 @@ export class CrearProductoDto {
   @IsNotEmpty()
   nombre: string;
 
-  @ApiProperty({ enum: TipoGestion, description: 'Tipo de gestión del producto' })
-  @IsEnum(TipoGestion)
-  tipo_gestion: TipoGestion;
+  @ApiProperty({ enum: TipoProducto, description: 'Tipo de producto (material o activo_fijo)' })
+  @IsEnum(TipoProducto)
+  tipo: TipoProducto;
 
-  @ApiProperty({ description: 'Stock mínimo', default: 0 })
+  @ApiPropertyOptional({ enum: SubtipoMaterial, description: 'Subtipo de material (requerido si tipo es material)' })
+  @ValidateIf(o => o.tipo === TipoProducto.MATERIAL)
+  @IsEnum(SubtipoMaterial)
+  subtipo_material?: SubtipoMaterial;
+
+  @ApiPropertyOptional({ enum: SubtipoActivoFijo, description: 'Subtipo de activo fijo (requerido si tipo es activo_fijo)' })
+  @ValidateIf(o => o.tipo === TipoProducto.ACTIVO_FIJO)
+  @IsEnum(SubtipoActivoFijo)
+  subtipo_activo_fijo?: SubtipoActivoFijo;
+
+  @ApiPropertyOptional({ description: 'Stock mínimo', default: 0 })
   @IsOptional()
   @IsInt()
   @Min(0)
   stock_minimo?: number;
 
-  @ApiProperty({ description: 'Unidad de medida', default: 'unidad' })
+  @ApiPropertyOptional({ description: 'Unidad de medida', default: 'unidad' })
   @IsOptional()
   @IsString()
   unidad_medida?: string;
 
-  @ApiProperty({ description: 'Descripción del producto', required: false })
+  @ApiPropertyOptional({ description: 'Descripción del producto' })
   @IsOptional()
   @IsString()
   descripcion?: string;
 
-  @ApiProperty({ description: 'Notificar cuando el stock esté bajo', default: true })
+  @ApiPropertyOptional({ description: 'Notificar cuando el stock esté bajo', default: true })
   @IsOptional()
   @IsBoolean()
   notificar_stock_bajo?: boolean;

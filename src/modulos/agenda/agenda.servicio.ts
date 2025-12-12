@@ -19,13 +19,13 @@ export class AgendaServicio {
     private readonly finanzas_servicio: FinanzasServicio,
     @Inject(forwardRef(() => InventarioServicio))
     private readonly inventario_servicio: InventarioServicio,
-  ) {}
+  ) { }
 
   private calcularDuracionEnMinutos(horas: number, minutos: number): number {
     return (horas * 60) + minutos;
   }
 
-private formatearHora(fecha: Date): string {
+  private formatearHora(fecha: Date): string {
     return fecha.toLocaleTimeString('es-BO', {
       hour: '2-digit',
       minute: '2-digit',
@@ -44,9 +44,9 @@ private formatearHora(fecha: Date): string {
 
   async validarDisponibilidad(
     usuario_id: number,
-    fecha: Date, 
-    horas: number = 0, 
-    minutos: number = 30, 
+    fecha: Date,
+    horas: number = 0,
+    minutos: number = 30,
     cita_id_excluir?: number
   ): Promise<{ disponible: boolean; citas_conflicto: Cita[]; mensaje_detallado?: string }> {
     const ahora = new Date();
@@ -60,13 +60,13 @@ private formatearHora(fecha: Date): string {
     }
 
     const duracion_total_minutos = this.calcularDuracionEnMinutos(horas, minutos);
-    
+
     const fecha_fin_nueva_cita = new Date(fecha_cita);
     fecha_fin_nueva_cita.setMinutes(fecha_fin_nueva_cita.getMinutes() + duracion_total_minutos);
 
     const fecha_inicio_busqueda = new Date(fecha_cita);
     fecha_inicio_busqueda.setHours(0, 0, 0, 0);
-    
+
     const fecha_fin_busqueda = new Date(fecha_cita);
     fecha_fin_busqueda.setHours(23, 59, 59, 999);
 
@@ -89,31 +89,31 @@ private formatearHora(fecha: Date): string {
 
     for (const cita_existente of citas_del_dia) {
       const fecha_inicio_existente = new Date(cita_existente.fecha);
-      
+
       const duracion_existente = this.calcularDuracionEnMinutos(
-        cita_existente.horas_aproximadas, 
-        cita_existente.minutos_aproximados 
+        cita_existente.horas_aproximadas,
+        cita_existente.minutos_aproximados
       );
 
-      const duracion_existente_valida = Math.max(1, duracion_existente); 
+      const duracion_existente_valida = Math.max(1, duracion_existente);
 
       const fecha_fin_existente = new Date(fecha_inicio_existente);
       fecha_fin_existente.setMinutes(fecha_fin_existente.getMinutes() + duracion_existente_valida);
 
-      const hay_solapamiento = 
+      const hay_solapamiento =
         (fecha_cita >= fecha_inicio_existente && fecha_cita < fecha_fin_existente) ||
         (fecha_fin_nueva_cita > fecha_inicio_existente && fecha_fin_nueva_cita <= fecha_fin_existente) ||
         (fecha_cita <= fecha_inicio_existente && fecha_fin_nueva_cita >= fecha_fin_existente);
 
       if (hay_solapamiento) {
         citas_conflicto.push(cita_existente);
-        
+
         const hora_inicio_existente = this.formatearHora(fecha_inicio_existente);
         const hora_fin_existente = this.formatearHora(fecha_fin_existente);
-        const descripcion = cita_existente.paciente 
+        const descripcion = cita_existente.paciente
           ? `${cita_existente.paciente.nombre} ${cita_existente.paciente.apellidos} - ${cita_existente.descripcion}`
           : cita_existente.descripcion;
-        
+
         conflictos_detallados.push(
           `• ${hora_inicio_existente} - ${hora_fin_existente}: ${descripcion}`
         );
@@ -123,9 +123,9 @@ private formatearHora(fecha: Date): string {
     if (citas_conflicto.length > 0) {
       const hora_inicio_nueva = this.formatearHora(fecha_cita);
       const hora_fin_nueva = this.formatearHora(fecha_fin_nueva_cita);
-      
+
       const mensaje = `La cita que intentas crear (${hora_inicio_nueva} - ${hora_fin_nueva}) se solapa con las siguientes citas:\n\n${conflictos_detallados.join('\n')}\n\nPor favor, elige un horario después de las ${this.formatearHora(fecha_fin_nueva_cita)} o antes del primer conflicto.`;
-      
+
       return {
         disponible: false,
         citas_conflicto,
@@ -140,16 +140,16 @@ private formatearHora(fecha: Date): string {
   }
 
   async crear(usuario_id: number, crear_cita_dto: CrearCitaDto): Promise<Cita> {
-    const { 
-      paciente_id, 
-      plan_tratamiento_id, 
-      estado_pago, 
-      monto_esperado, 
-      horas_aproximadas, 
-      minutos_aproximados, 
-      ...cita_data 
+    const {
+      paciente_id,
+      plan_tratamiento_id,
+      estado_pago,
+      monto_esperado,
+      horas_aproximadas,
+      minutos_aproximados,
+      ...cita_data
     } = crear_cita_dto;
-    
+
     if (!paciente_id && (estado_pago || monto_esperado)) {
       throw new BadRequestException('Las citas sin paciente no pueden tener estado de pago ni monto esperado');
     }
@@ -158,7 +158,7 @@ private formatearHora(fecha: Date): string {
     const minutos = minutos_aproximados !== undefined ? minutos_aproximados : 30;
 
     const validacion = await this.validarDisponibilidad(usuario_id, cita_data.fecha, horas, minutos);
-    
+
     if (!validacion.disponible) {
       throw new ConflictException(validacion.mensaje_detallado || 'Conflicto de horario');
     }
@@ -188,8 +188,8 @@ private formatearHora(fecha: Date): string {
     const ultimo_dia = new Date(ano, mes, 0, 23, 59, 59);
 
     const where_condition: FindOptionsWhere<Cita> = {
-        fecha: Between(primer_dia, ultimo_dia),
-        usuario: { id: usuario_id }
+      fecha: Between(primer_dia, ultimo_dia),
+      usuario: { id: usuario_id }
     };
 
     if (ligero) {
@@ -216,9 +216,9 @@ private formatearHora(fecha: Date): string {
     }
 
     return this.cita_repositorio.find({
-        where: where_condition,
-        relations: ['paciente', 'plan_tratamiento', 'plan_tratamiento.paciente'],
-        order: { fecha: 'ASC' }
+      where: where_condition,
+      relations: ['paciente', 'plan_tratamiento', 'plan_tratamiento.paciente'],
+      order: { fecha: 'ASC' }
     });
   }
 
@@ -239,20 +239,20 @@ private formatearHora(fecha: Date): string {
     }
 
     if (
-      actualizar_cita_dto.fecha !== undefined || 
-      actualizar_cita_dto.horas_aproximadas !== undefined || 
+      actualizar_cita_dto.fecha !== undefined ||
+      actualizar_cita_dto.horas_aproximadas !== undefined ||
       actualizar_cita_dto.minutos_aproximados !== undefined
     ) {
       const nueva_fecha = actualizar_cita_dto.fecha || cita_actual.fecha;
-      const nuevas_horas = actualizar_cita_dto.horas_aproximadas !== undefined 
-        ? actualizar_cita_dto.horas_aproximadas 
+      const nuevas_horas = actualizar_cita_dto.horas_aproximadas !== undefined
+        ? actualizar_cita_dto.horas_aproximadas
         : cita_actual.horas_aproximadas;
-      const nuevos_minutos = actualizar_cita_dto.minutos_aproximados !== undefined 
-        ? actualizar_cita_dto.minutos_aproximados 
+      const nuevos_minutos = actualizar_cita_dto.minutos_aproximados !== undefined
+        ? actualizar_cita_dto.minutos_aproximados
         : cita_actual.minutos_aproximados;
-      
+
       const validacion = await this.validarDisponibilidad(usuario_id, nueva_fecha, nuevas_horas, nuevos_minutos, id);
-      
+
       if (!validacion.disponible) {
         throw new ConflictException(validacion.mensaje_detallado || 'Conflicto de horario');
       }
@@ -276,7 +276,7 @@ private formatearHora(fecha: Date): string {
 
     if (actualizar_cita_dto.paciente_id !== undefined) {
       datos_actualizar.paciente = actualizar_cita_dto.paciente_id ? { id: actualizar_cita_dto.paciente_id } as Paciente : null;
-      
+
       if (actualizar_cita_dto.paciente_id) {
         datos_actualizar.estado_pago = actualizar_cita_dto.estado_pago || 'pendiente';
         datos_actualizar.monto_esperado = actualizar_cita_dto.monto_esperado || 0;
@@ -344,8 +344,8 @@ private formatearHora(fecha: Date): string {
     if (!cita) {
       throw new NotFoundException(`Cita con ID "${id}" no encontrada o no le pertenece.`);
     }
-    await this.inventario_servicio.eliminarPromesasUsoLotesPorCita(id);
-    await this.inventario_servicio.eliminarPromesasUsoActivosPorCita(id);
+    await this.inventario_servicio.reservas.cancelarReservasMaterialesCita(id);
+    await this.inventario_servicio.reservas.cancelarReservasActivosCita(id);
 
     await this.finanzas_servicio.eliminarPagosPorCita(usuario_id, id);
 
@@ -401,27 +401,27 @@ private formatearHora(fecha: Date): string {
     return cita;
   }
 
-async obtenerEspaciosLibres(
-    usuario_id: number, 
-    mes: number, 
+  async obtenerEspaciosLibres(
+    usuario_id: number,
+    mes: number,
     ano: number,
     fecha_inicio_filtro?: Date,
     fecha_fin_filtro?: Date
   ): Promise<any[]> {
     const ahora = new Date();
     ahora.setHours(0, 0, 0, 0);
-    
+
     const primer_dia = new Date(ano, mes - 1, 1);
     const ultimo_dia = new Date(ano, mes, 0, 23, 59, 59);
-    
+
     let fecha_inicio_busqueda: Date;
-    
+
     if (fecha_inicio_filtro && fecha_fin_filtro) {
       fecha_inicio_busqueda = fecha_inicio_filtro < primer_dia ? primer_dia : fecha_inicio_filtro;
     } else {
       fecha_inicio_busqueda = primer_dia < ahora ? ahora : primer_dia;
     }
-    
+
     const citas_mes = await this.cita_repositorio.find({
       where: {
         fecha: Between(primer_dia, ultimo_dia),
@@ -429,27 +429,27 @@ async obtenerEspaciosLibres(
       },
       order: { fecha: 'ASC' }
     });
-  
+
     const espacios_libres: any[] = [];
     let fecha_actual = new Date(fecha_inicio_busqueda);
     fecha_actual.setHours(0, 0, 0, 0);
-  
+
     while (fecha_actual <= ultimo_dia) {
       const inicio_dia = new Date(fecha_actual);
       inicio_dia.setHours(0, 0, 0, 0);
-      
+
       const fin_dia = new Date(fecha_actual);
       fin_dia.setHours(23, 59, 59, 999);
-      
+
       const citas_del_dia = citas_mes.filter(cita => {
         const fecha_cita = new Date(cita.fecha);
         return fecha_cita.toDateString() === fecha_actual.toDateString();
       });
-      
+
       if (citas_del_dia.length === 0) {
         const duracion_ms = fin_dia.getTime() - inicio_dia.getTime();
         const duracion_minutos = Math.floor(duracion_ms / 60000);
-        
+
         if (duracion_minutos > 0) {
           espacios_libres.push({
             fecha: new Date(inicio_dia),
@@ -461,7 +461,7 @@ async obtenerEspaciosLibres(
         }
       } else {
         const eventos: Array<{ fecha: Date; tipo: 'inicio' | 'fin'; cita_id: number }> = [];
-        
+
         citas_del_dia.forEach(cita => {
           const fecha_inicio = new Date(cita.fecha);
           const duracion_cita = this.calcularDuracionEnMinutos(
@@ -469,19 +469,19 @@ async obtenerEspaciosLibres(
             cita.minutos_aproximados
           );
           const fecha_fin = new Date(fecha_inicio.getTime() + duracion_cita * 60000);
-          
+
           eventos.push({ fecha: fecha_inicio, tipo: 'inicio', cita_id: cita.id });
           eventos.push({ fecha: fecha_fin, tipo: 'fin', cita_id: cita.id });
         });
-        
+
         eventos.sort((a, b) => a.fecha.getTime() - b.fecha.getTime());
-        
+
         let hora_libre_inicio = new Date(inicio_dia);
-        
+
         if (hora_libre_inicio < eventos[0].fecha) {
           const duracion_ms = eventos[0].fecha.getTime() - hora_libre_inicio.getTime();
           const duracion_minutos = Math.floor(duracion_ms / 60000);
-          
+
           if (duracion_minutos > 0) {
             espacios_libres.push({
               fecha: new Date(hora_libre_inicio),
@@ -492,27 +492,27 @@ async obtenerEspaciosLibres(
             });
           }
         }
-        
+
         let citas_activas = 0;
         let ultima_hora_fin: Date | null = null;
-        
+
         for (let i = 0; i < eventos.length; i++) {
           const evento = eventos[i];
-          
+
           if (evento.tipo === 'inicio') {
             citas_activas++;
           } else {
             citas_activas--;
             ultima_hora_fin = evento.fecha;
           }
-          
+
           if (citas_activas === 0 && ultima_hora_fin) {
             const siguiente_evento = eventos[i + 1];
-            
+
             if (siguiente_evento) {
               const duracion_ms = siguiente_evento.fecha.getTime() - ultima_hora_fin.getTime();
               const duracion_minutos = Math.floor(duracion_ms / 60000);
-              
+
               if (duracion_minutos > 0) {
                 espacios_libres.push({
                   fecha: new Date(ultima_hora_fin),
@@ -525,7 +525,7 @@ async obtenerEspaciosLibres(
             } else {
               const duracion_ms = fin_dia.getTime() - ultima_hora_fin.getTime();
               const duracion_minutos = Math.floor(duracion_ms / 60000);
-              
+
               if (duracion_minutos > 0) {
                 espacios_libres.push({
                   fecha: new Date(ultima_hora_fin),
@@ -539,24 +539,24 @@ async obtenerEspaciosLibres(
           }
         }
       }
-      
+
       fecha_actual.setDate(fecha_actual.getDate() + 1);
       fecha_actual.setHours(0, 0, 0, 0);
     }
-  
+
     return espacios_libres;
   }
 
   async filtrarCitas(usuario_id: number, fecha_inicio: Date, fecha_fin: Date): Promise<Cita[]> {
     const where_condition: FindOptionsWhere<Cita> = {
-        fecha: Between(fecha_inicio, fecha_fin),
-        usuario: { id: usuario_id }
+      fecha: Between(fecha_inicio, fecha_fin),
+      usuario: { id: usuario_id }
     };
 
     return this.cita_repositorio.find({
-        where: where_condition,
-        relations: ['paciente', 'plan_tratamiento', 'plan_tratamiento.paciente'],
-        order: { fecha: 'ASC' }
+      where: where_condition,
+      relations: ['paciente', 'plan_tratamiento', 'plan_tratamiento.paciente'],
+      order: { fecha: 'ASC' }
     });
   }
 
@@ -568,30 +568,30 @@ async obtenerEspaciosLibres(
       },
       order: { fecha: 'ASC' }
     });
-  
+
     const espacios_libres: any[] = [];
     let fecha_actual = new Date(fecha_inicio);
     fecha_actual.setHours(0, 0, 0, 0);
-    
+
     const fecha_fin_normalizada = new Date(fecha_fin);
     fecha_fin_normalizada.setHours(23, 59, 59, 999);
-  
+
     while (fecha_actual <= fecha_fin_normalizada) {
       const inicio_dia = new Date(fecha_actual);
       inicio_dia.setHours(0, 0, 0, 0);
-      
+
       const fin_dia = new Date(fecha_actual);
       fin_dia.setHours(23, 59, 59, 999);
-      
+
       const citas_del_dia = citas_rango.filter(cita => {
         const fecha_cita = new Date(cita.fecha);
         return fecha_cita.toDateString() === fecha_actual.toDateString();
       });
-      
+
       if (citas_del_dia.length === 0) {
         const duracion_ms = fin_dia.getTime() - inicio_dia.getTime();
         const duracion_minutos = Math.floor(duracion_ms / 60000);
-        
+
         if (duracion_minutos > 0) {
           espacios_libres.push({
             fecha: new Date(inicio_dia),
@@ -603,7 +603,7 @@ async obtenerEspaciosLibres(
         }
       } else {
         const eventos: Array<{ fecha: Date; tipo: 'inicio' | 'fin'; cita_id: number }> = [];
-        
+
         citas_del_dia.forEach(cita => {
           const fecha_inicio_cita = new Date(cita.fecha);
           const duracion_cita = this.calcularDuracionEnMinutos(
@@ -611,19 +611,19 @@ async obtenerEspaciosLibres(
             cita.minutos_aproximados
           );
           const fecha_fin_cita = new Date(fecha_inicio_cita.getTime() + duracion_cita * 60000);
-          
+
           eventos.push({ fecha: fecha_inicio_cita, tipo: 'inicio', cita_id: cita.id });
           eventos.push({ fecha: fecha_fin_cita, tipo: 'fin', cita_id: cita.id });
         });
-        
+
         eventos.sort((a, b) => a.fecha.getTime() - b.fecha.getTime());
-        
+
         let hora_libre_inicio = new Date(inicio_dia);
-        
+
         if (hora_libre_inicio < eventos[0].fecha) {
           const duracion_ms = eventos[0].fecha.getTime() - hora_libre_inicio.getTime();
           const duracion_minutos = Math.floor(duracion_ms / 60000);
-          
+
           if (duracion_minutos > 0) {
             espacios_libres.push({
               fecha: new Date(hora_libre_inicio),
@@ -634,27 +634,27 @@ async obtenerEspaciosLibres(
             });
           }
         }
-        
+
         let citas_activas = 0;
         let ultima_hora_fin: Date | null = null;
-        
+
         for (let i = 0; i < eventos.length; i++) {
           const evento = eventos[i];
-          
+
           if (evento.tipo === 'inicio') {
             citas_activas++;
           } else {
             citas_activas--;
             ultima_hora_fin = evento.fecha;
           }
-          
+
           if (citas_activas === 0 && ultima_hora_fin) {
             const siguiente_evento = eventos[i + 1];
-            
+
             if (siguiente_evento) {
               const duracion_ms = siguiente_evento.fecha.getTime() - ultima_hora_fin.getTime();
               const duracion_minutos = Math.floor(duracion_ms / 60000);
-              
+
               if (duracion_minutos > 0) {
                 espacios_libres.push({
                   fecha: new Date(ultima_hora_fin),
@@ -667,7 +667,7 @@ async obtenerEspaciosLibres(
             } else {
               const duracion_ms = fin_dia.getTime() - ultima_hora_fin.getTime();
               const duracion_minutos = Math.floor(duracion_ms / 60000);
-              
+
               if (duracion_minutos > 0) {
                 espacios_libres.push({
                   fecha: new Date(ultima_hora_fin),
@@ -681,11 +681,11 @@ async obtenerEspaciosLibres(
           }
         }
       }
-      
+
       fecha_actual.setDate(fecha_actual.getDate() + 1);
       fecha_actual.setHours(0, 0, 0, 0);
     }
-  
+
     return espacios_libres;
   }
 }

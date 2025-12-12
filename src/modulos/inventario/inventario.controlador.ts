@@ -17,32 +17,34 @@ import { ActualizarInventarioDto } from './dto/actualizar-inventario.dto';
 import { InvitarUsuarioInventarioDto } from './dto/invitar-usuario-inventario.dto';
 import { CrearProductoDto } from './dto/crear-producto.dto';
 import { ActualizarProductoDto } from './dto/actualizar-producto.dto';
-import { RegistrarCompraDto } from './dto/registrar-compra.dto';
-import { ConfirmarConsumiblesCitaDto } from './dto/confirmar-consumibles-cita.dto';
+import { RegistrarEntradaMaterialDto, RegistrarEntradaActivoDto } from './dto/registrar-entrada.dto';
+import { RegistrarSalidaMaterialDto, RegistrarSalidaActivoDto } from './dto/registrar-salida.dto';
 import { CambiarEstadoActivoDto } from './dto/cambiar-estado-activo.dto';
-import { AsignarMaterialesCitaDto } from './dto/asignar-materiales-cita.dto';
-import { ConfirmarMaterialesCitaDto } from './dto/confirmar-materiales-cita.dto';
-import { AsignarMaterialesTratamientoDto } from './dto/asignar-materiales-tratamiento.dto';
-import { ConfirmarMaterialesTratamientoDto } from './dto/confirmar-materiales-tratamiento.dto';
+import { ActualizarActivoDto } from './dto/actualizar-activo.dto';
+import { AjustarStockDto } from './dto/ajustar-stock.dto';
+import { ReservarMaterialesCitaDto, ReservarActivosCitaDto } from './dto/reservar.dto';
+import { ConfirmarReservasCitaDto, CancelarReservasDto } from './dto/confirmar-reservas.dto';
+import { FiltrosKardexDto, FiltrosBitacoraDto, FiltrosAuditoriaDto } from './dto/filtros-historial.dto';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../autenticacion/guardias/jwt-auth.guardia';
 import { PermisoInventarioGuardia } from './guardias/permiso-inventario.guardia';
 import { RolInventario } from './entidades/permiso-inventario.entidad';
-import { AjustarStockDto } from './dto/ajustar-stock.dto';
-import { ActualizarActivoDto } from './dto/actualizar-activo.dto';
-import { VenderActivoDto } from './dto/vender-activo.dto';
 
-export const RolInventarioDecorador = (rol: RolInventario) => SetMetadata('rol_inventario', rol);
+const RolInventarioDecorador = (rol: RolInventario) => SetMetadata('rol_inventario', rol);
 
 @ApiTags('Inventario')
-@ApiBearerAuth('JWT-auth')
-@UseGuards(JwtAuthGuard)
+@ApiBearerAuth()
 @Controller('inventario')
+@UseGuards(JwtAuthGuard)
 export class InventarioControlador {
-  constructor(private readonly inventario_servicio: InventarioServicio) {}
+  constructor(private readonly inventario_servicio: InventarioServicio) { }
+
+  // =====================
+  // INVENTARIOS
+  // =====================
 
   @Post()
-  @ApiOperation({ summary: 'Crear nuevo inventario' })
+  @ApiOperation({ summary: 'Crear un nuevo inventario' })
   crear(@Request() req, @Body() dto: CrearInventarioDto) {
     return this.inventario_servicio.crearInventario(req.user.id, dto);
   }
@@ -54,15 +56,16 @@ export class InventarioControlador {
   }
 
   @Get(':inventario_id')
-  @ApiOperation({ summary: 'Obtener inventario por ID' })
+  @ApiOperation({ summary: 'Obtener un inventario por ID' })
   @UseGuards(PermisoInventarioGuardia)
-  @RolInventarioDecorador(RolInventario.LECTOR)
   obtenerPorId(@Request() req, @Param('inventario_id') inventario_id: string) {
     return this.inventario_servicio.obtenerInventarioPorId(req.user.id, +inventario_id);
   }
 
   @Put(':inventario_id')
-  @ApiOperation({ summary: 'Actualizar inventario' })
+  @ApiOperation({ summary: 'Actualizar un inventario' })
+  @RolInventarioDecorador(RolInventario.EDITOR)
+  @UseGuards(PermisoInventarioGuardia)
   actualizarInventario(
     @Request() req,
     @Param('inventario_id') inventario_id: string,
@@ -72,15 +75,13 @@ export class InventarioControlador {
   }
 
   @Post(':inventario_id/invitar')
-  @ApiOperation({ summary: 'Invitar usuario a inventario' })
-  @UseGuards(PermisoInventarioGuardia)
+  @ApiOperation({ summary: 'Invitar un usuario al inventario' })
   invitarUsuario(@Request() req, @Param('inventario_id') inventario_id: string, @Body() dto: InvitarUsuarioInventarioDto) {
     return this.inventario_servicio.invitarUsuario(req.user.id, +inventario_id, dto);
   }
 
   @Delete(':inventario_id/permisos/:permiso_id')
-  @ApiOperation({ summary: 'Eliminar permiso de usuario' })
-  @UseGuards(PermisoInventarioGuardia)
+  @ApiOperation({ summary: 'Eliminar permiso de un usuario' })
   eliminarPermiso(
     @Request() req,
     @Param('inventario_id') inventario_id: string,
@@ -90,14 +91,17 @@ export class InventarioControlador {
   }
 
   @Delete(':inventario_id')
-  @ApiOperation({ summary: 'Eliminar inventario' })
+  @ApiOperation({ summary: 'Eliminar un inventario' })
   eliminarInventario(@Request() req, @Param('inventario_id') inventario_id: string) {
     return this.inventario_servicio.eliminarInventario(req.user.id, +inventario_id);
   }
 
+  // =====================
+  // PRODUCTOS
+  // =====================
+
   @Post('productos')
-  @ApiOperation({ summary: 'Crear nuevo producto' })
-  @UseGuards(PermisoInventarioGuardia)
+  @ApiOperation({ summary: 'Crear un nuevo producto' })
   @RolInventarioDecorador(RolInventario.EDITOR)
   crearProducto(@Request() req, @Body() dto: CrearProductoDto) {
     return this.inventario_servicio.crearProducto(req.user.id, dto);
@@ -106,15 +110,24 @@ export class InventarioControlador {
   @Get(':inventario_id/productos')
   @ApiOperation({ summary: 'Obtener productos de un inventario' })
   @UseGuards(PermisoInventarioGuardia)
-  @RolInventarioDecorador(RolInventario.LECTOR)
   obtenerProductos(@Request() req, @Param('inventario_id') inventario_id: string) {
     return this.inventario_servicio.obtenerProductos(req.user.id, +inventario_id);
   }
 
-  @Get(':inventario_id/productos/:producto_id/stock')
-  @ApiOperation({ summary: 'Obtener stock actual de un producto' })
+  @Get(':inventario_id/productos/:producto_id')
+  @ApiOperation({ summary: 'Obtener un producto por ID' })
   @UseGuards(PermisoInventarioGuardia)
-  @RolInventarioDecorador(RolInventario.LECTOR)
+  obtenerProductoPorId(
+    @Request() req,
+    @Param('inventario_id') inventario_id: string,
+    @Param('producto_id') producto_id: string,
+  ) {
+    return this.inventario_servicio.obtenerProductoPorId(req.user.id, +inventario_id, +producto_id);
+  }
+
+  @Get(':inventario_id/productos/:producto_id/stock')
+  @ApiOperation({ summary: 'Obtener stock de un producto' })
+  @UseGuards(PermisoInventarioGuardia)
   obtenerStockProducto(
     @Request() req,
     @Param('inventario_id') inventario_id: string,
@@ -124,9 +137,9 @@ export class InventarioControlador {
   }
 
   @Put(':inventario_id/productos/:producto_id')
-  @ApiOperation({ summary: 'Actualizar producto' })
-  @UseGuards(PermisoInventarioGuardia)
+  @ApiOperation({ summary: 'Actualizar un producto' })
   @RolInventarioDecorador(RolInventario.EDITOR)
+  @UseGuards(PermisoInventarioGuardia)
   actualizarProducto(
     @Request() req,
     @Param('inventario_id') inventario_id: string,
@@ -137,9 +150,9 @@ export class InventarioControlador {
   }
 
   @Delete(':inventario_id/productos/:producto_id')
-  @ApiOperation({ summary: 'Eliminar producto (borrado lógico)' })
-  @UseGuards(PermisoInventarioGuardia)
+  @ApiOperation({ summary: 'Eliminar un producto' })
   @RolInventarioDecorador(RolInventario.EDITOR)
+  @UseGuards(PermisoInventarioGuardia)
   eliminarProducto(
     @Request() req,
     @Param('inventario_id') inventario_id: string,
@@ -148,172 +161,71 @@ export class InventarioControlador {
     return this.inventario_servicio.eliminarProducto(req.user.id, +inventario_id, +producto_id);
   }
 
-  @Post(':inventario_id/registrar-compra')
-  @ApiOperation({ summary: 'Registrar compra de producto' })
-  @UseGuards(PermisoInventarioGuardia)
+  // =====================
+  // ENTRADAS
+  // =====================
+
+  @Post(':inventario_id/materiales/entrada')
+  @ApiOperation({ summary: 'Registrar entrada de material (consumible)' })
   @RolInventarioDecorador(RolInventario.EDITOR)
-  registrarCompra(@Request() req, @Param('inventario_id') inventario_id: string, @Body() dto: RegistrarCompraDto) {
-    return this.inventario_servicio.registrarCompra(req.user.id, +inventario_id, dto);
-  }
-
-  @Post('citas/:cita_id/confirmar-consumibles')
-  @ApiOperation({ summary: 'Confirmar consumibles usados en una cita (método antiguo, usar materiales en su lugar)' })
-  confirmarConsumibles(@Request() req, @Param('cita_id') cita_id: string, @Body() dto: ConfirmarConsumiblesCitaDto) {
-    return this.inventario_servicio.confirmarConsumiblesCita(req.user.id, +cita_id, dto);
-  }
-
-  @Post('citas/:cita_id/asignar-materiales')
-  @ApiOperation({ summary: 'Asignar materiales planeados a una cita (Reemplaza existentes)' })
-  asignarMaterialesCita(@Request() req, @Param('cita_id') cita_id: string, @Body() dto: AsignarMaterialesCitaDto) {
-    return this.inventario_servicio.asignarMaterialesCita(req.user.id, +cita_id, dto);
-  }
-
-  @Post('citas/:cita_id/agregar-materiales')
-  @ApiOperation({ summary: 'Agregar materiales adicionales a una cita (Sin borrar existentes)' })
-  agregarMaterialesCita(@Request() req, @Param('cita_id') cita_id: string, @Body() dto: AsignarMaterialesCitaDto) {
-    return this.inventario_servicio.agregarMaterialesCita(req.user.id, +cita_id, dto);
-  }
-  
-  @Get('citas/:cita_id/materiales')
-  @ApiOperation({ summary: 'Obtener materiales asignados a una cita' })
-  obtenerMaterialesCita(@Request() req, @Param('cita_id') cita_id: string) {
-    return this.inventario_servicio.obtenerMaterialesCita(req.user.id, +cita_id);
-  }
-
-  @Post('citas/:cita_id/confirmar-materiales')
-  @ApiOperation({ summary: 'Confirmar materiales realmente usados en una cita' })
-  confirmarMaterialesCita(@Request() req, @Param('cita_id') cita_id: string, @Body() dto: ConfirmarMaterialesCitaDto) {
-    return this.inventario_servicio.confirmarMaterialesCita(req.user.id, +cita_id, dto);
-  }
-
-  @Post('tratamientos/:plan_tratamiento_id/asignar-materiales')
-  @ApiOperation({ summary: 'Asignar materiales a un tratamiento' })
-  asignarMaterialesTratamiento(
+  @UseGuards(PermisoInventarioGuardia)
+  registrarEntradaMaterial(
     @Request() req,
-    @Param('plan_tratamiento_id') plan_tratamiento_id: string,
-    @Body() dto: AsignarMaterialesTratamientoDto,
+    @Param('inventario_id') inventario_id: string,
+    @Body() dto: RegistrarEntradaMaterialDto,
   ) {
-    return this.inventario_servicio.asignarMaterialesTratamiento(req.user.id, +plan_tratamiento_id, dto);
+    return this.inventario_servicio.registrarEntradaMaterial(req.user.id, +inventario_id, dto);
   }
 
-  @Get('tratamientos/:plan_tratamiento_id/materiales')
-  @ApiOperation({ summary: 'Obtener materiales asignados a un plan de tratamiento' })
-  obtenerMaterialesTratamiento(@Request() req, @Param('plan_tratamiento_id') plan_tratamiento_id: string) {
-    return this.inventario_servicio.obtenerMaterialesTratamiento(req.user.id, +plan_tratamiento_id);
-  }
-
-  @Post('tratamientos/:plan_tratamiento_id/confirmar-materiales-generales')
-  @ApiOperation({ summary: 'Confirmar materiales generales de un plan de tratamiento manualmente' })
-  confirmarMaterialesGenerales(
-    @Request() req, 
-    @Param('plan_tratamiento_id') plan_tratamiento_id: string,
-    @Body() dto: ConfirmarMaterialesTratamientoDto,
-  ) {
-    return this.inventario_servicio.confirmarMaterialesGenerales(req.user.id, +plan_tratamiento_id, dto);
-  }
-
-  @Put(':inventario_id/activos/:activo_id/estado')
-  @ApiOperation({ summary: 'Cambiar estado de un activo' })
-  @UseGuards(PermisoInventarioGuardia)
+  @Post(':inventario_id/activos/entrada')
+  @ApiOperation({ summary: 'Registrar entrada de activo fijo' })
   @RolInventarioDecorador(RolInventario.EDITOR)
-  cambiarEstadoActivo(
+  @UseGuards(PermisoInventarioGuardia)
+  registrarEntradaActivo(
+    @Request() req,
+    @Param('inventario_id') inventario_id: string,
+    @Body() dto: RegistrarEntradaActivoDto,
+  ) {
+    return this.inventario_servicio.registrarEntradaActivo(req.user.id, +inventario_id, dto);
+  }
+
+  // =====================
+  // SALIDAS
+  // =====================
+
+  @Post(':inventario_id/materiales/salida')
+  @ApiOperation({ summary: 'Registrar salida de material' })
+  @RolInventarioDecorador(RolInventario.EDITOR)
+  @UseGuards(PermisoInventarioGuardia)
+  registrarSalidaMaterial(
+    @Request() req,
+    @Param('inventario_id') inventario_id: string,
+    @Body() dto: RegistrarSalidaMaterialDto,
+  ) {
+    return this.inventario_servicio.registrarSalidaMaterial(req.user.id, +inventario_id, dto);
+  }
+
+  @Post(':inventario_id/activos/:activo_id/vender')
+  @ApiOperation({ summary: 'Vender un activo fijo' })
+  @RolInventarioDecorador(RolInventario.EDITOR)
+  @UseGuards(PermisoInventarioGuardia)
+  venderActivo(
     @Request() req,
     @Param('inventario_id') inventario_id: string,
     @Param('activo_id') activo_id: string,
-    @Body() dto: CambiarEstadoActivoDto,
+    @Body() dto: RegistrarSalidaActivoDto,
   ) {
-    return this.inventario_servicio.cambiarEstadoActivo(req.user.id, +inventario_id, +activo_id, dto);
+    return this.inventario_servicio.venderActivo(req.user.id, +inventario_id, +activo_id, dto);
   }
 
-  @Get(':inventario_id/activos/:activo_id/historial')
-  @ApiOperation({ summary: 'Obtener historial de cambios de estado de un activo' })
-  @UseGuards(PermisoInventarioGuardia)
-  @RolInventarioDecorador(RolInventario.LECTOR)
-  obtenerHistorialActivo(
-    @Request() req,
-    @Param('inventario_id') inventario_id: string,
-    @Param('activo_id') activo_id: string,
-  ) {
-    return this.inventario_servicio.obtenerHistorialActivo(req.user.id, +inventario_id, +activo_id);
-  }
-
-  @Get(':inventario_id/historial-movimientos')
-  @ApiOperation({ summary: 'Obtener historial de movimientos del inventario' })
-  @ApiQuery({ name: 'producto_id', required: false, type: Number, description: 'Filtrar por producto específico' })
-  @ApiQuery({ name: 'tipos', required: false, type: String, description: 'Filtrar por tipos de movimiento (separados por coma)' })
-  @ApiQuery({ name: 'fecha_inicio', required: false, type: String, description: 'Fecha de inicio (ISO 8601)' })
-  @ApiQuery({ name: 'fecha_fin', required: false, type: String, description: 'Fecha de fin (ISO 8601)' })
-  @ApiQuery({ name: 'usuario_id', required: false, type: Number, description: 'Filtrar por usuario' })
-  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Límite de resultados (default: 100, max: 1000)' })
-  @UseGuards(PermisoInventarioGuardia)
-  @RolInventarioDecorador(RolInventario.LECTOR)
-  obtenerHistorialMovimientos(
-    @Request() req,
-    @Param('inventario_id') inventario_id: string,
-    @Query('producto_id') producto_id?: string,
-    @Query('tipos') tipos?: string,
-    @Query('fecha_inicio') fecha_inicio?: string,
-    @Query('fecha_fin') fecha_fin?: string,
-    @Query('usuario_id') usuario_id?: string,
-    @Query('limit') limit?: string,
-  ) {
-    const filtros: any = {};
-    
-    if (producto_id) {
-      filtros.producto_id = +producto_id;
-    }
-    
-    if (tipos) {
-      filtros.tipos = tipos.split(',');
-    }
-    
-    if (fecha_inicio) {
-      filtros.fecha_inicio = new Date(fecha_inicio);
-    }
-    
-    if (fecha_fin) {
-      filtros.fecha_fin = new Date(fecha_fin);
-    }
-    
-    if (usuario_id) {
-      filtros.usuario_id = +usuario_id;
-    }
-    
-    if (limit) {
-      filtros.limit = Math.min(+limit, 1000);
-    }
-
-    return this.inventario_servicio.obtenerHistorialMovimientos(
-      req.user.id,
-      +inventario_id,
-      filtros,
-    );
-  }
-
-  @Get(':inventario_id/reporte-valor')
-  @ApiOperation({ summary: 'Obtener reporte de valor total del inventario' })
-  @UseGuards(PermisoInventarioGuardia)
-  @RolInventarioDecorador(RolInventario.LECTOR)
-  obtenerReporteValor(@Request() req, @Param('inventario_id') inventario_id: string) {
-    return this.inventario_servicio.obtenerReporteValorInventario(req.user.id, +inventario_id);
-  }
-
-  @Delete(':inventario_id/lotes/:lote_id')
-  @ApiOperation({ summary: 'Eliminar lote' })
-  @UseGuards(PermisoInventarioGuardia)
-  @RolInventarioDecorador(RolInventario.EDITOR)
-  eliminarLote(
-    @Request() req,
-    @Param('inventario_id') inventario_id: string,
-    @Param('lote_id') lote_id: string,
-  ) {
-    return this.inventario_servicio.eliminarLote(req.user.id, +inventario_id, +lote_id);
-  }
+  // =====================
+  // ACTIVOS
+  // =====================
 
   @Put(':inventario_id/activos/:activo_id')
-  @ApiOperation({ summary: 'Actualizar activo' })
-  @UseGuards(PermisoInventarioGuardia)
+  @ApiOperation({ summary: 'Actualizar un activo' })
   @RolInventarioDecorador(RolInventario.EDITOR)
+  @UseGuards(PermisoInventarioGuardia)
   actualizarActivo(
     @Request() req,
     @Param('inventario_id') inventario_id: string,
@@ -323,40 +235,234 @@ export class InventarioControlador {
     return this.inventario_servicio.actualizarActivo(req.user.id, +inventario_id, +activo_id, dto);
   }
 
-  @Delete(':inventario_id/activos/:activo_id')
-  @ApiOperation({ summary: 'Eliminar activo' })
-  @UseGuards(PermisoInventarioGuardia)
+  @Put(':inventario_id/activos/:activo_id/estado')
+  @ApiOperation({ summary: 'Cambiar estado de un activo' })
   @RolInventarioDecorador(RolInventario.EDITOR)
-  eliminarActivo(
+  @UseGuards(PermisoInventarioGuardia)
+  cambiarEstadoActivo(
     @Request() req,
     @Param('inventario_id') inventario_id: string,
     @Param('activo_id') activo_id: string,
+    @Body() dto: CambiarEstadoActivoDto,
   ) {
-    return this.inventario_servicio.eliminarActivo(req.user.id, +inventario_id, +activo_id);
+    return this.inventario_servicio.cambiarEstadoActivo(req.user.id, +inventario_id, +activo_id, dto);
   }
 
-  @Post(':inventario_id/activos/:activo_id/vender')
-  @ApiOperation({ summary: 'Vender activo' })
-  @UseGuards(PermisoInventarioGuardia)
-  @RolInventarioDecorador(RolInventario.EDITOR)
-  venderActivo(
-    @Request() req,
-    @Param('inventario_id') inventario_id: string,
-    @Param('activo_id') activo_id: string,
-    @Body() dto: VenderActivoDto,
-  ) {
-    return this.inventario_servicio.venderActivo(req.user.id, +inventario_id, +activo_id, dto.monto_venta, dto.registrar_pago);
-  }
+  // =====================
+  // AJUSTES
+  // =====================
 
   @Post(':inventario_id/ajustar-stock')
-  @ApiOperation({ summary: 'Ajuste manual de stock' })
-  @UseGuards(PermisoInventarioGuardia)
+  @ApiOperation({ summary: 'Ajustar stock de un producto' })
   @RolInventarioDecorador(RolInventario.EDITOR)
+  @UseGuards(PermisoInventarioGuardia)
   ajustarStock(
     @Request() req,
     @Param('inventario_id') inventario_id: string,
     @Body() dto: AjustarStockDto,
   ) {
     return this.inventario_servicio.ajustarStock(req.user.id, +inventario_id, dto);
+  }
+
+  // =====================
+  // REPORTES
+  // =====================
+
+  @Get(':inventario_id/reporte/valor')
+  @ApiOperation({ summary: 'Obtener reporte de valor del inventario' })
+  @UseGuards(PermisoInventarioGuardia)
+  obtenerReporteValor(@Request() req, @Param('inventario_id') inventario_id: string) {
+    return this.inventario_servicio.obtenerReporteValorInventario(req.user.id, +inventario_id);
+  }
+
+  // =====================
+  // KARDEX (Movimientos)
+  // =====================
+
+  @Get(':inventario_id/kardex')
+  @ApiOperation({ summary: 'Obtener historial Kardex del inventario' })
+  @UseGuards(PermisoInventarioGuardia)
+  obtenerKardex(
+    @Request() req,
+    @Param('inventario_id') inventario_id: string,
+    @Query() filtros: FiltrosKardexDto,
+  ) {
+    return this.inventario_servicio.kardex.obtenerHistorialInventario(+inventario_id, filtros);
+  }
+
+  @Get(':inventario_id/kardex/producto/:producto_id')
+  @ApiOperation({ summary: 'Obtener historial Kardex de un producto' })
+  @UseGuards(PermisoInventarioGuardia)
+  obtenerKardexProducto(
+    @Request() req,
+    @Param('inventario_id') inventario_id: string,
+    @Param('producto_id') producto_id: string,
+    @Query() filtros: FiltrosKardexDto,
+  ) {
+    return this.inventario_servicio.kardex.obtenerHistorialProducto(+inventario_id, +producto_id, filtros);
+  }
+
+  @Get(':inventario_id/kardex/reporte')
+  @ApiOperation({ summary: 'Generar reporte Kardex' })
+  @UseGuards(PermisoInventarioGuardia)
+  generarReporteKardex(
+    @Request() req,
+    @Param('inventario_id') inventario_id: string,
+    @Query('fecha_inicio') fecha_inicio: string,
+    @Query('fecha_fin') fecha_fin: string,
+  ) {
+    return this.inventario_servicio.kardex.generarReporteKardex(
+      +inventario_id,
+      new Date(fecha_inicio),
+      new Date(fecha_fin),
+    );
+  }
+
+  // =====================
+  // BITÁCORA (Historial de Activos)
+  // =====================
+
+  @Get(':inventario_id/bitacora')
+  @ApiOperation({ summary: 'Obtener bitácora de activos del inventario' })
+  @UseGuards(PermisoInventarioGuardia)
+  obtenerBitacora(
+    @Request() req,
+    @Param('inventario_id') inventario_id: string,
+    @Query() filtros: FiltrosBitacoraDto,
+  ) {
+    return this.inventario_servicio.bitacora.obtenerHistorialInventario(+inventario_id, filtros);
+  }
+
+  @Get(':inventario_id/bitacora/activo/:activo_id')
+  @ApiOperation({ summary: 'Obtener bitácora de un activo específico' })
+  @UseGuards(PermisoInventarioGuardia)
+  obtenerBitacoraActivo(
+    @Request() req,
+    @Param('inventario_id') inventario_id: string,
+    @Param('activo_id') activo_id: string,
+    @Query() filtros: FiltrosBitacoraDto,
+  ) {
+    return this.inventario_servicio.bitacora.obtenerHistorialActivo(+inventario_id, +activo_id, filtros);
+  }
+
+  @Get(':inventario_id/bitacora/recientes')
+  @ApiOperation({ summary: 'Obtener eventos recientes de bitácora' })
+  @UseGuards(PermisoInventarioGuardia)
+  obtenerEventosRecientes(
+    @Request() req,
+    @Param('inventario_id') inventario_id: string,
+    @Query('limite') limite?: number,
+  ) {
+    return this.inventario_servicio.bitacora.obtenerEventosRecientes(+inventario_id, limite);
+  }
+
+  // =====================
+  // AUDITORÍA
+  // =====================
+
+  @Get(':inventario_id/auditoria')
+  @ApiOperation({ summary: 'Buscar en auditoría (búsqueda avanzada)' })
+  @UseGuards(PermisoInventarioGuardia)
+  buscarAuditoria(
+    @Request() req,
+    @Param('inventario_id') inventario_id: string,
+    @Query() filtros: FiltrosAuditoriaDto,
+  ) {
+    return this.inventario_servicio.auditoria.buscarAuditoria(+inventario_id, filtros);
+  }
+
+  @Get(':inventario_id/auditoria/producto/:producto_id')
+  @ApiOperation({ summary: 'Obtener auditoría de un producto' })
+  @UseGuards(PermisoInventarioGuardia)
+  obtenerAuditoriaProducto(
+    @Request() req,
+    @Param('inventario_id') inventario_id: string,
+    @Param('producto_id') producto_id: string,
+    @Query() filtros: FiltrosAuditoriaDto,
+  ) {
+    return this.inventario_servicio.auditoria.obtenerHistorialProducto(+inventario_id, +producto_id, filtros);
+  }
+
+  @Get(':inventario_id/auditoria/usuario/:usuario_id')
+  @ApiOperation({ summary: 'Obtener acciones de un usuario' })
+  @UseGuards(PermisoInventarioGuardia)
+  obtenerAccionesUsuario(
+    @Request() req,
+    @Param('inventario_id') inventario_id: string,
+    @Param('usuario_id') usuario_id: string,
+    @Query() filtros: FiltrosAuditoriaDto,
+  ) {
+    return this.inventario_servicio.auditoria.obtenerAccionesUsuario(+inventario_id, +usuario_id, filtros);
+  }
+
+  @Get(':inventario_id/auditoria/reporte-antisabotaje')
+  @ApiOperation({ summary: 'Generar reporte anti-sabotaje' })
+  @UseGuards(PermisoInventarioGuardia)
+  generarReporteAntiSabotaje(
+    @Request() req,
+    @Param('inventario_id') inventario_id: string,
+    @Query('fecha_inicio') fecha_inicio: string,
+    @Query('fecha_fin') fecha_fin: string,
+  ) {
+    return this.inventario_servicio.auditoria.generarReporteAntiSabotaje(
+      +inventario_id,
+      new Date(fecha_inicio),
+      new Date(fecha_fin),
+    );
+  }
+
+  @Get(':inventario_id/auditoria/buscar-datos')
+  @ApiOperation({ summary: 'Buscar en datos JSON de auditoría' })
+  @UseGuards(PermisoInventarioGuardia)
+  buscarEnDatos(
+    @Request() req,
+    @Param('inventario_id') inventario_id: string,
+    @Query('texto') texto: string,
+    @Query('limite') limite?: number,
+  ) {
+    return this.inventario_servicio.auditoria.buscarEnDatos(+inventario_id, texto, limite);
+  }
+
+  // =====================
+  // RESERVAS
+  // =====================
+
+  @Get('citas/:cita_id/reservas')
+  @ApiOperation({ summary: 'Obtener reservas de una cita' })
+  obtenerReservasCita(@Request() req, @Param('cita_id') cita_id: string) {
+    return this.inventario_servicio.reservas.obtenerReservasCita(+cita_id);
+  }
+
+  @Get(':inventario_id/activos-disponibles')
+  @ApiOperation({ summary: 'Obtener activos disponibles para un rango de tiempo' })
+  @UseGuards(PermisoInventarioGuardia)
+  obtenerActivosDisponibles(
+    @Request() req,
+    @Param('inventario_id') inventario_id: string,
+    @Query('producto_id') producto_id: string,
+    @Query('fecha_inicio') fecha_inicio: string,
+    @Query('fecha_fin') fecha_fin: string,
+    @Query('cita_id_excluir') cita_id_excluir?: string,
+  ) {
+    return this.inventario_servicio.reservas.obtenerActivosDisponibles(
+      +producto_id,
+      new Date(fecha_inicio),
+      new Date(fecha_fin),
+      cita_id_excluir ? +cita_id_excluir : undefined,
+    );
+  }
+
+  @Post('verificar-disponibilidad-activo')
+  @ApiOperation({ summary: 'Verificar disponibilidad de un activo' })
+  verificarDisponibilidadActivo(
+    @Request() req,
+    @Body() body: { activo_id: number; fecha_inicio: string; fecha_fin: string; cita_id_excluir?: number },
+  ) {
+    return this.inventario_servicio.reservas.verificarDisponibilidadActivo(
+      body.activo_id,
+      new Date(body.fecha_inicio),
+      new Date(body.fecha_fin),
+      body.cita_id_excluir,
+    );
   }
 }

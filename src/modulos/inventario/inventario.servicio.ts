@@ -1,195 +1,186 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThan, MoreThan } from 'typeorm';
-import { Inventario } from './entidades/inventario.entidad';
-import { PermisoInventario } from './entidades/permiso-inventario.entidad';
-import { Producto, TipoGestion } from './entidades/producto.entidad';
-import { Lote } from './entidades/lote.entidad';
+import { Repository, Not } from 'typeorm';
+
+// Entidades
+import { Inventario, VisibilidadInventario } from './entidades/inventario.entidad';
+import { PermisoInventario, RolInventario } from './entidades/permiso-inventario.entidad';
+import { Producto, TipoProducto, SubtipoMaterial, SubtipoActivoFijo } from './entidades/producto.entidad';
+import { Material } from './entidades/material.entidad';
 import { Activo, EstadoActivo } from './entidades/activo.entidad';
-import { CitaConsumible } from './entidades/cita-consumible.entidad';
-import { ActivoHistorial } from './entidades/activo-historial.entidad';
 import { MaterialCita } from './entidades/material-cita.entidad';
 import { MaterialTratamiento, TipoMaterialTratamiento } from './entidades/material-tratamiento.entidad';
-import { MovimientoInventario, TipoMovimiento, CategoriaMovimiento } from './entidades/movimiento-inventario.entidad';
-import { PromesaUsoLote } from './entidades/promesa-uso-lote.entidad';
-import { PromesaUsoActivo } from './entidades/promesa-uso-activo.entidad';
+import { TipoMovimientoKardex } from './entidades/kardex.entidad';
+import { TipoAccionAuditoria } from './entidades/auditoria.entidad';
+
+// Entidades externas
+import { Usuario } from '../usuarios/entidades/usuario.entidad';
+import { Cita } from '../agenda/entidades/cita.entidad';
+import { PlanTratamiento } from '../tratamientos/entidades/plan-tratamiento.entidad';
+
+// Servicios especializados
+import { KardexServicio } from './kardex.servicio';
+import { BitacoraServicio } from './bitacora.servicio';
+import { AuditoriaServicio } from './auditoria.servicio';
+import { ReservasServicio } from './reservas.servicio';
+import { FinanzasServicio } from '../finanzas/finanzas.servicio';
+
+// DTOs
 import { CrearInventarioDto } from './dto/crear-inventario.dto';
 import { ActualizarInventarioDto } from './dto/actualizar-inventario.dto';
 import { InvitarUsuarioInventarioDto } from './dto/invitar-usuario-inventario.dto';
 import { CrearProductoDto } from './dto/crear-producto.dto';
 import { ActualizarProductoDto } from './dto/actualizar-producto.dto';
-import { RegistrarCompraDto } from './dto/registrar-compra.dto';
-import { ConfirmarConsumiblesCitaDto } from './dto/confirmar-consumibles-cita.dto';
+import { RegistrarEntradaMaterialDto, RegistrarEntradaActivoDto } from './dto/registrar-entrada.dto';
+import { RegistrarSalidaMaterialDto, RegistrarSalidaActivoDto } from './dto/registrar-salida.dto';
 import { CambiarEstadoActivoDto } from './dto/cambiar-estado-activo.dto';
-import { AsignarMaterialesCitaDto } from './dto/asignar-materiales-cita.dto';
-import { ConfirmarMaterialesCitaDto } from './dto/confirmar-materiales-cita.dto';
-import { AsignarMaterialesTratamientoDto } from './dto/asignar-materiales-tratamiento.dto';
-import { ConfirmarMaterialesTratamientoDto } from './dto/confirmar-materiales-tratamiento.dto';
-import { Usuario } from '../usuarios/entidades/usuario.entidad';
-import { Cita } from '../agenda/entidades/cita.entidad';
-import { PlanTratamiento } from '../tratamientos/entidades/plan-tratamiento.entidad';
-import { FinanzasServicio } from '../finanzas/finanzas.servicio';
 import { ActualizarActivoDto } from './dto/actualizar-activo.dto';
 import { AjustarStockDto, TipoAjuste } from './dto/ajustar-stock.dto';
-
 
 @Injectable()
 export class InventarioServicio {
   constructor(
-  @InjectRepository(Inventario)
-  private readonly inventario_repositorio: Repository<Inventario>,
-  @InjectRepository(PermisoInventario)
-  private readonly permiso_repositorio: Repository<PermisoInventario>,
-  @InjectRepository(Producto)
-  private readonly producto_repositorio: Repository<Producto>,
-  @InjectRepository(Lote)
-  private readonly lote_repositorio: Repository<Lote>,
-  @InjectRepository(Activo)
-  private readonly activo_repositorio: Repository<Activo>,
-  @InjectRepository(CitaConsumible)
-  private readonly cita_consumible_repositorio: Repository<CitaConsumible>,
-  @InjectRepository(ActivoHistorial)
-  private readonly activo_historial_repositorio: Repository<ActivoHistorial>,
-  @InjectRepository(Cita)
-  private readonly cita_repositorio: Repository<Cita>,
-  @InjectRepository(MaterialCita)
-  private readonly material_cita_repositorio: Repository<MaterialCita>,
-  @InjectRepository(MaterialTratamiento)
-  private readonly material_tratamiento_repositorio: Repository<MaterialTratamiento>,
-  @InjectRepository(MovimientoInventario)
-  private readonly movimiento_repositorio: Repository<MovimientoInventario>,
-  @InjectRepository(PlanTratamiento)
-  private readonly plan_tratamiento_repositorio: Repository<PlanTratamiento>,
-  @InjectRepository(PromesaUsoLote)
-  private readonly promesa_uso_lote_repositorio: Repository<PromesaUsoLote>,
-  @InjectRepository(PromesaUsoActivo)
-  private readonly promesa_uso_activo_repositorio: Repository<PromesaUsoActivo>,
-  private readonly finanzas_servicio: FinanzasServicio,
-) {}
+    @InjectRepository(Inventario)
+    private readonly inventario_repositorio: Repository<Inventario>,
+    @InjectRepository(PermisoInventario)
+    private readonly permiso_repositorio: Repository<PermisoInventario>,
+    @InjectRepository(Producto)
+    private readonly producto_repositorio: Repository<Producto>,
+    @InjectRepository(Material)
+    private readonly material_repositorio: Repository<Material>,
+    @InjectRepository(Activo)
+    private readonly activo_repositorio: Repository<Activo>,
+    @InjectRepository(MaterialCita)
+    private readonly material_cita_repositorio: Repository<MaterialCita>,
+    @InjectRepository(MaterialTratamiento)
+    private readonly material_tratamiento_repositorio: Repository<MaterialTratamiento>,
+    @InjectRepository(Cita)
+    private readonly cita_repositorio: Repository<Cita>,
+    @InjectRepository(PlanTratamiento)
+    private readonly plan_tratamiento_repositorio: Repository<PlanTratamiento>,
+    private readonly kardex_servicio: KardexServicio,
+    private readonly bitacora_servicio: BitacoraServicio,
+    private readonly auditoria_servicio: AuditoriaServicio,
+    private readonly reservas_servicio: ReservasServicio,
+    @Inject(forwardRef(() => FinanzasServicio))
+    private readonly finanzas_servicio: FinanzasServicio,
+  ) { }
+
+  // =====================
+  // INVENTARIOS
+  // =====================
 
   async crearInventario(usuario_id: number, dto: CrearInventarioDto): Promise<Inventario> {
-  const nuevo_inventario = this.inventario_repositorio.create({
-    ...dto,
-    activo: true,
-    propietario: { id: usuario_id } as Usuario,
-  });
-  return this.inventario_repositorio.save(nuevo_inventario);
-}
+    const inventario = this.inventario_repositorio.create({
+      ...dto,
+      propietario: { id: usuario_id } as Usuario,
+    });
+    const guardado = await this.inventario_repositorio.save(inventario);
 
-async obtenerInventarios(usuario_id: number): Promise<any[]> {
-  const inventarios_propios = await this.inventario_repositorio.find({
-    where: { propietario: { id: usuario_id }, activo: true },
-    relations: ['propietario', 'productos', 'productos.lotes', 'productos.activos'],
-  });
+    // Registrar auditoría
+    await this.auditoria_servicio.registrarAccion(
+      guardado,
+      TipoAccionAuditoria.INVENTARIO_CREADO,
+      usuario_id,
+      { datos_nuevos: dto },
+    );
 
-  const permisos = await this.permiso_repositorio.find({
-    where: { usuario_invitado: { id: usuario_id } },
-    relations: ['inventario', 'inventario.propietario', 'inventario.productos', 'inventario.productos.lotes', 'inventario.productos.activos'],
-  });
+    return guardado;
+  }
 
-  const inventarios_compartidos = permisos
-    .filter(p => p.inventario.activo)
-    .map(p => ({
+  async obtenerInventarios(usuario_id: number): Promise<any[]> {
+    const inventarios_propios = await this.inventario_repositorio.find({
+      where: { propietario: { id: usuario_id } },
+      relations: ['propietario', 'permisos', 'permisos.usuario_invitado', 'productos'],
+    });
+
+    const permisos = await this.permiso_repositorio.find({
+      where: { usuario_invitado: { id: usuario_id } },
+      relations: ['inventario', 'inventario.propietario', 'inventario.productos'],
+    });
+
+    const inventarios_compartidos = permisos.map(p => ({
       ...p.inventario,
       rol_usuario: p.rol,
       es_propietario: false,
     }));
 
-  const inventarios_propios_marcados = inventarios_propios.map(inv => ({
-    ...inv,
-    rol_usuario: 'propietario',
-    es_propietario: true,
-  }));
+    const inventarios_propios_formateados = inventarios_propios.map(inv => ({
+      ...inv,
+      es_propietario: true,
+      resumen: this.calcularResumenInventario(inv),
+    }));
 
-  const todos_inventarios = [...inventarios_propios_marcados, ...inventarios_compartidos];
+    return [...inventarios_propios_formateados, ...inventarios_compartidos];
+  }
 
-  return todos_inventarios.map(inv => ({
-    ...inv,
-    resumen: this.calcularResumenInventario(inv),
-  }));
-}
-
-private calcularResumenInventario(inventario: any): any {
-  if (!inventario.productos) {
+  private calcularResumenInventario(inventario: any): any {
+    const productos = inventario.productos || [];
     return {
-      valor_total: 0,
-      total_productos: 0,
-      total_consumibles: 0,
-      total_activos: 0,
+      total_productos: productos.length,
+      productos_material: productos.filter((p: Producto) => p.tipo === TipoProducto.MATERIAL).length,
+      productos_activo_fijo: productos.filter((p: Producto) => p.tipo === TipoProducto.ACTIVO_FIJO).length,
     };
   }
 
-  let valor_total = 0;
-  let total_consumibles = 0;
-  let total_activos = 0;
-
-  inventario.productos.forEach(producto => {
-    if (producto.tipo_gestion === TipoGestion.CONSUMIBLE) {
-      if (producto.lotes) {
-        producto.lotes.forEach(lote => {
-          if (lote.activo) {
-            const cantidad = Number(lote.cantidad_actual);
-            const costo = Number(lote.costo_unitario_compra);
-            total_consumibles += cantidad;
-            valor_total += cantidad * costo;
-          }
-        });
-      }
-    } else {
-      if (producto.activos) {
-        producto.activos.forEach(activo => {
-          total_activos += 1;
-          valor_total += Number(activo.costo_compra);
-        });
-      }
-    }
-  });
-
-  return {
-    valor_total,
-    total_productos: inventario.productos.length,
-    total_consumibles,
-    total_activos,
-  };
-}
-
-async obtenerInventarioPorId(usuario_id: number, inventario_id: number): Promise<any> {
-  const inventario = await this.inventario_repositorio.findOne({
-    where: { id: inventario_id, activo: true },
-    relations: ['propietario', 'permisos', 'permisos.usuario_invitado'],
-  });
-
-  if (!inventario) {
-    throw new NotFoundException('Inventario no encontrado');
-  }
-
-  const es_propietario = inventario.propietario.id === usuario_id;
-
-  if (!es_propietario) {
-    const permiso = await this.permiso_repositorio.findOne({
-      where: {
-        inventario: { id: inventario_id },
-        usuario_invitado: { id: usuario_id },
-      },
+  async obtenerInventarioPorId(usuario_id: number, inventario_id: number): Promise<any> {
+    const inventario = await this.inventario_repositorio.findOne({
+      where: { id: inventario_id },
+      relations: ['propietario', 'permisos', 'permisos.usuario_invitado', 'productos'],
     });
 
-    if (!permiso) {
-      throw new ForbiddenException('No tienes acceso a este inventario');
+    if (!inventario) {
+      throw new NotFoundException('Inventario no encontrado');
+    }
+
+    const es_propietario = inventario.propietario.id === usuario_id;
+    const permiso = inventario.permisos.find(p => p.usuario_invitado?.id === usuario_id);
+
+    if (!es_propietario && !permiso && inventario.visibilidad !== VisibilidadInventario.PUBLICO) {
+      throw new ForbiddenException('No tiene acceso a este inventario');
     }
 
     return {
       ...inventario,
-      rol_usuario: permiso.rol,
-      es_propietario: false,
+      es_propietario,
+      rol_usuario: es_propietario ? 'propietario' : permiso?.rol,
+      resumen: this.calcularResumenInventario(inventario),
     };
   }
 
-  return {
-    ...inventario,
-    rol_usuario: 'propietario',
-    es_propietario: true,
-  };
-}
+  async actualizarInventario(
+    usuario_id: number,
+    inventario_id: number,
+    dto: ActualizarInventarioDto,
+  ): Promise<Inventario> {
+    const inventario = await this.obtenerInventarioPorId(usuario_id, inventario_id);
+
+    const datos_anteriores = { ...inventario };
+    Object.assign(inventario, dto);
+
+    const actualizado = await this.inventario_repositorio.save(inventario);
+
+    await this.auditoria_servicio.registrarAccion(
+      actualizado,
+      TipoAccionAuditoria.INVENTARIO_EDITADO,
+      usuario_id,
+      { datos_anteriores, datos_nuevos: dto },
+    );
+
+    return actualizado;
+  }
+
+  async eliminarInventario(usuario_id: number, inventario_id: number): Promise<void> {
+    const inventario = await this.inventario_repositorio.findOne({
+      where: { id: inventario_id, propietario: { id: usuario_id } },
+    });
+
+    if (!inventario) {
+      throw new NotFoundException('Inventario no encontrado o no es propietario');
+    }
+
+    await this.inventario_repositorio.softDelete(inventario_id);
+  }
 
   async invitarUsuario(
     usuario_id: number,
@@ -197,113 +188,73 @@ async obtenerInventarioPorId(usuario_id: number, inventario_id: number): Promise
     dto: InvitarUsuarioInventarioDto,
   ): Promise<PermisoInventario> {
     const inventario = await this.inventario_repositorio.findOne({
-      where: { id: inventario_id },
-      relations: ['propietario'],
+      where: { id: inventario_id, propietario: { id: usuario_id } },
     });
 
     if (!inventario) {
-      throw new NotFoundException('Inventario no encontrado');
-    }
-
-    if (inventario.propietario.id !== usuario_id) {
-      throw new ForbiddenException('Solo el propietario puede invitar usuarios');
-    }
-
-    if (dto.usuario_id === usuario_id) {
-      throw new BadRequestException('No puedes invitarte a ti mismo');
+      throw new NotFoundException('Inventario no encontrado o no es propietario');
     }
 
     const permiso_existente = await this.permiso_repositorio.findOne({
-      where: {
-        inventario: { id: inventario_id },
-        usuario_invitado: { id: dto.usuario_id },
-      },
+      where: { inventario: { id: inventario_id }, usuario_invitado: { id: dto.usuario_id } },
     });
 
     if (permiso_existente) {
-      throw new BadRequestException('Este usuario ya tiene acceso al inventario');
+      permiso_existente.rol = dto.rol;
+      return this.permiso_repositorio.save(permiso_existente);
     }
 
-    const nuevo_permiso = this.permiso_repositorio.create({
-      rol: dto.rol,
-      inventario: inventario,
+    const permiso = this.permiso_repositorio.create({
+      inventario,
       usuario_invitado: { id: dto.usuario_id } as Usuario,
+      rol: dto.rol,
     });
 
-    return this.permiso_repositorio.save(nuevo_permiso);
+    return this.permiso_repositorio.save(permiso);
   }
 
   async eliminarPermiso(usuario_id: number, inventario_id: number, permiso_id: number): Promise<void> {
     const inventario = await this.inventario_repositorio.findOne({
-      where: { id: inventario_id },
-      relations: ['propietario'],
+      where: { id: inventario_id, propietario: { id: usuario_id } },
     });
 
     if (!inventario) {
-      throw new NotFoundException('Inventario no encontrado');
+      throw new NotFoundException('Inventario no encontrado o no es propietario');
     }
 
-    if (inventario.propietario.id !== usuario_id) {
-      throw new ForbiddenException('Solo el propietario puede eliminar permisos');
-    }
-
-    const resultado = await this.permiso_repositorio.delete(permiso_id);
-
-    if (resultado.affected === 0) {
-      throw new NotFoundException('Permiso no encontrado');
-    }
+    await this.permiso_repositorio.delete(permiso_id);
   }
 
-  async eliminarInventario(usuario_id: number, inventario_id: number): Promise<void> {
-  const inventario = await this.inventario_repositorio.findOne({
-    where: { id: inventario_id, activo: true },
-    relations: ['propietario'],
-  });
-
-  if (!inventario) {
-    throw new NotFoundException('Inventario no encontrado');
-  }
-
-  if (inventario.propietario.id !== usuario_id) {
-    throw new ForbiddenException('Solo el propietario puede eliminar el inventario');
-  }
-
-  inventario.activo = false;
-  await this.inventario_repositorio.save(inventario);
-}
+  // =====================
+  // PRODUCTOS
+  // =====================
 
   async crearProducto(usuario_id: number, dto: CrearProductoDto): Promise<Producto> {
     const inventario = await this.obtenerInventarioPorId(usuario_id, dto.inventario_id);
 
-    const nuevo_producto = this.producto_repositorio.create({
-      nombre: dto.nombre,
-      tipo_gestion: dto.tipo_gestion,
-      stock_minimo: dto.stock_minimo || 0,
-      unidad_medida: dto.unidad_medida || 'unidad',
-      descripcion: dto.descripcion,
-      notificar_stock_bajo: dto.notificar_stock_bajo !== undefined ? dto.notificar_stock_bajo : true,
-      activo: true,
-      inventario: { id: dto.inventario_id } as Inventario,
+    // Validar subtipos
+    if (dto.tipo === TipoProducto.MATERIAL && !dto.subtipo_material) {
+      throw new BadRequestException('Debe especificar subtipo_material para productos de tipo MATERIAL');
+    }
+    if (dto.tipo === TipoProducto.ACTIVO_FIJO && !dto.subtipo_activo_fijo) {
+      throw new BadRequestException('Debe especificar subtipo_activo_fijo para productos de tipo ACTIVO_FIJO');
+    }
+
+    const producto = this.producto_repositorio.create({
+      ...dto,
+      inventario,
     });
 
-    const producto_guardado = await this.producto_repositorio.save(nuevo_producto);
+    const guardado = await this.producto_repositorio.save(producto);
 
-    await this.registrarMovimientoAuditoria(
-      dto.inventario_id,
-      TipoMovimiento.PRODUCTO_CREADO,
+    await this.auditoria_servicio.registrarAccion(
+      inventario,
+      TipoAccionAuditoria.PRODUCTO_CREADO,
       usuario_id,
-      producto_guardado,
-      null,
-      {
-        nombre: producto_guardado.nombre,
-        tipo_gestion: producto_guardado.tipo_gestion,
-        stock_minimo: producto_guardado.stock_minimo,
-        unidad_medida: producto_guardado.unidad_medida,
-      },
-      `Producto "${producto_guardado.nombre}" creado`,
+      { producto: guardado, datos_nuevos: dto },
     );
 
-    return producto_guardado;
+    return guardado;
   }
 
   async obtenerProductos(usuario_id: number, inventario_id: number): Promise<Producto[]> {
@@ -311,9 +262,23 @@ async obtenerInventarioPorId(usuario_id: number, inventario_id: number): Promise
 
     return this.producto_repositorio.find({
       where: { inventario: { id: inventario_id }, activo: true },
-      relations: ['lotes', 'activos'],
-      order: { nombre: 'ASC' },
+      relations: ['materiales', 'activos'],
     });
+  }
+
+  async obtenerProductoPorId(usuario_id: number, inventario_id: number, producto_id: number): Promise<Producto> {
+    await this.obtenerInventarioPorId(usuario_id, inventario_id);
+
+    const producto = await this.producto_repositorio.findOne({
+      where: { id: producto_id, inventario: { id: inventario_id }, activo: true },
+      relations: ['inventario', 'materiales', 'activos'],
+    });
+
+    if (!producto) {
+      throw new NotFoundException('Producto no encontrado');
+    }
+
+    return producto;
   }
 
   async actualizarProducto(
@@ -322,305 +287,361 @@ async obtenerInventarioPorId(usuario_id: number, inventario_id: number): Promise
     producto_id: number,
     dto: ActualizarProductoDto,
   ): Promise<Producto> {
-    await this.obtenerInventarioPorId(usuario_id, inventario_id);
+    const producto = await this.obtenerProductoPorId(usuario_id, inventario_id, producto_id);
+    const inventario = await this.obtenerInventarioPorId(usuario_id, inventario_id);
 
-    const producto = await this.producto_repositorio.findOne({
-      where: { id: producto_id, inventario: { id: inventario_id } },
-    });
-
-    if (!producto) {
-      throw new NotFoundException('Producto no encontrado');
-    }
-    const datos_anteriores = {
-      nombre: producto.nombre,
-      tipo_gestion: producto.tipo_gestion,
-      stock_minimo: producto.stock_minimo,
-      unidad_medida: producto.unidad_medida,
-      descripcion: producto.descripcion,
-      notificar_stock_bajo: producto.notificar_stock_bajo,
-    };
-
+    const datos_anteriores = { ...producto };
     Object.assign(producto, dto);
-    const producto_actualizado = await this.producto_repositorio.save(producto);
-    await this.registrarMovimientoAuditoria(
-      inventario_id,
-      TipoMovimiento.PRODUCTO_EDITADO,
+
+    const actualizado = await this.producto_repositorio.save(producto);
+
+    await this.auditoria_servicio.registrarAccion(
+      inventario,
+      TipoAccionAuditoria.PRODUCTO_EDITADO,
       usuario_id,
-      producto_actualizado,
-      datos_anteriores,
-      dto,
-      `Producto "${producto_actualizado.nombre}" editado`,
+      { producto: actualizado, datos_anteriores, datos_nuevos: dto },
     );
 
-    return producto_actualizado;
+    return actualizado;
   }
 
   async eliminarProducto(usuario_id: number, inventario_id: number, producto_id: number): Promise<void> {
-    await this.obtenerInventarioPorId(usuario_id, inventario_id);
+    const producto = await this.obtenerProductoPorId(usuario_id, inventario_id, producto_id);
+    const inventario = await this.obtenerInventarioPorId(usuario_id, inventario_id);
 
-    const producto = await this.producto_repositorio.findOne({
-      where: { id: producto_id, inventario: { id: inventario_id } },
-    });
-
-    if (!producto) {
-      throw new NotFoundException('Producto no encontrado');
-    }
-    const datos_producto = {
-      nombre: producto.nombre,
-      tipo_gestion: producto.tipo_gestion,
-      stock_minimo: producto.stock_minimo,
-      unidad_medida: producto.unidad_medida,
-    };
-
-    const resultado = await this.producto_repositorio.update(
-      { id: producto_id, inventario: { id: inventario_id } },
-      { activo: false },
-    );
-
-    if (resultado.affected === 0) {
-      throw new NotFoundException('Producto no encontrado');
-    }
-    await this.registrarMovimientoAuditoria(
-      inventario_id,
-      TipoMovimiento.PRODUCTO_ELIMINADO,
+    await this.auditoria_servicio.registrarAccion(
+      inventario,
+      TipoAccionAuditoria.PRODUCTO_ELIMINADO,
       usuario_id,
-      undefined,
-      datos_producto,
-      undefined,
-      `Producto "${datos_producto.nombre}" eliminado`,
+      { producto, datos_anteriores: producto },
     );
+
+    await this.producto_repositorio.softDelete(producto_id);
   }
 
-  async registrarCompra(usuario_id: number, inventario_id: number, dto: RegistrarCompraDto): Promise<any> {
-  await this.obtenerInventarioPorId(usuario_id, inventario_id);
+  // =====================
+  // STOCK DE PRODUCTOS
+  // =====================
 
-  const producto = await this.producto_repositorio.findOne({
-    where: { id: dto.producto_id, inventario: { id: inventario_id }, activo: true },
-  });
+  async obtenerStockProducto(usuario_id: number, inventario_id: number, producto_id: number): Promise<any> {
+    const producto = await this.obtenerProductoPorId(usuario_id, inventario_id, producto_id);
 
-  if (!producto) {
-    throw new NotFoundException('Producto no encontrado');
+    if (producto.tipo === TipoProducto.MATERIAL) {
+      const materiales = await this.material_repositorio.find({
+        where: { producto: { id: producto_id }, activo: true },
+        order: { fecha_vencimiento: 'ASC' },
+      });
+
+      const stock_total = materiales.reduce((sum, m) => sum + Number(m.cantidad_actual), 0);
+      const stock_reservado = materiales.reduce((sum, m) => sum + Number(m.cantidad_reservada), 0);
+      const stock_disponible = stock_total - stock_reservado;
+
+      return {
+        producto_id: producto.id,
+        nombre: producto.nombre,
+        tipo: producto.tipo,
+        subtipo: producto.subtipo_material,
+        unidad_medida: producto.unidad_medida,
+        stock_total,
+        stock_reservado,
+        stock_disponible,
+        stock_minimo: producto.stock_minimo,
+        alerta_stock_bajo: stock_disponible < producto.stock_minimo,
+        materiales: materiales.map(m => ({
+          id: m.id,
+          nro_lote: m.nro_lote,
+          nro_serie: m.nro_serie,
+          fecha_vencimiento: m.fecha_vencimiento,
+          cantidad_actual: Number(m.cantidad_actual),
+          cantidad_reservada: Number(m.cantidad_reservada),
+          costo_unitario: Number(m.costo_unitario),
+        })),
+      };
+    } else {
+      // Activo Fijo
+      const activos = await this.activo_repositorio.find({
+        where: { producto: { id: producto_id } },
+      });
+
+      const por_estado = {
+        disponible: 0,
+        en_uso: 0,
+        en_mantenimiento: 0,
+        desechado: 0,
+      };
+
+      activos.forEach(a => {
+        por_estado[a.estado]++;
+      });
+
+      return {
+        producto_id: producto.id,
+        nombre: producto.nombre,
+        tipo: producto.tipo,
+        subtipo: producto.subtipo_activo_fijo,
+        total_activos: activos.length,
+        activos_disponibles: por_estado.disponible,
+        activos_por_estado: por_estado,
+        activos: activos.map(a => ({
+          id: a.id,
+          codigo_interno: a.codigo_interno,
+          nro_serie: a.nro_serie,
+          nombre_asignado: a.nombre_asignado,
+          estado: a.estado,
+          ubicacion: a.ubicacion,
+          costo_compra: Number(a.costo_compra),
+          fecha_compra: a.fecha_compra,
+        })),
+      };
+    }
   }
 
-  let resultado: any;
+  // =====================
+  // ENTRADAS DE MATERIAL
+  // =====================
 
-  if (producto.tipo_gestion === TipoGestion.CONSUMIBLE) {
-    if (!dto.nro_lote || !dto.fecha_vencimiento) {
-      throw new BadRequestException('Para productos consumibles se requiere número de lote y fecha de vencimiento');
+  async registrarEntradaMaterial(
+    usuario_id: number,
+    inventario_id: number,
+    dto: RegistrarEntradaMaterialDto,
+  ): Promise<Material> {
+    const producto = await this.obtenerProductoPorId(usuario_id, inventario_id, dto.producto_id);
+    const inventario = await this.obtenerInventarioPorId(usuario_id, inventario_id);
+
+    if (producto.tipo !== TipoProducto.MATERIAL) {
+      throw new BadRequestException('Este producto no es de tipo MATERIAL');
     }
 
-    const costo_unitario = dto.costo_total / dto.cantidad;
+    // Validar campos según subtipo
+    if (producto.subtipo_material === SubtipoMaterial.CON_LOTE_VENCIMIENTO && !dto.nro_lote) {
+      throw new BadRequestException('Debe especificar número de lote para este tipo de material');
+    }
+    if (producto.subtipo_material === SubtipoMaterial.CON_SERIE && !dto.nro_serie) {
+      throw new BadRequestException('Debe especificar número de serie para este tipo de material');
+    }
 
-    const nuevo_lote = this.lote_repositorio.create({
+    // Calcular stock anterior
+    const materiales_existentes = await this.material_repositorio.find({
+      where: { producto: { id: dto.producto_id }, activo: true },
+    });
+    const stock_anterior = materiales_existentes.reduce((sum, m) => sum + Number(m.cantidad_actual), 0);
+
+    // Crear material
+    const material = this.material_repositorio.create({
+      producto,
       nro_lote: dto.nro_lote,
-      fecha_vencimiento: new Date(dto.fecha_vencimiento),
+      nro_serie: dto.nro_serie,
+      fecha_vencimiento: dto.fecha_vencimiento ? new Date(dto.fecha_vencimiento) : undefined,
       cantidad_actual: dto.cantidad,
-      costo_unitario_compra: costo_unitario,
-      activo: true,
-      producto: producto,
+      costo_unitario: dto.costo_unitario,
+      fecha_ingreso: dto.fecha_ingreso ? new Date(dto.fecha_ingreso) : new Date(),
     });
 
-    resultado = await this.lote_repositorio.save(nuevo_lote);
-    const lotes_anteriores = await this.lote_repositorio.find({
-      where: { producto: { id: producto.id }, activo: true },
-    });
-    const stock_anterior = lotes_anteriores
-      .filter(l => l.id !== resultado.id)
-      .reduce((total, lote) => total + Number(lote.cantidad_actual), 0);
+    const guardado = await this.material_repositorio.save(material);
+
     const stock_nuevo = stock_anterior + dto.cantidad;
-    await this.registrarMovimientoAuditoria(
-      inventario_id,
-      TipoMovimiento.LOTE_CREADO,
-      usuario_id,
+
+    // Registrar en Kardex
+    await this.kardex_servicio.registrarEntrada(
+      inventario,
       producto,
-      undefined,
-      {
-        nro_lote: resultado.nro_lote,
-        cantidad: resultado.cantidad_actual,
-        costo_unitario: costo_unitario,
-        fecha_vencimiento: dto.fecha_vencimiento,
-      },
-      `Lote "${resultado.nro_lote}" creado para ${producto.nombre}`,
-    );
-    await this.registrarMovimiento(
-      producto,
-      TipoMovimiento.ENTRADA_LOTE,
+      dto.tipo_entrada,
       dto.cantidad,
       stock_anterior,
       stock_nuevo,
       usuario_id,
-      `Compra - Lote: ${dto.nro_lote}`,
-      `Compra de ${dto.cantidad} ${producto.unidad_medida} - Costo total: $${dto.costo_total}`,
-    );
-  } else {
-    const num_activos = Math.floor(dto.cantidad);
-    const activos_creados: Activo[] = [];
-
-    for (let i = 0; i < num_activos; i++) {
-      const datos_activo: Partial<Activo> = {
-        costo_compra: dto.costo_total / num_activos,
-        fecha_compra: new Date(dto.fecha_compra),
-        estado: EstadoActivo.DISPONIBLE,
-        producto: producto,
-      };
-
-      if (producto.tipo_gestion === TipoGestion.ACTIVO_SERIALIZADO) {
-        datos_activo.nro_serie = dto.nro_serie;
-      }
-
-      if (dto.nombre_asignado) {
-        datos_activo.nombre_asignado = `${dto.nombre_asignado} ${i + 1}`;
-      }
-      const [activo_guardado] = await this.activo_repositorio.save([datos_activo]);
-      activos_creados.push(activo_guardado);
-      const tipo_movimiento = producto.tipo_gestion === TipoGestion.ACTIVO_SERIALIZADO 
-        ? TipoMovimiento.SERIE_CREADA 
-        : TipoMovimiento.GENERAL_CREADO;
-      await this.registrarMovimientoAuditoria(
-        inventario_id,
-        tipo_movimiento,
-        usuario_id,
-        producto,
-        undefined,
-        {
-          nro_serie: activo_guardado.nro_serie,
-          nombre_asignado: activo_guardado.nombre_asignado,
-          costo_compra: activo_guardado.costo_compra,
-          estado: activo_guardado.estado,
-        },
-        `${producto.tipo_gestion === TipoGestion.ACTIVO_SERIALIZADO ? 'Serie' : 'Activo general'} creado para ${producto.nombre}`,
-      );
-
-      const tipo_entrada = producto.tipo_gestion === TipoGestion.ACTIVO_SERIALIZADO 
-        ? TipoMovimiento.ENTRADA_SERIE 
-        : TipoMovimiento.ENTRADA_GENERAL;
-      
-      await this.registrarMovimiento(
-        producto,
-        tipo_entrada,
-        1,
-        i,
-        i + 1,
-        usuario_id,
-        `Compra - ${producto.tipo_gestion === TipoGestion.ACTIVO_SERIALIZADO ? 'Serie' : 'Activo general'}: ${activo_guardado.nro_serie || activo_guardado.nombre_asignado}`,
-        `Compra de ${producto.tipo_gestion === TipoGestion.ACTIVO_SERIALIZADO ? 'serie' : 'activo general'}`,
-      );
-    }
-
-    resultado = { 
-      mensaje: `Se registraron ${num_activos} activos`,
-      activos: activos_creados,
-    };
-  }
-
-  if (dto.generar_egreso) {
-    await this.finanzas_servicio.registrarEgreso(usuario_id, {
-      concepto: `Compra: ${producto.nombre}`,
-      monto: dto.costo_total,
-      fecha: new Date(dto.fecha_compra),
-    });
-  }
-
-  return resultado;
-}
-
-  async confirmarConsumiblesCita(
-  usuario_id: number,
-  cita_id: number,
-  dto: ConfirmarConsumiblesCitaDto,
-): Promise<any> {
-  const cita = await this.cita_repositorio.findOne({
-    where: { id: cita_id, usuario: { id: usuario_id } },
-  });
-
-  if (!cita) {
-    throw new NotFoundException('Cita no encontrada o no le pertenece');
-  }
-
-  const resultados: Array<{
-    producto_id: number;
-    producto_nombre: string;
-    cantidad_descontada: number;
-  }> = [];
-
-  for (const consumible of dto.consumibles) {
-    const producto = await this.producto_repositorio.findOne({
-      where: { id: consumible.producto_id, activo: true },
-      relations: ['inventario'],
-    });
-
-    if (!producto || producto.tipo_gestion !== TipoGestion.CONSUMIBLE) {
-      throw new BadRequestException(`El producto ${consumible.producto_id} no es un consumible`);
-    }
-
-    const lotes = await this.lote_repositorio.find({
-      where: { producto: { id: consumible.producto_id }, activo: true },
-      order: { fecha_vencimiento: 'ASC' },
-    });
-
-    const stock_anterior = lotes.reduce(
-      (total, lote) => total + Number(lote.cantidad_actual), 
-      0
+      {
+        material: guardado,
+        monto: dto.cantidad * dto.costo_unitario,
+        costo_unitario: dto.costo_unitario,
+        observaciones: dto.observaciones,
+      },
     );
 
-    let cantidad_restante = consumible.cantidad;
+    // Registrar en Auditoría
+    await this.auditoria_servicio.registrarAccion(
+      inventario,
+      TipoAccionAuditoria.MATERIAL_CREADO,
+      usuario_id,
+      { producto, material: guardado, datos_nuevos: dto },
+    );
 
-    for (const lote of lotes) {
+    // Generar egreso si es compra
+    if (dto.generar_egreso && dto.tipo_entrada === TipoMovimientoKardex.COMPRA) {
+      const costo_total = dto.cantidad * dto.costo_unitario;
+      await this.finanzas_servicio.registrarEgreso(usuario_id, {
+        concepto: `Compra: ${producto.nombre} x${dto.cantidad}`,
+        monto: costo_total,
+        fecha: dto.fecha_ingreso ? new Date(dto.fecha_ingreso) : new Date(),
+      });
+    }
+
+    return guardado;
+  }
+
+  // =====================
+  // ENTRADAS DE ACTIVO
+  // =====================
+
+  async registrarEntradaActivo(
+    usuario_id: number,
+    inventario_id: number,
+    dto: RegistrarEntradaActivoDto,
+  ): Promise<Activo> {
+    const producto = await this.obtenerProductoPorId(usuario_id, inventario_id, dto.producto_id);
+    const inventario = await this.obtenerInventarioPorId(usuario_id, inventario_id);
+
+    if (producto.tipo !== TipoProducto.ACTIVO_FIJO) {
+      throw new BadRequestException('Este producto no es de tipo ACTIVO_FIJO');
+    }
+
+    // Contar activos anteriores
+    const activos_existentes = await this.activo_repositorio.count({
+      where: { producto: { id: dto.producto_id } },
+    });
+
+    // Crear activo
+    const activo = this.activo_repositorio.create({
+      producto,
+      codigo_interno: dto.codigo_interno,
+      nro_serie: dto.nro_serie,
+      nombre_asignado: dto.nombre_asignado,
+      ubicacion: dto.ubicacion,
+      costo_compra: dto.costo_compra,
+      fecha_compra: new Date(dto.fecha_compra),
+      estado: EstadoActivo.DISPONIBLE,
+    });
+
+    const guardado = await this.activo_repositorio.save(activo);
+
+    // Registrar en Kardex
+    await this.kardex_servicio.registrarEntrada(
+      inventario,
+      producto,
+      dto.tipo_entrada,
+      1,
+      activos_existentes,
+      activos_existentes + 1,
+      usuario_id,
+      {
+        monto: dto.costo_compra,
+        observaciones: dto.observaciones,
+      },
+    );
+
+    // Registrar en Auditoría
+    await this.auditoria_servicio.registrarAccion(
+      inventario,
+      TipoAccionAuditoria.ACTIVO_CREADO,
+      usuario_id,
+      { producto, activo: guardado, datos_nuevos: dto },
+    );
+
+    // Generar egreso si es compra
+    if (dto.generar_egreso && dto.tipo_entrada === TipoMovimientoKardex.COMPRA) {
+      await this.finanzas_servicio.registrarEgreso(usuario_id, {
+        concepto: `Compra activo: ${producto.nombre} - ${dto.nombre_asignado || dto.codigo_interno || guardado.id}`,
+        monto: dto.costo_compra,
+        fecha: new Date(dto.fecha_compra),
+      });
+    }
+
+    return guardado;
+  }
+
+  // =====================
+  // SALIDAS DE MATERIAL
+  // =====================
+
+  async registrarSalidaMaterial(
+    usuario_id: number,
+    inventario_id: number,
+    dto: RegistrarSalidaMaterialDto,
+  ): Promise<any> {
+    const producto = await this.obtenerProductoPorId(usuario_id, inventario_id, dto.producto_id);
+    const inventario = await this.obtenerInventarioPorId(usuario_id, inventario_id);
+
+    if (producto.tipo !== TipoProducto.MATERIAL) {
+      throw new BadRequestException('Este producto no es de tipo MATERIAL');
+    }
+
+    // Obtener materiales disponibles (FIFO por fecha de vencimiento o ingreso)
+    let materiales: Material[];
+    if (dto.material_id) {
+      const material = await this.material_repositorio.findOne({
+        where: { id: dto.material_id, activo: true },
+      });
+      if (!material) {
+        throw new NotFoundException('Material no encontrado');
+      }
+      materiales = [material];
+    } else {
+      materiales = await this.material_repositorio.find({
+        where: { producto: { id: dto.producto_id }, activo: true },
+        order: { fecha_vencimiento: 'ASC', fecha_ingreso: 'ASC' },
+      });
+    }
+
+    const stock_anterior = materiales.reduce((sum, m) => sum + Number(m.cantidad_actual), 0);
+    const stock_disponible = materiales.reduce((sum, m) => sum + Number(m.cantidad_actual) - Number(m.cantidad_reservada), 0);
+
+    if (stock_disponible < dto.cantidad) {
+      throw new BadRequestException(`Stock insuficiente. Disponible: ${stock_disponible}, Requerido: ${dto.cantidad}`);
+    }
+
+    // Descontar FIFO
+    let cantidad_restante = dto.cantidad;
+    for (const material of materiales) {
       if (cantidad_restante <= 0) break;
 
-      const cantidad_a_descontar = Math.min(cantidad_restante, Number(lote.cantidad_actual));
+      const disponible = Number(material.cantidad_actual) - Number(material.cantidad_reservada);
+      const a_descontar = Math.min(cantidad_restante, disponible);
 
-      if (cantidad_a_descontar > 0) {
-        lote.cantidad_actual = Number(lote.cantidad_actual) - cantidad_a_descontar;
-        await this.lote_repositorio.save(lote);
-
-        const cita_consumible = this.cita_consumible_repositorio.create({
-          cantidad_usada: cantidad_a_descontar,
-          cita: cita,
-          lote: lote,
-        });
-
-        await this.cita_consumible_repositorio.save(cita_consumible);
-
-        cantidad_restante -= cantidad_a_descontar;
+      if (a_descontar > 0) {
+        material.cantidad_actual = Number(material.cantidad_actual) - a_descontar;
+        await this.material_repositorio.save(material);
+        cantidad_restante -= a_descontar;
       }
     }
 
-    if (cantidad_restante > 0) {
-      throw new BadRequestException(
-        `No hay suficiente stock de ${producto.nombre}. Faltan ${cantidad_restante} ${producto.unidad_medida}`,
-      );
-    }
+    const stock_nuevo = stock_anterior - dto.cantidad;
 
-    const stock_nuevo = lotes.reduce(
-      (total, lote) => total + Number(lote.cantidad_actual), 
-      0
-    );
-
-    await this.registrarMovimiento(
+    // Registrar en Kardex
+    await this.kardex_servicio.registrarSalida(
+      inventario,
       producto,
-      TipoMovimiento.SALIDA_LOTE,
-      consumible.cantidad,
+      dto.tipo_salida,
+      dto.cantidad,
       stock_anterior,
       stock_nuevo,
       usuario_id,
-      `Cita ID: ${cita_id}`,
-      `Consumibles usados en cita`,
+      {
+        monto: dto.monto_venta,
+        observaciones: dto.observaciones,
+      },
     );
 
-    resultados.push({
-      producto_id: consumible.producto_id,
-      producto_nombre: producto.nombre,
-      cantidad_descontada: consumible.cantidad,
-    });
+    // Registrar pago si es venta
+    if (dto.registrar_pago && dto.tipo_salida === TipoMovimientoKardex.VENTA && dto.monto_venta) {
+      await this.finanzas_servicio.registrarPago(usuario_id, {
+        concepto: `Venta: ${producto.nombre} x${dto.cantidad}`,
+        monto: dto.monto_venta,
+        fecha: new Date(),
+      });
+    }
+
+    return {
+      mensaje: 'Salida registrada exitosamente',
+      producto_id: producto.id,
+      cantidad_descontada: dto.cantidad,
+      stock_anterior,
+      stock_nuevo,
+    };
   }
 
-  return {
-    mensaje: 'Consumibles confirmados exitosamente',
-    cita_id: cita_id,
-    consumibles_procesados: resultados,
-  };
-}
+  // =====================
+  // CAMBIO DE ESTADO ACTIVO
+  // =====================
 
   async cambiarEstadoActivo(
     usuario_id: number,
@@ -628,7 +649,7 @@ async obtenerInventarioPorId(usuario_id: number, inventario_id: number): Promise
     activo_id: number,
     dto: CambiarEstadoActivoDto,
   ): Promise<Activo> {
-    await this.obtenerInventarioPorId(usuario_id, inventario_id);
+    const inventario = await this.obtenerInventarioPorId(usuario_id, inventario_id);
 
     const activo = await this.activo_repositorio.findOne({
       where: { id: activo_id },
@@ -641,35 +662,38 @@ async obtenerInventarioPorId(usuario_id: number, inventario_id: number): Promise
 
     const estado_anterior = activo.estado;
 
-    if (estado_anterior !== dto.estado) {
-      const historial = this.activo_historial_repositorio.create({
-        estado_anterior: estado_anterior,
-        estado_nuevo: dto.estado,
-        activo: activo,
-        usuario: { id: usuario_id } as Usuario,
-      });
-
-      await this.activo_historial_repositorio.save(historial);
-
-      activo.estado = dto.estado;
-      await this.activo_repositorio.save(activo);
-
-      await this.registrarMovimientoAuditoria(
-        inventario_id,
-        TipoMovimiento.ACTIVO_CAMBIO_ESTADO,
-        usuario_id,
-        activo.producto,
-        { estado: estado_anterior },
-        { estado: dto.estado },
-        `Estado de activo cambiado de ${estado_anterior} a ${dto.estado}`,
-      );
+    if (estado_anterior === dto.estado) {
+      return activo; // No hay cambio
     }
 
-    return activo;
+    // Registrar en Bitácora
+    await this.bitacora_servicio.registrarCambioEstado(
+      inventario,
+      activo,
+      estado_anterior,
+      dto.estado,
+      usuario_id,
+      {
+        motivo: dto.motivo,
+        referencia_tipo: dto.referencia ? 'manual' : undefined,
+      },
+    );
+
+    activo.estado = dto.estado;
+    return this.activo_repositorio.save(activo);
   }
 
-  async obtenerHistorialActivo(usuario_id: number, inventario_id: number, activo_id: number): Promise<any[]> {
-    await this.obtenerInventarioPorId(usuario_id, inventario_id);
+  // =====================
+  // ACTUALIZAR ACTIVO
+  // =====================
+
+  async actualizarActivo(
+    usuario_id: number,
+    inventario_id: number,
+    activo_id: number,
+    dto: ActualizarActivoDto,
+  ): Promise<Activo> {
+    const inventario = await this.obtenerInventarioPorId(usuario_id, inventario_id);
 
     const activo = await this.activo_repositorio.findOne({
       where: { id: activo_id },
@@ -680,1230 +704,285 @@ async obtenerInventarioPorId(usuario_id: number, inventario_id: number): Promise
       throw new NotFoundException('Activo no encontrado en este inventario');
     }
 
-    return this.activo_historial_repositorio.find({
-      where: { activo: { id: activo_id } },
-      relations: ['usuario'],
-      order: { fecha: 'DESC' },
-    });
+    const datos_anteriores = { ...activo };
+    Object.assign(activo, dto);
+
+    const actualizado = await this.activo_repositorio.save(activo);
+
+    await this.auditoria_servicio.registrarAccion(
+      inventario,
+      TipoAccionAuditoria.ACTIVO_EDITADO,
+      usuario_id,
+      { activo: actualizado, datos_anteriores, datos_nuevos: dto },
+    );
+
+    return actualizado;
   }
+
+  // =====================
+  // VENTA DE ACTIVO
+  // =====================
+
+  async venderActivo(
+    usuario_id: number,
+    inventario_id: number,
+    activo_id: number,
+    dto: RegistrarSalidaActivoDto,
+  ): Promise<any> {
+    const inventario = await this.obtenerInventarioPorId(usuario_id, inventario_id);
+
+    const activo = await this.activo_repositorio.findOne({
+      where: { id: activo_id },
+      relations: ['producto', 'producto.inventario'],
+    });
+
+    if (!activo || activo.producto.inventario.id !== inventario_id) {
+      throw new NotFoundException('Activo no encontrado en este inventario');
+    }
+
+    if (activo.estado === EstadoActivo.DESECHADO) {
+      throw new BadRequestException('No se puede vender un activo desechado');
+    }
+
+    const estado_anterior = activo.estado;
+
+    // Cambiar estado a DESECHADO (vendido)
+    activo.estado = EstadoActivo.DESECHADO;
+    await this.activo_repositorio.save(activo);
+
+    // Registrar en Bitácora
+    await this.bitacora_servicio.registrarCambioEstado(
+      inventario,
+      activo,
+      estado_anterior,
+      EstadoActivo.DESECHADO,
+      usuario_id,
+      { motivo: `Vendido por ${dto.monto_venta || 0}` },
+    );
+
+    // Registrar en Kardex
+    const activos_count = await this.activo_repositorio.count({
+      where: { producto: { id: activo.producto.id }, estado: Not(EstadoActivo.DESECHADO) },
+    });
+
+    await this.kardex_servicio.registrarSalida(
+      inventario,
+      activo.producto,
+      dto.tipo_salida,
+      1,
+      activos_count + 1,
+      activos_count,
+      usuario_id,
+      {
+        monto: dto.monto_venta,
+        observaciones: dto.observaciones,
+      },
+    );
+
+    // Registrar en Auditoría
+    await this.auditoria_servicio.registrarAccion(
+      inventario,
+      TipoAccionAuditoria.ACTIVO_VENDIDO,
+      usuario_id,
+      { activo, datos_nuevos: dto },
+    );
+
+    // Registrar pago
+    if (dto.registrar_pago && dto.monto_venta) {
+      await this.finanzas_servicio.registrarPago(usuario_id, {
+        concepto: `Venta activo: ${activo.producto.nombre} - ${activo.nombre_asignado || activo.codigo_interno || activo.id}`,
+        monto: dto.monto_venta,
+        fecha: new Date(),
+      });
+    }
+
+    return {
+      mensaje: 'Activo vendido exitosamente',
+      activo_id: activo.id,
+      monto_venta: dto.monto_venta,
+    };
+  }
+
+  // =====================
+  // AJUSTE DE STOCK
+  // =====================
+
+  async ajustarStock(
+    usuario_id: number,
+    inventario_id: number,
+    dto: AjustarStockDto,
+  ): Promise<any> {
+    const producto = await this.obtenerProductoPorId(usuario_id, inventario_id, dto.producto_id);
+    const inventario = await this.obtenerInventarioPorId(usuario_id, inventario_id);
+
+    if (producto.tipo !== TipoProducto.MATERIAL) {
+      throw new BadRequestException('Solo se puede ajustar stock de productos tipo MATERIAL');
+    }
+
+    let material: Material;
+    if (dto.material_id) {
+      const found_material = await this.material_repositorio.findOne({
+        where: { id: dto.material_id, activo: true },
+      });
+      if (!found_material) {
+        throw new NotFoundException('Material no encontrado');
+      }
+      material = found_material;
+    } else {
+      // Si no se especifica material, crear uno nuevo o usar el más reciente
+      const materiales = await this.material_repositorio.find({
+        where: { producto: { id: dto.producto_id }, activo: true },
+        order: { fecha_ingreso: 'DESC' },
+      });
+
+      if (materiales.length === 0) {
+        // Crear material genérico
+        material = this.material_repositorio.create({
+          producto,
+          cantidad_actual: 0,
+          costo_unitario: 0,
+        });
+        material = await this.material_repositorio.save(material);
+      } else {
+        material = materiales[0];
+      }
+    }
+
+    const stock_anterior = Number(material.cantidad_actual);
+    let stock_nuevo: number;
+
+    switch (dto.tipo_ajuste) {
+      case TipoAjuste.INCREMENTO:
+        stock_nuevo = stock_anterior + dto.cantidad;
+        break;
+      case TipoAjuste.DECREMENTO:
+        stock_nuevo = stock_anterior - dto.cantidad;
+        if (stock_nuevo < 0) stock_nuevo = 0;
+        break;
+      case TipoAjuste.ESTABLECER:
+        stock_nuevo = dto.cantidad;
+        break;
+    }
+
+    material.cantidad_actual = stock_nuevo;
+    await this.material_repositorio.save(material);
+
+    // Registrar en Kardex
+    await this.kardex_servicio.registrarSalida(
+      inventario,
+      producto,
+      TipoMovimientoKardex.AJUSTE,
+      Math.abs(stock_nuevo - stock_anterior),
+      stock_anterior,
+      stock_nuevo,
+      usuario_id,
+      { material, observaciones: dto.motivo },
+    );
+
+    // Registrar en Auditoría
+    await this.auditoria_servicio.registrarAccion(
+      inventario,
+      TipoAccionAuditoria.AJUSTE_STOCK,
+      usuario_id,
+      {
+        producto,
+        material,
+        datos_anteriores: { cantidad: stock_anterior },
+        datos_nuevos: { cantidad: stock_nuevo },
+        motivo: dto.motivo,
+      },
+    );
+
+    return {
+      mensaje: 'Stock ajustado exitosamente',
+      producto_id: producto.id,
+      material_id: material.id,
+      stock_anterior,
+      stock_nuevo,
+      diferencia: stock_nuevo - stock_anterior,
+      motivo: dto.motivo,
+    };
+  }
+
+  // =====================
+  // VERIFICACIÓN DE STOCK
+  // =====================
+
+  async verificarStockDisponible(producto_id: number, cantidad_requerida: number): Promise<boolean> {
+    const producto = await this.producto_repositorio.findOne({
+      where: { id: producto_id, activo: true },
+    });
+
+    if (!producto) {
+      throw new NotFoundException('Producto no encontrado');
+    }
+
+    if (producto.tipo === TipoProducto.MATERIAL) {
+      const materiales = await this.material_repositorio.find({
+        where: { producto: { id: producto_id }, activo: true },
+      });
+
+      const stock_disponible = materiales.reduce((sum, m) => {
+        return sum + Number(m.cantidad_actual) - Number(m.cantidad_reservada);
+      }, 0);
+
+      return stock_disponible >= cantidad_requerida;
+    } else {
+      const activos_disponibles = await this.activo_repositorio.count({
+        where: { producto: { id: producto_id }, estado: EstadoActivo.DISPONIBLE },
+      });
+
+      return activos_disponibles >= cantidad_requerida;
+    }
+  }
+
+  // =====================
+  // REPORTE DE VALOR
+  // =====================
 
   async obtenerReporteValorInventario(usuario_id: number, inventario_id: number): Promise<any> {
-  await this.obtenerInventarioPorId(usuario_id, inventario_id);
+    await this.obtenerInventarioPorId(usuario_id, inventario_id);
 
-  const lotes = await this.lote_repositorio
-    .createQueryBuilder('lote')
-    .innerJoin('lote.producto', 'producto')
-    .where('producto.inventario = :inventario_id', { inventario_id })
-    .andWhere('producto.activo = :producto_activo', { producto_activo: true })
-    .andWhere('lote.activo = :activo', { activo: true })
-    .getMany();
-
-  const valor_consumibles = lotes.reduce((total, lote) => {
-    return total + Number(lote.cantidad_actual) * Number(lote.costo_unitario_compra);
-  }, 0);
-
-  const activos = await this.activo_repositorio
-    .createQueryBuilder('activo')
-    .innerJoin('activo.producto', 'producto')
-    .where('producto.inventario = :inventario_id', { inventario_id })
-    .andWhere('producto.activo = :producto_activo', { producto_activo: true })
-    .andWhere('activo.estado != :estado', { estado: EstadoActivo.DESECHADO })
-    .getMany();
-
-  const valor_activos = activos.reduce((total, activo) => {
-    return total + Number(activo.costo_compra);
-  }, 0);
-
-  const valor_total = valor_consumibles + valor_activos;
-
-  return {
-    inventario_id,
-    valor_consumibles: Math.round(valor_consumibles * 100) / 100,
-    valor_activos: Math.round(valor_activos * 100) / 100,
-    valor_total: Math.round(valor_total * 100) / 100,
-    cantidad_lotes: lotes.length,
-    cantidad_activos: activos.length,
-    desglose_activos_por_estado: {
-      disponible: activos.filter(a => a.estado === EstadoActivo.DISPONIBLE).length,
-      en_uso: activos.filter(a => a.estado === EstadoActivo.EN_USO).length,
-      en_mantenimiento: activos.filter(a => a.estado === EstadoActivo.EN_MANTENIMIENTO).length,
-      roto: activos.filter(a => a.estado === EstadoActivo.ROTO).length,
-    },
-  };
-}
-
-  private async registrarMovimiento(
-  producto: Producto,
-  tipo: TipoMovimiento,
-  cantidad: number,
-  stock_anterior: number,
-  stock_nuevo: number,
-  usuario_id: number,
-  referencia?: string,
-  observaciones?: string,
-): Promise<void> {
-  const movimiento = this.movimiento_repositorio.create({
-    tipo: tipo,
-    cantidad: cantidad,
-    stock_anterior: stock_anterior,
-    stock_nuevo: stock_nuevo,
-    referencia: referencia,
-    observaciones: observaciones,
-  });
-  if ([TipoMovimiento.ENTRADA_LOTE, TipoMovimiento.ENTRADA_SERIE, TipoMovimiento.ENTRADA_GENERAL].includes(tipo)) {
-    movimiento.categoria = CategoriaMovimiento.ENTRADA_STOCK;
-  } else if ([TipoMovimiento.SALIDA_LOTE, TipoMovimiento.SALIDA_SERIE, TipoMovimiento.SALIDA_GENERAL].includes(tipo)) {
-    movimiento.categoria = CategoriaMovimiento.SALIDA_STOCK;
-  }
-
-  movimiento.producto = producto;
-  movimiento.inventario = producto.inventario;
-  movimiento.usuario = { id: usuario_id } as Usuario;
-
-  await this.movimiento_repositorio.save(movimiento);
-}
-
-private async registrarMovimientoAuditoria(
-    inventario_id: number,
-    tipo: TipoMovimiento,
-    usuario_id: number,
-    producto?: Producto,
-    datos_anteriores?: any,
-    datos_nuevos?: any,
-    observaciones?: string,
-  ): Promise<void> {
-    const movimiento = new MovimientoInventario();
-    movimiento.tipo = tipo;
-    movimiento.inventario = { id: inventario_id } as Inventario;
-    movimiento.usuario = { id: usuario_id } as Usuario;
-    if ([TipoMovimiento.PRODUCTO_CREADO, TipoMovimiento.PRODUCTO_EDITADO, TipoMovimiento.PRODUCTO_ELIMINADO].includes(tipo)) {
-      movimiento.categoria = CategoriaMovimiento.AUDITORIA_PRODUCTO;
-    } else if ([TipoMovimiento.LOTE_CREADO, TipoMovimiento.LOTE_EDITADO, TipoMovimiento.LOTE_ELIMINADO].includes(tipo)) {
-      movimiento.categoria = CategoriaMovimiento.AUDITORIA_LOTE;
-    } else if ([TipoMovimiento.SERIE_CREADA, TipoMovimiento.SERIE_EDITADA, TipoMovimiento.SERIE_ELIMINADA].includes(tipo)) {
-      movimiento.categoria = CategoriaMovimiento.AUDITORIA_SERIE;
-    } else if ([TipoMovimiento.GENERAL_CREADO, TipoMovimiento.GENERAL_EDITADO, TipoMovimiento.GENERAL_ELIMINADO].includes(tipo)) {
-      movimiento.categoria = CategoriaMovimiento.AUDITORIA_GENERAL;
-    }
-    
-    if (datos_anteriores) {
-      movimiento.datos_anteriores = JSON.stringify(datos_anteriores);
-    }
-    
-    if (datos_nuevos) {
-      movimiento.datos_nuevos = JSON.stringify(datos_nuevos);
-    }
-    
-    if (observaciones) {
-      movimiento.observaciones = observaciones;
-    }
-    
-    if (producto) {
-      movimiento.producto = producto;
-    }
-
-    await this.movimiento_repositorio.save(movimiento);
-  }
-
-private async verificarStockDisponible(producto_id: number, cantidad_requerida: number): Promise<boolean> {
-  const producto = await this.producto_repositorio.findOne({
-    where: { id: producto_id, activo: true },
-    relations: ['lotes'],
-  });
-
-  if (!producto) {
-    throw new NotFoundException('Producto no encontrado');
-  }
-
-  if (producto.tipo_gestion !== TipoGestion.CONSUMIBLE) {
-    const activos_disponibles = await this.activo_repositorio.count({
-      where: {
-        producto: { id: producto_id },
-        estado: EstadoActivo.DISPONIBLE,
-      },
+    const productos = await this.producto_repositorio.find({
+      where: { inventario: { id: inventario_id }, activo: true },
+      relations: ['materiales', 'activos'],
     });
 
-    return activos_disponibles >= cantidad_requerida;
-  }
+    let valor_materiales = 0;
+    let valor_activos = 0;
+    let cantidad_materiales = 0;
+    let cantidad_activos = 0;
 
-  const lotes_activos = producto.lotes.filter(l => l.activo);
-  const stock_total = lotes_activos.reduce((total, lote) => {
-    return total + Number(lote.cantidad_actual);
-  }, 0);
-
-  return stock_total >= cantidad_requerida;
-}
-
-async obtenerStockProducto(usuario_id: number, inventario_id: number, producto_id: number): Promise<any> {
-  await this.obtenerInventarioPorId(usuario_id, inventario_id);
-
-  const producto = await this.producto_repositorio.findOne({
-    where: { id: producto_id, inventario: { id: inventario_id }, activo: true },
-    relations: ['lotes', 'activos'],
-  });
-
-  if (!producto) {
-    throw new NotFoundException('Producto no encontrado');
-  }
-
-  if (producto.tipo_gestion === TipoGestion.CONSUMIBLE) {
-    const lotes_activos = producto.lotes.filter(l => l.activo);
-    const stock_total = lotes_activos.reduce((total, lote) => {
-      return total + Number(lote.cantidad_actual);
-    }, 0);
-
-    return {
-      producto_id: producto.id,
-      nombre: producto.nombre,
-      tipo_gestion: producto.tipo_gestion,
-      unidad_medida: producto.unidad_medida,
-      stock_actual: stock_total,
-      stock_minimo: producto.stock_minimo,
-      alerta_stock_bajo: stock_total < producto.stock_minimo,
-      lotes: lotes_activos.map(l => ({
-        id: l.id,
-        nro_lote: l.nro_lote,
-        cantidad: Number(l.cantidad_actual),
-        fecha_vencimiento: l.fecha_vencimiento,
-      })),
-    };
-  } else {
-    const activos_por_estado = {
-      disponible: 0,
-      en_uso: 0,
-      en_mantenimiento: 0,
-      roto: 0,
-      desechado: 0,
-    };
-
-    producto.activos.forEach(activo => {
-      activos_por_estado[activo.estado]++;
-    });
-
-    return {
-      producto_id: producto.id,
-      nombre: producto.nombre,
-      tipo_gestion: producto.tipo_gestion,
-      activos_por_estado: activos_por_estado,
-      total_activos: producto.activos.length,
-      activos_disponibles: activos_por_estado.disponible,
-    };
-  }
-}
-
-async asignarMaterialesCita(
-    usuario_id: number,
-    cita_id: number,
-    dto: AsignarMaterialesCitaDto,
-  ): Promise<any> {
-    const cita = await this.cita_repositorio.findOne({
-      where: { id: cita_id, usuario: { id: usuario_id } },
-    });
-
-    if (!cita) {
-      throw new NotFoundException('Cita no encontrada');
-    }
-
-    await this.material_cita_repositorio.delete({ cita: { id: cita_id } });
-
-    const materiales_asignados: MaterialCita[] = [];
-
-    for (const material_dto of dto.materiales) {
-      const puede_asignar = await this.verificarStockDisponible(
-        material_dto.producto_id,
-        material_dto.cantidad_planeada,
-      );
-
-      if (!puede_asignar) {
-        const producto = await this.producto_repositorio.findOne({
-          where: { id: material_dto.producto_id },
-        });
-        
-        throw new BadRequestException(
-          `Stock insuficiente para ${producto?.nombre || 'el producto'}. Cantidad requerida: ${material_dto.cantidad_planeada}`,
-        );
-      }
-
-      const material = this.material_cita_repositorio.create({
-        cita: cita,
-        producto: { id: material_dto.producto_id } as Producto,
-        cantidad_planeada: material_dto.cantidad_planeada,
-      });
-
-      const material_guardado = await this.material_cita_repositorio.save(material);
-      materiales_asignados.push(material_guardado);
-    }
-
-    return {
-      mensaje: 'Materiales asignados a la cita',
-      cita_id: cita_id,
-      materiales: materiales_asignados,
-    };
-  }
-
-  async agregarMaterialesCita(
-    usuario_id: number,
-    cita_id: number,
-    dto: AsignarMaterialesCitaDto,
-  ): Promise<any> {
-    const cita = await this.cita_repositorio.findOne({
-      where: { id: cita_id, usuario: { id: usuario_id } },
-    });
-
-    if (!cita) {
-      throw new NotFoundException('Cita no encontrada');
-    }
-
-    const materiales_agregados: MaterialCita[] = [];
-
-    for (const material_dto of dto.materiales) {
-      const puede_asignar = await this.verificarStockDisponible(
-        material_dto.producto_id,
-        material_dto.cantidad_planeada,
-      );
-
-      if (!puede_asignar) {
-        const producto = await this.producto_repositorio.findOne({
-          where: { id: material_dto.producto_id },
-        });
-        
-        throw new BadRequestException(
-          `Stock insuficiente para ${producto?.nombre || 'el producto'}. Cantidad requerida: ${material_dto.cantidad_planeada}`,
-        );
-      }
-
-      const material = this.material_cita_repositorio.create({
-        cita: cita,
-        producto: { id: material_dto.producto_id } as Producto,
-        cantidad_planeada: material_dto.cantidad_planeada,
-      });
-
-      const material_guardado = await this.material_cita_repositorio.save(material);
-      materiales_agregados.push(material_guardado);
-    }
-
-    return {
-      mensaje: 'Materiales agregados a la cita correctamente',
-      cita_id: cita_id,
-      materiales: materiales_agregados,
-    };
-  }
-
-async confirmarMaterialesCita(
-    usuario_id: number,
-    cita_id: number,
-    dto: ConfirmarMaterialesCitaDto,
-  ): Promise<any> {
-    const cita = await this.cita_repositorio.findOne({
-      where: { id: cita_id, usuario: { id: usuario_id } },
-    });
-
-    if (!cita) {
-      throw new NotFoundException('Cita no encontrada');
-    }
-
-    if (cita.materiales_confirmados) {
-      throw new BadRequestException('Los materiales de esta cita ya fueron confirmados');
-    }
-
-    const totales_por_material: Record<number, number> = {};
-
-    for (const material_dto of dto.materiales) {
-      const material = await this.material_cita_repositorio.findOne({
-        where: { id: material_dto.material_cita_id },
-        relations: ['producto', 'producto.lotes'],
-      });
-
-      if (!material) {
-        throw new NotFoundException(`Material con ID ${material_dto.material_cita_id} no encontrado`);
-      }
-
-      if (!totales_por_material[material.id]) {
-        totales_por_material[material.id] = 0;
-      }
-      totales_por_material[material.id] += material_dto.cantidad_usada;
-
-      const puede_usar = await this.verificarStockDisponible(
-        material.producto.id,
-        material_dto.cantidad_usada,
-      );
-
-      if (!puede_usar) {
-        throw new BadRequestException(
-          `Stock insuficiente para ${material.producto.nombre}. Cantidad requerida: ${material_dto.cantidad_usada}`,
-        );
-      }
-
-      if (material.producto.tipo_gestion === TipoGestion.CONSUMIBLE) {
-        if (material_dto.lote_id) {
-          const lote_especifico = await this.lote_repositorio.findOne({ where: { id: material_dto.lote_id } });
-          
-          if (lote_especifico) {
-             const stock_anterior = Number(lote_especifico.cantidad_actual);
-             lote_especifico.cantidad_actual = Number(lote_especifico.cantidad_actual) - material_dto.cantidad_usada;
-             await this.lote_repositorio.save(lote_especifico);
-             
-             await this.registrarMovimiento(
-                material.producto,
-                TipoMovimiento.SALIDA_LOTE,
-                material_dto.cantidad_usada,
-                stock_anterior,
-                Number(lote_especifico.cantidad_actual),
-                usuario_id,
-                `Cita ID: ${cita_id} - Lote: ${lote_especifico.nro_lote}`,
-                `Uso confirmado en cita (Lote seleccionado)`
-             );
-          } else {
-             throw new NotFoundException(`El lote especificado para ${material.producto.nombre} no existe`);
-          }
-        } else {
-          const lotes = await this.lote_repositorio.find({
-            where: { producto: { id: material.producto.id }, activo: true },
-            order: { fecha_vencimiento: 'ASC' },
-          });
-
-          let cantidad_restante = material_dto.cantidad_usada;
-          const stock_anterior_total = lotes.reduce((total, lote) => total + Number(lote.cantidad_actual), 0);
-
-          for (const lote of lotes) {
-            if (cantidad_restante <= 0) break;
-
-            const cantidad_a_descontar = Math.min(cantidad_restante, Number(lote.cantidad_actual));
-
-            if (cantidad_a_descontar > 0) {
-              lote.cantidad_actual = Number(lote.cantidad_actual) - cantidad_a_descontar;
-              await this.lote_repositorio.save(lote);
-              cantidad_restante -= cantidad_a_descontar;
-            }
-          }
-          
-          const stock_nuevo_total = lotes.reduce((total, lote) => total + Number(lote.cantidad_actual), 0);
-
-          await this.registrarMovimiento(
-            material.producto,
-            TipoMovimiento.SALIDA_LOTE,
-            material_dto.cantidad_usada,
-            stock_anterior_total,
-            stock_nuevo_total,
-            usuario_id,
-            `Cita ID: ${cita_id}`,
-            `Uso confirmado en cita (FIFO)`,
-          );
+    for (const producto of productos) {
+      if (producto.tipo === TipoProducto.MATERIAL) {
+        const materiales = producto.materiales?.filter(m => m.activo) || [];
+        for (const m of materiales) {
+          valor_materiales += Number(m.cantidad_actual) * Number(m.costo_unitario);
+          cantidad_materiales += Number(m.cantidad_actual);
         }
-      }
-    }
-
-    for (const [id, total_usado] of Object.entries(totales_por_material)) {
-        await this.material_cita_repositorio.update(
-            { id: Number(id) },
-            { cantidad_usada: total_usado, confirmado: true }
-        );
-    }
-
-    cita.materiales_confirmados = true;
-    await this.cita_repositorio.save(cita);
-
-    return {
-      mensaje: 'Materiales confirmados exitosamente',
-      cita_id: cita_id,
-      materiales_confirmados: dto.materiales.length,
-    };
-  }
-
-async obtenerMaterialesCita(usuario_id: number, cita_id: number): Promise<any> {
-  const cita = await this.cita_repositorio.findOne({
-    where: { id: cita_id, usuario: { id: usuario_id } },
-  });
-
-  if (!cita) {
-    throw new NotFoundException('Cita no encontrada');
-  }
-
-  const materiales = await this.material_cita_repositorio.find({
-    where: { cita: { id: cita_id } },
-    relations: ['producto', 'producto.inventario', 'producto.lotes', 'producto.activos'],
-  });
-
-  const promesas_lotes = await this.promesa_uso_lote_repositorio.find({
-    where: { cita: { id: cita_id } },
-    relations: ['lote', 'lote.producto'],
-  });
-
-  const promesas_activos = await this.promesa_uso_activo_repositorio.find({
-    where: { cita: { id: cita_id } },
-    relations: ['activo', 'activo.producto'],
-  });
-
-  const materiales_formateados = materiales.map(material => {
-    const promesas_lote_producto = promesas_lotes.filter(
-      p => p.lote.producto.id === material.producto.id
-    );
-    const promesas_activo_producto = promesas_activos.filter(
-      p => p.activo.producto.id === material.producto.id
-    );
-
-    const items: any[] = [];
-
-    promesas_lote_producto.forEach(promesa => {
-      items.push({
-        lote_id: promesa.lote.id,
-        cantidad_planeada: promesa.cantidad_reservada,
-        nro_lote: promesa.lote.nro_lote,
-      });
-    });
-
-    promesas_activo_producto.forEach(promesa => {
-      items.push({
-        activo_id: promesa.activo.id,
-        cantidad_planeada: 1,
-        nro_serie: promesa.activo.nro_serie,
-        nombre_asignado: promesa.activo.nombre_asignado,
-      });
-    });
-
-    if (items.length === 0) {
-      items.push({ cantidad_planeada: material.cantidad_planeada });
-    }
-
-    return {
-      id: material.id,
-      producto_id: material.producto.id,
-      inventario_id: material.producto.inventario.id,
-      inventario_nombre: material.producto.inventario.nombre,
-      producto_nombre: material.producto.nombre,
-      tipo_gestion: material.producto.tipo_gestion,
-      unidad_medida: material.producto.unidad_medida,
-      cantidad_planeada: material.cantidad_planeada,
-      cantidad_usada: material.cantidad_usada,
-      confirmado: material.confirmado,
-      items,
-    };
-  });
-
-  return {
-    materiales: materiales_formateados,
-    confirmados: cita.materiales_confirmados,
-  };
-}
-
-async asignarMaterialesTratamiento(
-  usuario_id: number,
-  plan_tratamiento_id: number,
-  dto: AsignarMaterialesTratamientoDto,
-): Promise<any> {
-  const plan = await this.plan_tratamiento_repositorio.findOne({
-    where: { id: plan_tratamiento_id, usuario: { id: usuario_id } },
-  });
-
-  if (!plan) {
-    throw new NotFoundException('Plan de tratamiento no encontrado');
-  }
-
-  const materiales_asignados: MaterialTratamiento[] = [];
-
-  for (const material_dto of dto.materiales) {
-    const puede_asignar = await this.verificarStockDisponible(
-      material_dto.producto_id,
-      material_dto.cantidad_planeada,
-    );
-
-    if (!puede_asignar) {
-      const producto = await this.producto_repositorio.findOne({
-        where: { id: material_dto.producto_id },
-      });
-      
-      throw new BadRequestException(
-        `Stock insuficiente para ${producto?.nombre || 'el producto'}. Cantidad requerida: ${material_dto.cantidad_planeada}`,
-      );
-    }
-
-    const material = this.material_tratamiento_repositorio.create({
-      plan_tratamiento: plan,
-      producto: { id: material_dto.producto_id } as Producto,
-      tipo: material_dto.tipo,
-      cantidad_planeada: material_dto.cantidad_planeada,
-    });
-
-    const material_guardado = await this.material_tratamiento_repositorio.save(material);
-    materiales_asignados.push(material_guardado);
-  }
-
-  return {
-    mensaje: 'Materiales asignados al tratamiento',
-    plan_tratamiento_id: plan_tratamiento_id,
-    materiales: materiales_asignados,
-  };
-}
-
-async obtenerMaterialesTratamiento(usuario_id: number, plan_tratamiento_id: number): Promise<any> {
-  const plan = await this.plan_tratamiento_repositorio.findOne({
-    where: { id: plan_tratamiento_id, usuario: { id: usuario_id } },
-  });
-
-  if (!plan) {
-    throw new NotFoundException('Plan de tratamiento no encontrado');
-  }
-
-  const materiales = await this.material_tratamiento_repositorio.find({
-    where: { plan_tratamiento: { id: plan_tratamiento_id } },
-    relations: ['producto', 'producto.inventario', 'producto.lotes', 'producto.activos'],
-  });
-
-  const materiales_formateados = materiales.map(material => ({
-    id: material.id,
-    producto_id: material.producto.id,
-    inventario_id: material.producto.inventario.id,
-    inventario_nombre: material.producto.inventario.nombre,
-    producto_nombre: material.producto.nombre,
-    tipo_gestion: material.producto.tipo_gestion,
-    unidad_medida: material.producto.unidad_medida,
-    tipo: material.tipo,
-    cantidad_planeada: material.cantidad_planeada,
-    cantidad_usada: material.cantidad_usada,
-    confirmado: material.confirmado,
-  }));
-
-  return {
-    materiales: materiales_formateados,
-  };
-}
-
-async confirmarMaterialesGenerales(
-  usuario_id: number,
-  plan_tratamiento_id: number,
-  dto: ConfirmarMaterialesTratamientoDto,
-): Promise<any> {
-  const plan = await this.plan_tratamiento_repositorio.findOne({
-    where: { id: plan_tratamiento_id, usuario: { id: usuario_id } },
-    relations: ['paciente', 'tratamiento'],
-  });
-
-  if (!plan) {
-    throw new NotFoundException('Plan de tratamiento no encontrado');
-  }
-  if (plan.materiales_inicio_confirmados) {
-    throw new BadRequestException('Los materiales generales ya fueron confirmados');
-  }
-
-  const materiales_confirmados: MaterialTratamiento[] = [];
-  for (const material_dto of dto.materiales) {
-    const material = await this.material_tratamiento_repositorio.findOne({
-      where: { id: material_dto.material_tratamiento_id },
-      relations: ['producto', 'producto.lotes'],
-    });
-
-    if (!material) {
-      throw new NotFoundException(`Material con ID ${material_dto.material_tratamiento_id} no encontrado`);
-    }
-    if (material.tipo !== TipoMaterialTratamiento.INICIO) {
-      throw new BadRequestException(
-        `El material ${material.producto.nombre} no es de tipo general (inicio)`,
-      );
-    }
-    const puede_usar = await this.verificarStockDisponible(
-      material.producto.id,
-      material_dto.cantidad_usada,
-    );
-
-    if (!puede_usar) {
-      throw new BadRequestException(
-        `Stock insuficiente para ${material.producto.nombre}. ` +
-        `Cantidad requerida: ${material_dto.cantidad_usada}`,
-      );
-    }
-    if (material.producto.tipo_gestion === TipoGestion.CONSUMIBLE) {
-      const lotes = await this.lote_repositorio.find({
-        where: { producto: { id: material.producto.id }, activo: true },
-        order: { fecha_vencimiento: 'ASC' },
-      });
-
-      let cantidad_restante = material_dto.cantidad_usada;
-      const stock_anterior = lotes.reduce((total, lote) => total + Number(lote.cantidad_actual), 0);
-
-      for (const lote of lotes) {
-        if (cantidad_restante <= 0) break;
-
-        const cantidad_a_descontar = Math.min(cantidad_restante, Number(lote.cantidad_actual));
-
-        if (cantidad_a_descontar > 0) {
-          lote.cantidad_actual = Number(lote.cantidad_actual) - cantidad_a_descontar;
-          await this.lote_repositorio.save(lote);
-          cantidad_restante -= cantidad_a_descontar;
+      } else {
+        const activos = producto.activos?.filter(a => a.estado !== EstadoActivo.DESECHADO) || [];
+        for (const a of activos) {
+          valor_activos += Number(a.costo_compra);
         }
+        cantidad_activos += activos.length;
       }
-
-      const stock_nuevo = lotes.reduce((total, lote) => total + Number(lote.cantidad_actual), 0);
-      await this.registrarMovimiento(
-        material.producto,
-        TipoMovimiento.SALIDA_LOTE,
-        material_dto.cantidad_usada,
-        stock_anterior,
-        stock_nuevo,
-        usuario_id,
-        `Plan Tratamiento ID: ${plan_tratamiento_id}`,
-        `Materiales generales confirmados manualmente`,
-      );
-    }
-    material.cantidad_usada = material_dto.cantidad_usada;
-    material.confirmado = true;
-    await this.material_tratamiento_repositorio.save(material);
-
-    materiales_confirmados.push(material);
-  }
-  plan.materiales_inicio_confirmados = true;
-  if (dto.estado_pago) {
-    if (dto.monto_pago && dto.monto_pago > 0) {
-      const monto_anterior = plan.total_abonado || 0;
-      plan.total_abonado = monto_anterior + dto.monto_pago;
-      const nombre_tratamiento = plan.tratamiento?.nombre || 'Tratamiento';
-      await this.finanzas_servicio.registrarPago(usuario_id, {
-        fecha: new Date(),
-        monto: dto.monto_pago,
-        concepto: `Pago de tratamiento: ${nombre_tratamiento} - Confirmación de materiales generales (${dto.estado_pago})`,
-      });
-    }
-  }
-
-  await this.plan_tratamiento_repositorio.save(plan);
-
-  return {
-    mensaje: 'Materiales generales confirmados exitosamente',
-    plan_tratamiento_id: plan_tratamiento_id,
-    materiales_confirmados: materiales_confirmados.length,
-    estado_pago: dto.estado_pago,
-    monto_pago: dto.monto_pago,
-    total_abonado: plan.total_abonado,
-    detalles: materiales_confirmados.map(m => ({
-      producto: m.producto.nombre,
-      cantidad_planeada: m.cantidad_planeada,
-      cantidad_usada: m.cantidad_usada,
-    })),
-  };
-}
-
-async obtenerHistorialMovimientos(
-  usuario_id: number,
-  inventario_id: number,
-  filtros: {
-    producto_id?: number;
-    tipos?: string[];
-    fecha_inicio?: Date;
-    fecha_fin?: Date;
-    usuario_id?: number;
-    limit?: number;
-  } = {},
-): Promise<any[]> {
-  await this.obtenerInventarioPorId(usuario_id, inventario_id);
-
-  const queryBuilder = this.movimiento_repositorio
-    .createQueryBuilder('movimiento')
-    .leftJoinAndSelect('movimiento.producto', 'producto')
-    .leftJoinAndSelect('movimiento.usuario', 'usuario')
-    .leftJoinAndSelect('movimiento.inventario', 'inventario')
-    .where('inventario.id = :inventario_id', { inventario_id })
-    .orderBy('movimiento.fecha', 'DESC')
-    .take(filtros.limit || 100);
-
-  if (filtros.producto_id) {
-    queryBuilder.andWhere('producto.id = :producto_id', { producto_id: filtros.producto_id });
-  }
-
-  if (filtros.tipos && filtros.tipos.length > 0) {
-    queryBuilder.andWhere('movimiento.tipo IN (:...tipos)', { tipos: filtros.tipos });
-  }
-
-  if (filtros.fecha_inicio) {
-    queryBuilder.andWhere('movimiento.fecha >= :fecha_inicio', { fecha_inicio: filtros.fecha_inicio });
-  }
-
-  if (filtros.fecha_fin) {
-    queryBuilder.andWhere('movimiento.fecha <= :fecha_fin', { fecha_fin: filtros.fecha_fin });
-  }
-
-  if (filtros.usuario_id) {
-    queryBuilder.andWhere('usuario.id = :usuario_filtro_id', { usuario_filtro_id: filtros.usuario_id });
-  }
-
-  const movimientos = await queryBuilder.getMany();
-  return movimientos.map(mov => ({
-    ...mov,
-    datos_anteriores: mov.datos_anteriores ? JSON.parse(mov.datos_anteriores) : null,
-    datos_nuevos: mov.datos_nuevos ? JSON.parse(mov.datos_nuevos) : null,
-  }));
-}
-
-async actualizarInventario(
-  usuario_id: number,
-  inventario_id: number,
-  dto: ActualizarInventarioDto,
-): Promise<Inventario> {
-  const inventario = await this.inventario_repositorio.findOne({
-    where: { id: inventario_id, activo: true },
-    relations: ['propietario'],
-  });
-
-  if (!inventario) {
-    throw new NotFoundException('Inventario no encontrado');
-  }
-
-  if (inventario.propietario.id !== usuario_id) {
-    throw new ForbiddenException('Solo el propietario puede actualizar el inventario');
-  }
-
-  Object.assign(inventario, dto);
-  return this.inventario_repositorio.save(inventario);
-}
-
-async eliminarLote(usuario_id: number, inventario_id: number, lote_id: number): Promise<void> {
-  await this.obtenerInventarioPorId(usuario_id, inventario_id);
-
-  const lote = await this.lote_repositorio.findOne({
-    where: { id: lote_id },
-    relations: ['producto', 'producto.inventario'],
-  });
-
-  if (!lote || lote.producto.inventario.id !== inventario_id) {
-    throw new NotFoundException('Lote no encontrado en este inventario');
-  }
-  const datos_lote = {
-    nro_lote: lote.nro_lote,
-    cantidad_actual: lote.cantidad_actual,
-    fecha_vencimiento: lote.fecha_vencimiento,
-  };
-
-  const producto = lote.producto;
-  
-  await this.lote_repositorio.remove(lote);
-  await this.registrarMovimientoAuditoria(
-    inventario_id,
-    TipoMovimiento.LOTE_ELIMINADO,
-    usuario_id,
-    producto,
-    datos_lote,
-    undefined,
-    `Lote "${datos_lote.nro_lote}" eliminado de ${producto.nombre}`,
-  );
-}
-
-async actualizarActivo(
-  usuario_id: number,
-  inventario_id: number,
-  activo_id: number,
-  dto: ActualizarActivoDto,
-): Promise<Activo> {
-  await this.obtenerInventarioPorId(usuario_id, inventario_id);
-
-  const activo = await this.activo_repositorio.findOne({
-    where: { id: activo_id },
-    relations: ['producto', 'producto.inventario'],
-  });
-
-  if (!activo || activo.producto.inventario.id !== inventario_id) {
-    throw new NotFoundException('Activo no encontrado en este inventario');
-  }
-  const datos_anteriores: any = {
-    estado: activo.estado,
-    ubicacion: activo.ubicacion,
-    nombre_asignado: activo.nombre_asignado,
-  };
-
-  if (dto.estado && dto.estado !== activo.estado) {
-    const historial = this.activo_historial_repositorio.create({
-      estado_anterior: activo.estado,
-      estado_nuevo: dto.estado,
-      activo: activo,
-      usuario: { id: usuario_id } as Usuario,
-    });
-    await this.activo_historial_repositorio.save(historial);
-    activo.estado = dto.estado;
-  }
-
-  if (dto.ubicacion !== undefined) {
-    activo.ubicacion = dto.ubicacion;
-  }
-
-  if (dto.nombre_asignado !== undefined) {
-    activo.nombre_asignado = dto.nombre_asignado;
-  }
-
-  const activo_actualizado = await this.activo_repositorio.save(activo);
-  const tipo_movimiento = activo.producto.tipo_gestion === TipoGestion.ACTIVO_SERIALIZADO 
-    ? TipoMovimiento.SERIE_EDITADA 
-    : TipoMovimiento.GENERAL_EDITADO;
-  await this.registrarMovimientoAuditoria(
-    inventario_id,
-    tipo_movimiento,
-    usuario_id,
-    activo.producto,
-    datos_anteriores,
-    dto,
-    `${activo.producto.tipo_gestion === TipoGestion.ACTIVO_SERIALIZADO ? 'Serie' : 'Activo general'} editado`,
-  );
-
-  return activo_actualizado;
-}
-
-async eliminarActivo(usuario_id: number, inventario_id: number, activo_id: number): Promise<void> {
-  await this.obtenerInventarioPorId(usuario_id, inventario_id);
-
-  const activo = await this.activo_repositorio.findOne({
-    where: { id: activo_id },
-    relations: ['producto', 'producto.inventario'],
-  });
-
-  if (!activo || activo.producto.inventario.id !== inventario_id) {
-    throw new NotFoundException('Activo no encontrado en este inventario');
-  }
-  const datos_activo = {
-    nro_serie: activo.nro_serie,
-    nombre_asignado: activo.nombre_asignado,
-    estado: activo.estado,
-    costo_compra: activo.costo_compra,
-  };
-
-  const producto = activo.producto;
-  
-  await this.activo_repositorio.remove(activo);
-  const tipo_movimiento = producto.tipo_gestion === TipoGestion.ACTIVO_SERIALIZADO 
-    ? TipoMovimiento.SERIE_ELIMINADA 
-    : TipoMovimiento.GENERAL_ELIMINADO;
-  await this.registrarMovimientoAuditoria(
-    inventario_id,
-    tipo_movimiento,
-    usuario_id,
-    producto,
-    datos_activo,
-    undefined,
-    `${producto.tipo_gestion === TipoGestion.ACTIVO_SERIALIZADO ? 'Serie' : 'Activo general'} eliminado de ${producto.nombre}`,
-  );
-}
-
-async venderActivo(usuario_id: number, inventario_id: number, activo_id: number, monto_venta: number, registrar_pago: boolean = true): Promise<any> {
-  await this.obtenerInventarioPorId(usuario_id, inventario_id);
-
-  const activo = await this.activo_repositorio.findOne({
-    where: { id: activo_id },
-    relations: ['producto', 'producto.inventario'],
-  });
-
-  if (!activo || activo.producto.inventario.id !== inventario_id) {
-    throw new NotFoundException('Activo no encontrado en este inventario');
-  }
-
-  const estado_anterior = activo.estado;
-
-  activo.estado = EstadoActivo.DESECHADO;
-  await this.activo_repositorio.save(activo);
-  await this.registrarMovimientoAuditoria(
-    inventario_id,
-    TipoMovimiento.ACTIVO_VENDIDO,
-    usuario_id,
-    activo.producto,
-    { estado: estado_anterior, costo_compra: activo.costo_compra },
-    { estado: EstadoActivo.DESECHADO, monto_venta },
-    `Activo vendido por $${monto_venta}`,
-  );
-
-  if (registrar_pago) {
-    await this.finanzas_servicio.registrarPago(usuario_id, {
-      concepto: `Venta: ${activo.producto.nombre} - ${activo.nombre_asignado || activo.nro_serie || 'Activo'}`,
-      monto: monto_venta,
-      fecha: new Date(),
-    });
-  }
-
-  return {
-    mensaje: 'Activo vendido correctamente',
-    activo_id: activo.id,
-    monto_venta,
-    pago_registrado: registrar_pago,
-  };
-}
-
-async ajustarStock(usuario_id: number, inventario_id: number, dto: AjustarStockDto): Promise<any> {
-  await this.obtenerInventarioPorId(usuario_id, inventario_id);
-
-  const producto = await this.producto_repositorio.findOne({
-    where: { id: dto.producto_id, inventario: { id: inventario_id }, activo: true },
-    relations: ['lotes'],
-  });
-
-  if (!producto) {
-    throw new NotFoundException('Producto no encontrado');
-  }
-
-  if (producto.tipo_gestion !== TipoGestion.CONSUMIBLE) {
-    throw new BadRequestException('Solo se puede ajustar stock de productos consumibles');
-  }
-
-  const stock_anterior = await this.obtenerStockProducto(usuario_id, inventario_id, dto.producto_id);
-  const lotes_activos = producto.lotes
-    .filter(l => l.activo && l.cantidad_actual > 0)
-    .sort((a, b) => a.fecha_vencimiento.getTime() - b.fecha_vencimiento.getTime());
-
-  if (dto.tipo === TipoAjuste.ENTRADA) {
-    if (lotes_activos.length === 0) {
-      throw new BadRequestException('No hay lotes disponibles. Registra un nuevo lote para agregar stock.');
-    }
-    const lote_mas_reciente = lotes_activos[lotes_activos.length - 1];
-    lote_mas_reciente.cantidad_actual = Number(lote_mas_reciente.cantidad_actual) + dto.cantidad;
-    await this.lote_repositorio.save(lote_mas_reciente);
-  } else {
-    let cantidad_restante = dto.cantidad;
-    
-    for (const lote of lotes_activos) {
-      if (cantidad_restante <= 0) break;
-      
-      const cantidad_lote = Number(lote.cantidad_actual);
-      const cantidad_a_descontar = Math.min(cantidad_restante, cantidad_lote);
-      
-      lote.cantidad_actual = cantidad_lote - cantidad_a_descontar;
-      await this.lote_repositorio.save(lote);
-      
-      cantidad_restante -= cantidad_a_descontar;
     }
 
-    if (cantidad_restante > 0) {
-      throw new BadRequestException(`No hay suficiente stock. Stock disponible: ${stock_anterior.stock_actual}`);
-    }
+    return {
+      inventario_id,
+      valor_materiales: Math.round(valor_materiales * 100) / 100,
+      valor_activos: Math.round(valor_activos * 100) / 100,
+      valor_total: Math.round((valor_materiales + valor_activos) * 100) / 100,
+      cantidad_materiales,
+      cantidad_activos,
+      total_productos: productos.length,
+    };
   }
 
-  const stock_nuevo_data = await this.obtenerStockProducto(usuario_id, inventario_id, dto.producto_id);
-  const stock_nuevo = stock_nuevo_data.stock_actual;
-
-  const movimiento = this.movimiento_repositorio.create({
-    tipo: dto.tipo === TipoAjuste.ENTRADA ? TipoMovimiento.ENTRADA_LOTE : TipoMovimiento.SALIDA_LOTE,
-    cantidad: dto.cantidad,
-    stock_anterior: stock_anterior.stock_actual,
-    stock_nuevo: stock_nuevo,
-    observaciones: dto.observaciones,
-    producto: producto,
-    usuario: { id: usuario_id } as Usuario,
-  });
-
-  await this.movimiento_repositorio.save(movimiento);
-  if (dto.generar_movimiento_financiero && dto.monto) {
-    if (dto.tipo === TipoAjuste.ENTRADA) {
-      await this.finanzas_servicio.registrarEgreso(usuario_id, {
-        concepto: `Compra: ${producto.nombre} (${dto.cantidad} ${producto.unidad_medida})`,
-        monto: dto.monto,
-        fecha: new Date(),
-      });
-    } else {
-      await this.finanzas_servicio.registrarPago(usuario_id, {
-        concepto: `Venta: ${producto.nombre} (${dto.cantidad} ${producto.unidad_medida})`,
-        monto: dto.monto,
-        fecha: new Date(),
-      });
-    }
-  }
-
-  return {
-    mensaje: 'Ajuste de stock registrado correctamente',
-    stock_anterior: stock_anterior.stock_actual,
-    stock_nuevo: stock_nuevo,
-    movimiento_id: movimiento.id,
-    movimiento_financiero_registrado: dto.generar_movimiento_financiero && dto.monto ? true : false,
-  };
-}
-
-async crearPromesaUsoLote(lote_id: number, cita_id: number, cantidad: number): Promise<PromesaUsoLote> {
-  const lote = await this.lote_repositorio.findOne({ 
-    where: { id: lote_id }, 
-    relations: ['producto'] 
-  });
-
-  if (!lote) {
-    throw new NotFoundException(`Lote con ID ${lote_id} no encontrado`);
-  }
-  const stock_disponible = Number(lote.cantidad_actual) - Number(lote.cantidad_reservada);
-  if (stock_disponible < cantidad) {
-    throw new BadRequestException(
-      `Stock insuficiente en lote ${lote.nro_lote}. Disponible: ${stock_disponible} ${lote.producto.unidad_medida}`
-    );
-  }
-
-  const promesa = this.promesa_uso_lote_repositorio.create({
-    lote: { id: lote_id } as Lote,
-    cita: { id: cita_id } as Cita,
-    cantidad_reservada: cantidad,
-  });
-
-  const promesa_guardada = await this.promesa_uso_lote_repositorio.save(promesa);
-  lote.cantidad_reservada = Number(lote.cantidad_reservada) + cantidad;
-  await this.lote_repositorio.save(lote);
-
-  return promesa_guardada;
-}
-
-async eliminarPromesaUsoLote(promesa_id: number): Promise<void> {
-  const promesa = await this.promesa_uso_lote_repositorio.findOne({
-    where: { id: promesa_id },
-    relations: ['lote'],
-  });
-
-  if (!promesa) {
-    throw new NotFoundException(`Promesa de uso de lote con ID ${promesa_id} no encontrada`);
-  }
-  const lote = promesa.lote;
-  lote.cantidad_reservada = Number(lote.cantidad_reservada) - Number(promesa.cantidad_reservada);
-  await this.lote_repositorio.save(lote);
-
-  await this.promesa_uso_lote_repositorio.remove(promesa);
-}
-
-async eliminarPromesasUsoLotesPorCita(cita_id: number): Promise<void> {
-  const promesas = await this.promesa_uso_lote_repositorio.find({
-    where: { cita: { id: cita_id } },
-    relations: ['lote'],
-  });
-
-  for (const promesa of promesas) {
-    const lote = promesa.lote;
-    lote.cantidad_reservada = Number(lote.cantidad_reservada) - Number(promesa.cantidad_reservada);
-    await this.lote_repositorio.save(lote);
-  }
-
-  await this.promesa_uso_lote_repositorio.remove(promesas);
-}
-
-async crearPromesaUsoActivo(
-  activo_id: number, 
-  cita_id: number, 
-  fecha_hora_inicio: Date, 
-  fecha_hora_fin: Date
-): Promise<PromesaUsoActivo> {
-  const activo = await this.activo_repositorio.findOne({ where: { id: activo_id } });
-
-  if (!activo) {
-    throw new NotFoundException(`Activo con ID ${activo_id} no encontrado`);
-  }
-  if (activo.estado !== EstadoActivo.DISPONIBLE) {
-    throw new BadRequestException(`El activo no está disponible actualmente. Estado: ${activo.estado}`);
-  }
-  const promesas_solapadas = await this.promesa_uso_activo_repositorio
-    .createQueryBuilder('promesa')
-    .where('promesa.activo = :activo_id', { activo_id })
-    .andWhere('promesa.cita != :cita_id', { cita_id })
-    .andWhere(
-      '(promesa.fecha_hora_inicio < :fin AND promesa.fecha_hora_fin > :inicio)',
-      { inicio: fecha_hora_inicio, fin: fecha_hora_fin }
-    )
-    .getMany();
-
-  if (promesas_solapadas.length > 0) {
-    throw new BadRequestException(
-      `El activo ya está reservado para otra cita en ese horario`
-    );
-  }
-
-  const promesa = this.promesa_uso_activo_repositorio.create({
-    activo: { id: activo_id } as Activo,
-    cita: { id: cita_id } as Cita,
-    fecha_hora_inicio,
-    fecha_hora_fin,
-  });
-
-  return this.promesa_uso_activo_repositorio.save(promesa);
-}
-
-async eliminarPromesaUsoActivo(promesa_id: number): Promise<void> {
-  const promesa = await this.promesa_uso_activo_repositorio.findOne({
-    where: { id: promesa_id },
-  });
-
-  if (!promesa) {
-    throw new NotFoundException(`Promesa de uso de activo con ID ${promesa_id} no encontrada`);
-  }
-
-  await this.promesa_uso_activo_repositorio.remove(promesa);
-}
-
-async eliminarPromesasUsoActivosPorCita(cita_id: number): Promise<void> {
-  const promesas = await this.promesa_uso_activo_repositorio.find({
-    where: { cita: { id: cita_id } },
-  });
-
-  await this.promesa_uso_activo_repositorio.remove(promesas);
-}
-
-async activarActivosParaCita(cita_id: number): Promise<void> {
-  const promesas = await this.promesa_uso_activo_repositorio.find({
-    where: { cita: { id: cita_id } },
-    relations: ['activo'],
-  });
-
-  for (const promesa of promesas) {
-    const activo = promesa.activo;
-    activo.estado = EstadoActivo.EN_USO;
-    await this.activo_repositorio.save(activo);
-  }
-}
-
-async desactivarActivosParaCita(cita_id: number): Promise<void> {
-  const promesas = await this.promesa_uso_activo_repositorio.find({
-    where: { cita: { id: cita_id } },
-    relations: ['activo'],
-  });
-
-  for (const promesa of promesas) {
-    const activo = promesa.activo;
-    if (activo.estado === EstadoActivo.EN_USO) {
-      activo.estado = EstadoActivo.DISPONIBLE;
-      await this.activo_repositorio.save(activo);
-    }
-  }
-}
-
-async verificarYActualizarEstadoActivosCita(cita_id: number): Promise<void> {
-  const cita = await this.cita_repositorio.findOne({ where: { id: cita_id } });
-  
-  if (!cita) {
-    return;
-  }
-
-  const ahora = new Date();
-  const fecha_inicio = new Date(cita.fecha);
-  const fecha_fin = new Date(fecha_inicio);
-  fecha_fin.setHours(fecha_fin.getHours() + cita.horas_aproximadas);
-  fecha_fin.setMinutes(fecha_fin.getMinutes() + cita.minutos_aproximados);
-  if (ahora >= fecha_inicio && ahora <= fecha_fin) {
-    await this.activarActivosParaCita(cita_id);
-  }
-  else if (ahora > fecha_fin) {
-    await this.desactivarActivosParaCita(cita_id);
-  }
-}
-
-async obtenerActivosDisponiblesParaCita(
-  producto_id: number,
-  fecha_hora_inicio: Date,
-  fecha_hora_fin: Date,
-  cita_id_excluir?: number
-): Promise<Activo[]> {
-  const query = this.activo_repositorio
-    .createQueryBuilder('activo')
-    .leftJoinAndSelect('activo.promesas_uso', 'promesa')
-    .where('activo.producto = :producto_id', { producto_id })
-    .andWhere('activo.estado = :estado', { estado: EstadoActivo.DISPONIBLE });
-  const activos = await query.getMany();
-  const activos_disponibles: Activo[] = [];
-  for (const activo of activos) {
-    const promesas_solapadas = await this.promesa_uso_activo_repositorio
-      .createQueryBuilder('promesa')
-      .where('promesa.activo = :activo_id', { activo_id: activo.id })
-      .andWhere(cita_id_excluir ? 'promesa.cita != :cita_id' : '1=1', { cita_id: cita_id_excluir })
-      .andWhere(
-        '(promesa.fecha_hora_inicio < :fin AND promesa.fecha_hora_fin > :inicio)',
-        { inicio: fecha_hora_inicio, fin: fecha_hora_fin }
-      )
-      .getCount();
-
-    if (promesas_solapadas === 0) {
-      activos_disponibles.push(activo);
-    }
-  }
-
-  return activos_disponibles;
-}
+  // Exponer servicios especializados
+  get kardex() { return this.kardex_servicio; }
+  get bitacora() { return this.bitacora_servicio; }
+  get auditoria() { return this.auditoria_servicio; }
+  get reservas() { return this.reservas_servicio; }
 }

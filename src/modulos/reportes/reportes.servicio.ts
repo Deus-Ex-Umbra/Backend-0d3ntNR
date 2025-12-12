@@ -39,7 +39,7 @@ export class ReportesServicio {
     private readonly reporte_repositorio: Repository<Reporte>,
     private readonly gemini_servicio: GeminiServicio,
     private readonly almacenamiento_servicio: AlmacenamientoServicio,
-  ) {}
+  ) { }
 
   async generarReporte(usuario_id: number, dto: GenerarReporteDto): Promise<Buffer> {
     const fecha_inicio = dto.fecha_inicio ? new Date(dto.fecha_inicio) : new Date(0);
@@ -79,17 +79,17 @@ export class ReportesServicio {
 
   private async obtenerDatosFinanzas(usuario_id: number, fecha_inicio: Date, fecha_fin: Date): Promise<any> {
     const pagos = await this.pago_repositorio.find({
-      where: { 
-        fecha: Between(fecha_inicio, fecha_fin), 
-        usuario: { id: usuario_id } 
+      where: {
+        fecha: Between(fecha_inicio, fecha_fin),
+        usuario: { id: usuario_id }
       },
       relations: ['plan_tratamiento', 'plan_tratamiento.paciente'],
     });
 
     const egresos = await this.egreso_repositorio.find({
-      where: { 
-        fecha: Between(fecha_inicio, fecha_fin), 
-        usuario: { id: usuario_id } 
+      where: {
+        fecha: Between(fecha_inicio, fecha_fin),
+        usuario: { id: usuario_id }
       },
     });
 
@@ -107,8 +107,8 @@ export class ReportesServicio {
         fecha: p.fecha,
         monto: Number(p.monto),
         concepto: p.concepto,
-        paciente: p.plan_tratamiento?.paciente ? 
-          `${p.plan_tratamiento.paciente.nombre} ${p.plan_tratamiento.paciente.apellidos}` : 
+        paciente: p.plan_tratamiento?.paciente ?
+          `${p.plan_tratamiento.paciente.nombre} ${p.plan_tratamiento.paciente.apellidos}` :
           'N/A',
       })),
       egresos: egresos.slice(0, 10).map(e => ({
@@ -121,9 +121,9 @@ export class ReportesServicio {
 
   private async obtenerDatosAgenda(usuario_id: number, fecha_inicio: Date, fecha_fin: Date): Promise<any> {
     const citas = await this.cita_repositorio.find({
-      where: { 
-        fecha: Between(fecha_inicio, fecha_fin), 
-        usuario: { id: usuario_id } 
+      where: {
+        fecha: Between(fecha_inicio, fecha_fin),
+        usuario: { id: usuario_id }
       },
       relations: ['paciente', 'plan_tratamiento'],
     });
@@ -198,24 +198,24 @@ export class ReportesServicio {
 
   private async obtenerDatosInventario(usuario_id: number): Promise<any> {
     const inventarios = await this.inventario_repositorio.find({
-      where: { 
+      where: {
         propietario: { id: usuario_id },
         activo: true,
       },
-      relations: ['productos', 'productos.lotes', 'productos.activos'],
+      relations: ['productos', 'productos.materiales', 'productos.activos'],
     });
 
     const total_productos = inventarios.reduce((sum, inv) => {
       return sum + inv.productos.filter(p => p.activo).length;
     }, 0);
 
-    const productos_bajo_stock = inventarios.flatMap(inv => 
+    const productos_bajo_stock = inventarios.flatMap(inv =>
       inv.productos.filter(p => {
         if (!p.activo) return false;
-        if (p.tipo_gestion === 'consumible') {
-          const stock_actual = p.lotes
-            .filter(l => l.activo)
-            .reduce((sum, l) => sum + Number(l.cantidad_actual), 0);
+        if (p.tipo === 'material') {
+          const stock_actual = p.materiales
+            .filter(m => m.activo)
+            .reduce((sum, m) => sum + Number(m.cantidad_actual), 0);
           return stock_actual < p.stock_minimo;
         }
         return false;
@@ -229,16 +229,16 @@ export class ReportesServicio {
       alertas: productos_bajo_stock.map(p => ({
         nombre: p.nombre,
         stock_minimo: p.stock_minimo,
-        stock_actual: p.lotes
-          .filter(l => l.activo)
-          .reduce((sum, l) => sum + Number(l.cantidad_actual), 0),
+        stock_actual: p.materiales
+          .filter(m => m.activo)
+          .reduce((sum, m) => sum + Number(m.cantidad_actual), 0),
       })),
     };
   }
 
   private async generarTextoConGemini(datos_reporte: any, areas: AreaReporte[]): Promise<string> {
     const datos_json = JSON.stringify(datos_reporte, null, 2);
-    
+
     const prompt = `
 Eres un asistente experto en análisis de datos para clínicas dentales. 
 A continuación te proporciono datos de un reporte que incluye las siguientes áreas: ${areas.join(', ')}.
@@ -272,7 +272,7 @@ Usa formato Markdown para estructurar la respuesta (encabezados, listas, negrita
         doc.font('Times-Roman');
         doc.fontSize(20).text('Reporte de Clínica Dental', { align: 'center' });
         doc.moveDown();
-        
+
         doc.fontSize(12).text(`Fecha de generación: ${new Date(datos_reporte.fecha_generacion).toLocaleDateString('es-BO')}`);
         doc.text(`Período: ${new Date(datos_reporte.periodo.inicio).toLocaleDateString('es-BO')} - ${new Date(datos_reporte.periodo.fin).toLocaleDateString('es-BO')}`);
         doc.moveDown(2);
@@ -308,7 +308,7 @@ Usa formato Markdown para estructurar la respuesta (encabezados, listas, negrita
 
   private agregarTextoMarkdown(doc: PDFKit.PDFDocument, texto: string): void {
     const lineas = texto.split('\n');
-    
+
     for (const linea of lineas) {
       if (!linea.trim()) {
         doc.moveDown(0.5);
@@ -387,9 +387,9 @@ Usa formato Markdown para estructurar la respuesta (encabezados, listas, negrita
       } else {
         doc.font('Times-Roman');
       }
-      doc.text(segmento.texto, { 
+      doc.text(segmento.texto, {
         continued: i < posiciones.length - 1,
-        align: i === 0 ? 'justify' : undefined 
+        align: i === 0 ? 'justify' : undefined
       });
     }
   }
@@ -411,7 +411,7 @@ Usa formato Markdown para estructurar la respuesta (encabezados, listas, negrita
     doc.text(`Balance: Bs. ${datos.balance.toFixed(2)}`);
     doc.fillColor('black');
     doc.moveDown();
-    
+
     doc.text(`Cantidad de pagos: ${datos.cantidad_pagos}`);
     doc.text(`Cantidad de egresos: ${datos.cantidad_egresos}`);
     doc.moveDown();
@@ -422,7 +422,7 @@ Usa formato Markdown para estructurar la respuesta (encabezados, listas, negrita
         if (posicion_y_actual > 500) {
           doc.addPage();
         }
-        
+
         doc.image(grafico_buffer, {
           fit: [500, 250],
           align: 'center',
@@ -452,7 +452,7 @@ Usa formato Markdown para estructurar la respuesta (encabezados, listas, negrita
     datos.pagos.forEach((pago: any) => {
       const fecha = new Date(pago.fecha);
       const mes_key = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}`;
-      
+
       if (!meses_map.has(mes_key)) {
         meses_map.set(mes_key, { ingresos: 0, egresos: 0 });
       }
@@ -462,7 +462,7 @@ Usa formato Markdown para estructurar la respuesta (encabezados, listas, negrita
       datos.egresos.forEach((egreso: any) => {
         const fecha = new Date(egreso.fecha);
         const mes_key = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}`;
-        
+
         if (!meses_map.has(mes_key)) {
           meses_map.set(mes_key, { ingresos: 0, egresos: 0 });
         }
@@ -475,7 +475,7 @@ Usa formato Markdown para estructurar la respuesta (encabezados, listas, negrita
       const fecha = new Date(parseInt(year), parseInt(month) - 1);
       return fecha.toLocaleDateString('es-BO', { month: 'short', year: 'numeric' });
     });
-    
+
     const ingresos = meses_ordenados.map(mes => meses_map.get(mes)!.ingresos);
     const egresos = meses_ordenados.map(mes => meses_map.get(mes)!.egresos);
 
@@ -529,7 +529,7 @@ Usa formato Markdown para estructurar la respuesta (encabezados, listas, negrita
               size: 11,
               family: 'Times New Roman',
             },
-            formatter: function(value: number) {
+            formatter: function (value: number) {
               return 'Bs. ' + value.toFixed(0);
             },
           },
@@ -538,7 +538,7 @@ Usa formato Markdown para estructurar la respuesta (encabezados, listas, negrita
           y: {
             beginAtZero: true,
             ticks: {
-              callback: function(value: any) {
+              callback: function (value: any) {
                 return 'Bs. ' + value.toFixed(0);
               },
               font: {
@@ -565,7 +565,7 @@ Usa formato Markdown para estructurar la respuesta (encabezados, listas, negrita
     doc.font('Times-Bold');
     doc.fontSize(16).text('Agenda', { underline: true });
     doc.moveDown();
-    
+
     doc.font('Times-Roman');
     doc.fontSize(12);
     doc.text(`Total de citas: ${datos.total_citas}`);
@@ -577,7 +577,7 @@ Usa formato Markdown para estructurar la respuesta (encabezados, listas, negrita
         if (posicion_y_actual > 450) {
           doc.addPage();
         }
-        
+
         doc.image(grafico_buffer, {
           fit: [400, 300],
           align: 'center',
@@ -614,8 +614,8 @@ Usa formato Markdown para estructurar la respuesta (encabezados, listas, negrita
     const height = 400;
     const chartJSNodeCanvas = new ChartJSNodeCanvas({ width, height });
 
-    const total_citas = (citas_por_estado.pendiente || 0) + (citas_por_estado.pagado || 0) + 
-                        (citas_por_estado.cancelado || 0) + (citas_por_estado.sin_paciente || 0);
+    const total_citas = (citas_por_estado.pendiente || 0) + (citas_por_estado.pagado || 0) +
+      (citas_por_estado.cancelado || 0) + (citas_por_estado.sin_paciente || 0);
 
     const configuration: any = {
       type: 'doughnut',
@@ -664,10 +664,10 @@ Usa formato Markdown para estructurar la respuesta (encabezados, listas, negrita
                 size: 12,
               },
               padding: 15,
-              generateLabels: function(chart: any) {
+              generateLabels: function (chart: any) {
                 const data = chart.data;
                 if (data.labels.length && data.datasets.length) {
-                  return data.labels.map(function(label: string, i: number) {
+                  return data.labels.map(function (label: string, i: number) {
                     const value = data.datasets[0].data[i];
                     const percentage = total_citas > 0 ? ((value / total_citas) * 100).toFixed(2) : '0.00';
                     return {
@@ -694,7 +694,7 @@ Usa formato Markdown para estructurar la respuesta (encabezados, listas, negrita
     doc.font('Times-Bold');
     doc.fontSize(16).text('Tratamientos', { underline: true });
     doc.moveDown();
-    
+
     doc.font('Times-Roman');
     doc.fontSize(12);
     doc.text(`Total de planes: ${datos.total_planes}`);
@@ -710,7 +710,7 @@ Usa formato Markdown para estructurar la respuesta (encabezados, listas, negrita
         if (posicion_y_actual > 450) {
           doc.addPage();
         }
-        
+
         doc.image(grafico_buffer, {
           fit: [500, 300],
           align: 'center',
@@ -777,7 +777,7 @@ Usa formato Markdown para estructurar la respuesta (encabezados, listas, negrita
               size: 12,
               family: 'Times New Roman',
             },
-            formatter: function(value: number) {
+            formatter: function (value: number) {
               return value.toString();
             },
           },
@@ -812,7 +812,7 @@ Usa formato Markdown para estructurar la respuesta (encabezados, listas, negrita
     doc.font('Times-Bold');
     doc.fontSize(16).text('Inventario', { underline: true });
     doc.moveDown();
-    
+
     doc.font('Times-Roman');
     doc.fontSize(12);
     doc.text(`Total de inventarios: ${datos.total_inventarios}`);

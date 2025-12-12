@@ -1,13 +1,15 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, DeleteDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, CreateDateColumn, DeleteDateColumn } from 'typeorm';
 import { Producto } from './producto.entidad';
-import { ActivoHistorial } from './activo-historial.entidad';
-import { PromesaUsoActivo } from './promesa-uso-activo.entidad';
+import { Bitacora } from './bitacora.entidad';
+import { ReservaActivo } from './reserva-activo.entidad';
 
+// Estados según ciclo de vida
+// Instrumental: DISPONIBLE -> EN_USO -> DESECHADO
+// Mobiliario/Equipo: DISPONIBLE <-> EN_MANTENIMIENTO -> DESECHADO
 export enum EstadoActivo {
   DISPONIBLE = 'disponible',
   EN_USO = 'en_uso',
   EN_MANTENIMIENTO = 'en_mantenimiento',
-  ROTO = 'roto',
   DESECHADO = 'desechado',
 }
 
@@ -15,6 +17,10 @@ export enum EstadoActivo {
 export class Activo {
   @PrimaryGeneratedColumn()
   id: number;
+
+  // ID asignado manualmente por el usuario
+  @Column({ nullable: true })
+  codigo_interno: string;
 
   @Column({ nullable: true })
   nro_serie: string;
@@ -27,24 +33,25 @@ export class Activo {
 
   @Column()
   fecha_compra: Date;
-  
+
   @Column({ nullable: true })
   ubicacion: string;
 
   @Column({
+    type: 'varchar',
     enum: EstadoActivo,
     default: EstadoActivo.DISPONIBLE,
   })
   estado: EstadoActivo;
 
-  @ManyToOne(() => Producto, (producto) => producto.activos, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Producto, (producto) => producto.activos, { onDelete: 'CASCADE', onUpdate: 'CASCADE' })
   producto: Producto;
 
-  @OneToMany(() => ActivoHistorial, (historial) => historial.activo)
-  historial: ActivoHistorial[];
+  @OneToMany(() => Bitacora, (bitacora) => bitacora.activo)
+  historial: Bitacora[];
 
-  @OneToMany(() => PromesaUsoActivo, (promesa) => promesa.activo)
-  promesas_uso: PromesaUsoActivo[];
+  @OneToMany(() => ReservaActivo, (reserva) => reserva.activo)
+  reservas: ReservaActivo[];
 
   @DeleteDateColumn({ nullable: true })
   eliminado_en?: Date | null;

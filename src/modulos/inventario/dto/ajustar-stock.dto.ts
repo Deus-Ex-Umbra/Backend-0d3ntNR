@@ -1,37 +1,37 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsEnum, IsInt, IsNumber, IsString, Min, IsBoolean, IsOptional } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsInt, IsNumber, Min, IsOptional, IsString, IsEnum } from 'class-validator';
 
 export enum TipoAjuste {
-  ENTRADA = 'entrada',
-  SALIDA = 'salida',
+  INCREMENTO = 'incremento',
+  DECREMENTO = 'decremento',
+  ESTABLECER = 'establecer', // Establecer cantidad exacta
 }
 
 export class AjustarStockDto {
-  @ApiProperty()
+  @ApiProperty({ description: 'ID del producto' })
   @IsInt()
   producto_id: number;
 
-  @ApiProperty({ enum: TipoAjuste })
-  @IsEnum(TipoAjuste)
-  tipo: TipoAjuste;
+  @ApiPropertyOptional({ description: 'ID del material específico (para productos con lote/serie)' })
+  @IsOptional()
+  @IsInt()
+  material_id?: number;
 
-  @ApiProperty()
+  @ApiProperty({ enum: TipoAjuste, description: 'Tipo de ajuste' })
+  @IsEnum(TipoAjuste)
+  tipo_ajuste: TipoAjuste;
+
+  @ApiProperty({ description: 'Cantidad a ajustar o nueva cantidad' })
   @IsNumber()
   @Min(0)
   cantidad: number;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'Motivo del ajuste (requerido para auditoría)' })
   @IsString()
-  observaciones: string;
+  motivo: string;
 
-  @ApiProperty({ description: 'Generar movimiento en finanzas', default: true })
+  @ApiPropertyOptional({ description: 'Observaciones adicionales' })
   @IsOptional()
-  @IsBoolean()
-  generar_movimiento_financiero?: boolean;
-
-  @ApiProperty({ description: 'Monto del movimiento financiero' })
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  monto?: number;
+  @IsString()
+  observaciones?: string;
 }

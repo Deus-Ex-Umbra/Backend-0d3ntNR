@@ -1,12 +1,25 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, DeleteDateColumn } from 'typeorm';
 import { Inventario } from './inventario.entidad';
-import { Lote } from './lote.entidad';
+import { Material } from './material.entidad';
 import { Activo } from './activo.entidad';
 
-export enum TipoGestion {
-  CONSUMIBLE = 'consumible',
-  ACTIVO_SERIALIZADO = 'activo_serializado',
-  ACTIVO_GENERAL = 'activo_general',
+// Tipos principales de producto
+export enum TipoProducto {
+  MATERIAL = 'material',
+  ACTIVO_FIJO = 'activo_fijo',
+}
+
+// Subtipos para Material (consumibles)
+export enum SubtipoMaterial {
+  CON_LOTE_VENCIMIENTO = 'con_lote_vencimiento', // Fármacos, medicamentos
+  CON_SERIE = 'con_serie', // Implantes
+  SIN_LOTE = 'sin_lote', // Papel toalla, guantes, etc.
+}
+
+// Subtipos para Activo Fijo
+export enum SubtipoActivoFijo {
+  INSTRUMENTAL = 'instrumental', // Ciclo de vida rápido
+  MOBILIARIO_EQUIPO = 'mobiliario_equipo', // Ciclo de vida lento
 }
 
 @Entity()
@@ -18,9 +31,24 @@ export class Producto {
   nombre: string;
 
   @Column({
-    enum: TipoGestion,
+    type: 'varchar',
+    enum: TipoProducto,
   })
-  tipo_gestion: TipoGestion;
+  tipo: TipoProducto;
+
+  @Column({
+    type: 'varchar',
+    enum: SubtipoMaterial,
+    nullable: true,
+  })
+  subtipo_material: SubtipoMaterial;
+
+  @Column({
+    type: 'varchar',
+    enum: SubtipoActivoFijo,
+    nullable: true,
+  })
+  subtipo_activo_fijo: SubtipoActivoFijo;
 
   @Column({ default: 0 })
   stock_minimo: number;
@@ -40,8 +68,8 @@ export class Producto {
   @ManyToOne(() => Inventario, (inventario) => inventario.productos, { onDelete: 'CASCADE', onUpdate: 'CASCADE' })
   inventario: Inventario;
 
-  @OneToMany(() => Lote, (lote) => lote.producto)
-  lotes: Lote[];
+  @OneToMany(() => Material, (material) => material.producto)
+  materiales: Material[];
 
   @OneToMany(() => Activo, (activo) => activo.producto)
   activos: Activo[];

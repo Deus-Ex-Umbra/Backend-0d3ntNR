@@ -45,18 +45,19 @@ import { EdicionImagen } from './modulos/ediciones-imagenes/entidades/edicion-im
 import { ComentarioImagen } from './modulos/ediciones-imagenes/entidades/comentario-imagen.entidad';
 import { PlantillaConsentimiento } from './modulos/plantillas-consentimiento/entidades/plantilla-consentimiento.entidad';
 import { PlantillaReceta } from './modulos/plantillas-recetas/entidades/plantilla-receta.entidad';
+// Inventario - Entidades refactorizadas
 import { Inventario } from './modulos/inventario/entidades/inventario.entidad';
 import { PermisoInventario } from './modulos/inventario/entidades/permiso-inventario.entidad';
 import { Producto } from './modulos/inventario/entidades/producto.entidad';
-import { Lote } from './modulos/inventario/entidades/lote.entidad';
+import { Material } from './modulos/inventario/entidades/material.entidad';
 import { Activo } from './modulos/inventario/entidades/activo.entidad';
-import { CitaConsumible } from './modulos/inventario/entidades/cita-consumible.entidad';
-import { ActivoHistorial } from './modulos/inventario/entidades/activo-historial.entidad';
+import { Kardex } from './modulos/inventario/entidades/kardex.entidad';
+import { Bitacora } from './modulos/inventario/entidades/bitacora.entidad';
+import { Auditoria } from './modulos/inventario/entidades/auditoria.entidad';
+import { ReservaMaterial } from './modulos/inventario/entidades/reserva-material.entidad';
+import { ReservaActivo } from './modulos/inventario/entidades/reserva-activo.entidad';
 import { MaterialCita } from './modulos/inventario/entidades/material-cita.entidad';
 import { MaterialTratamiento } from './modulos/inventario/entidades/material-tratamiento.entidad';
-import { MovimientoInventario } from './modulos/inventario/entidades/movimiento-inventario.entidad';
-import { PromesaUsoLote } from './modulos/inventario/entidades/promesa-uso-lote.entidad';
-import { PromesaUsoActivo } from './modulos/inventario/entidades/promesa-uso-activo.entidad';
 import { Reporte } from './modulos/reportes/entidades/reporte.entidad';
 import { ConsentimientoInformado } from './modulos/pacientes/entidades/consentimiento-informado.entidad';
 import { TamanoPapel } from './modulos/catalogo/entidades/tamano-papel.entidad';
@@ -96,18 +97,20 @@ import { HistoriaClinicaVersion } from './modulos/pacientes/entidades/historia-c
         ComentarioImagen,
         PlantillaConsentimiento,
         PlantillaReceta,
+        // Inventario - Entidades refactorizadas
         Inventario,
         PermisoInventario,
         Producto,
-        Lote,
+        Material,
         Activo,
-        CitaConsumible,
-        ActivoHistorial,
+        Kardex,
+        Bitacora,
+        Auditoria,
+        ReservaMaterial,
+        ReservaActivo,
         MaterialCita,
         MaterialTratamiento,
-        MovimientoInventario,
-        PromesaUsoLote,
-        PromesaUsoActivo,
+        // Otros
         Reporte,
         ConsentimientoInformado,
         HistoriaClinicaVersion,

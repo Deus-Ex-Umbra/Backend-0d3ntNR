@@ -14,7 +14,7 @@ export class TratamientosServicio {
     private readonly tratamiento_repositorio: Repository<Tratamiento>,
     @InjectRepository(MaterialPlantilla)
     private readonly material_plantilla_repositorio: Repository<MaterialPlantilla>,
-  ) {}
+  ) { }
 
   async crear(crear_tratamiento_dto: CrearTratamientoDto): Promise<Tratamiento> {
     const { materiales, ...datos_tratamiento } = crear_tratamiento_dto;
@@ -41,8 +41,8 @@ export class TratamientosServicio {
   }
 
   async encontrarPorId(id: number): Promise<Tratamiento> {
-    const tratamiento = await this.tratamiento_repositorio.findOne({ 
-      where: { id, activo: true } 
+    const tratamiento = await this.tratamiento_repositorio.findOne({
+      where: { id, activo: true }
     });
     if (!tratamiento) {
       throw new NotFoundException(`Tratamiento con ID "${id}" no encontrado.`);
@@ -53,7 +53,7 @@ export class TratamientosServicio {
   async obtenerMaterialesPlantilla(id: number): Promise<any[]> {
     const materiales = await this.material_plantilla_repositorio.find({
       where: { tratamiento: { id } },
-      relations: ['producto', 'producto.inventario', 'producto.lotes', 'producto.activos'],
+      relations: ['producto', 'producto.inventario', 'producto.materiales', 'producto.activos'],
     });
 
     return materiales.map(material => ({
@@ -62,25 +62,25 @@ export class TratamientosServicio {
       inventario_id: material.producto.inventario.id,
       inventario_nombre: material.producto.inventario.nombre,
       producto_nombre: material.producto.nombre,
-      tipo_gestion: material.producto.tipo_gestion,
+      tipo_producto: material.producto.tipo,
       unidad_medida: material.producto.unidad_medida,
-      tipo: material.tipo,
+      tipo_material: material.tipo,
       cantidad: material.cantidad,
     }));
   }
 
   async actualizar(id: number, actualizar_tratamiento_dto: ActualizarTratamientoDto): Promise<Tratamiento> {
     const { materiales, ...datos_tratamiento } = actualizar_tratamiento_dto;
-    
+
     const tratamiento = await this.tratamiento_repositorio.preload({
       id: id,
       ...datos_tratamiento,
     });
-    
+
     if (!tratamiento) {
       throw new NotFoundException(`Tratamiento con ID "${id}" no encontrado.`);
     }
-    
+
     const tratamiento_actualizado = await this.tratamiento_repositorio.save(tratamiento);
 
     if (materiales !== undefined) {
@@ -103,10 +103,10 @@ export class TratamientosServicio {
   }
 
   async eliminar(id: number): Promise<void> {
-    const tratamiento = await this.tratamiento_repositorio.findOne({ 
-      where: { id, activo: true } 
+    const tratamiento = await this.tratamiento_repositorio.findOne({
+      where: { id, activo: true }
     });
-    
+
     if (!tratamiento) {
       throw new NotFoundException(`Tratamiento con ID "${id}" no encontrado.`);
     }

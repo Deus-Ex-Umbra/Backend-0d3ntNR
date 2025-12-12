@@ -26,43 +26,43 @@ export class PlanesTratamientoServicio {
     private readonly pacientes_servicio: PacientesServicio,
     private readonly tratamientos_servicio: TratamientosServicio,
     private readonly agenda_servicio: AgendaServicio,
-  ) {}
+  ) { }
 
-private parsearFechaLocal(fecha_str: string, hora_str: string): Date {
+  private parsearFechaLocal(fecha_str: string, hora_str: string): Date {
     const [anio, mes, dia] = fecha_str.split('-').map(Number);
     const [horas, minutos] = hora_str.split(':').map(Number);
     const fechaLocal = new Date(anio, mes - 1, dia, horas, minutos, 0, 0);
     return fechaLocal;
   }
 
-async asignarPlan(usuario_id: number, asignar_plan_dto: AsignarPlanTratamientoDto): Promise<PlanTratamiento> {
+  async asignarPlan(usuario_id: number, asignar_plan_dto: AsignarPlanTratamientoDto): Promise<PlanTratamiento> {
     const { paciente_id, tratamiento_id, fecha_inicio, hora_inicio } = asignar_plan_dto;
     const paciente = await this.pacientes_servicio.encontrarPorId(usuario_id, paciente_id);
     const tratamiento_plantilla = await this.tratamientos_servicio.encontrarPorId(tratamiento_id);
 
     const fecha_actual = this.parsearFechaLocal(fecha_inicio, hora_inicio);
-    
+
     const intervalo_dias = tratamiento_plantilla.intervalo_dias || 0;
     const intervalo_semanas = tratamiento_plantilla.intervalo_semanas || 0;
     const intervalo_meses = tratamiento_plantilla.intervalo_meses || 0;
     const horas_citas = tratamiento_plantilla.horas_aproximadas_citas || 0;
     const minutos_citas = tratamiento_plantilla.minutos_aproximados_citas ?? 30;
-    
+
     const fechas_citas: Date[] = [];
     for (let i = 0; i < tratamiento_plantilla.numero_citas; i++) {
-        const fecha_cita = new Date(fecha_actual);
-        
-        if (i > 0) {
-          fecha_cita.setMonth(fecha_cita.getMonth() + (i * intervalo_meses));
-          fecha_cita.setDate(fecha_cita.getDate() + (i * intervalo_semanas * 7));
-          fecha_cita.setDate(fecha_cita.getDate() + (i * intervalo_dias));
-        }
-        
-        fechas_citas.push(fecha_cita);
+      const fecha_cita = new Date(fecha_actual);
+
+      if (i > 0) {
+        fecha_cita.setMonth(fecha_cita.getMonth() + (i * intervalo_meses));
+        fecha_cita.setDate(fecha_cita.getDate() + (i * intervalo_semanas * 7));
+        fecha_cita.setDate(fecha_cita.getDate() + (i * intervalo_dias));
+      }
+
+      fechas_citas.push(fecha_cita);
     }
 
     const conflictos: Array<{ fecha: Date; citas_conflicto: Cita[]; mensaje_detallado?: string }> = [];
-    
+
     for (const fecha of fechas_citas) {
       const validacion = await this.agenda_servicio.validarDisponibilidad(usuario_id, fecha, horas_citas, minutos_citas);
       if (!validacion.disponible) {
@@ -79,7 +79,7 @@ async asignarPlan(usuario_id: number, asignar_plan_dto: AsignarPlanTratamientoDt
         if (conflicto.mensaje_detallado) {
           return conflicto.mensaje_detallado;
         }
-        
+
         const fecha_formateada = conflicto.fecha.toLocaleString('es-BO', {
           day: '2-digit',
           month: 'long',
@@ -87,14 +87,14 @@ async asignarPlan(usuario_id: number, asignar_plan_dto: AsignarPlanTratamientoDt
           hour: '2-digit',
           minute: '2-digit'
         });
-        
+
         const citas_str = conflicto.citas_conflicto.map(cita => {
-          const descripcion = cita.paciente 
+          const descripcion = cita.paciente
             ? `${cita.paciente.nombre} ${cita.paciente.apellidos} - ${cita.descripcion}`
             : cita.descripcion;
           return descripcion;
         }).join(', ');
-        
+
         return `• ${fecha_formateada}: conflicto con ${citas_str}`;
       }).join('\n\n');
 
@@ -123,26 +123,26 @@ async asignarPlan(usuario_id: number, asignar_plan_dto: AsignarPlanTratamientoDt
       const material_tratamiento = this.material_tratamiento_repositorio.create({
         plan_tratamiento: plan_guardado,
         producto: material.producto,
-        tipo: TipoMaterialTratamiento.INICIO,
+        tipo: TipoMaterialTratamiento.UNICO,
         cantidad_planeada: material.cantidad,
       });
       await this.material_tratamiento_repositorio.save(material_tratamiento);
     }
 
     const citas_promesas: Promise<Cita>[] = [];
-    
+
     for (let i = 0; i < tratamiento_plantilla.numero_citas; i++) {
-        citas_promesas.push(
-            this.agenda_servicio.crear(usuario_id, {
-                paciente_id: paciente.id,
-                plan_tratamiento_id: plan_guardado.id,
-                fecha: fechas_citas[i],
-                descripcion: `${tratamiento_plantilla.nombre} - Cita ${i + 1}`,
-                estado_pago: 'pendiente',
-                horas_aproximadas: horas_citas,
-                minutos_aproximados: minutos_citas,
-            })
-        );
+      citas_promesas.push(
+        this.agenda_servicio.crear(usuario_id, {
+          paciente_id: paciente.id,
+          plan_tratamiento_id: plan_guardado.id,
+          fecha: fechas_citas[i],
+          descripcion: `${tratamiento_plantilla.nombre} - Cita ${i + 1}`,
+          estado_pago: 'pendiente',
+          horas_aproximadas: horas_citas,
+          minutos_aproximados: minutos_citas,
+        })
+      );
     }
     const citas_creadas = await Promise.all(citas_promesas);
 
@@ -175,7 +175,7 @@ async asignarPlan(usuario_id: number, asignar_plan_dto: AsignarPlanTratamientoDt
       relations: ['paciente', 'tratamiento', 'citas', 'pagos']
     });
     if (!plan) {
-        throw new NotFoundException(`Plan de tratamiento con ID "${id}" no encontrado o no le pertenece.`);
+      throw new NotFoundException(`Plan de tratamiento con ID "${id}" no encontrado o no le pertenece.`);
     }
     return plan;
   }

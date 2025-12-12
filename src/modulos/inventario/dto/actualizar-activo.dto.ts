@@ -1,20 +1,30 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsEnum, IsOptional, IsString } from 'class-validator';
-import { EstadoActivo } from '../entidades/activo.entidad';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsInt, IsNumber, Min, IsOptional, IsString } from 'class-validator';
 
 export class ActualizarActivoDto {
-  @ApiProperty({ enum: EstadoActivo, required: false })
+  @ApiPropertyOptional({ description: 'Código interno asignado por el usuario' })
   @IsOptional()
-  @IsEnum(EstadoActivo)
-  estado?: EstadoActivo;
+  @IsString()
+  codigo_interno?: string;
 
-  @ApiProperty({ required: false })
+  @ApiPropertyOptional({ description: 'Número de serie' })
+  @IsOptional()
+  @IsString()
+  nro_serie?: string;
+
+  @ApiPropertyOptional({ description: 'Nombre asignado' })
+  @IsOptional()
+  @IsString()
+  nombre_asignado?: string;
+
+  @ApiPropertyOptional({ description: 'Ubicación' })
   @IsOptional()
   @IsString()
   ubicacion?: string;
 
-  @ApiProperty({ required: false })
+  @ApiPropertyOptional({ description: 'Costo de compra' })
   @IsOptional()
-  @IsString()
-  nombre_asignado?: string;
+  @IsNumber()
+  @Min(0)
+  costo_compra?: number;
 }
