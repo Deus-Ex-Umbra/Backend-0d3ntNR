@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 import * as puppeteer from 'puppeteer';
 import { GenerarPdfDto } from './dto/generar-pdf.dto';
 
-// Estilos CSS idénticos a renderizador-html.tsx para garantizar consistencia visual
 const ESTILOS_DOCUMENTO = `
   * {
     box-sizing: border-box;
@@ -19,11 +18,6 @@ const ESTILOS_DOCUMENTO = `
     print-color-adjust: exact;
   }
 
-  /* Resetear @page para evitar márgenes por defecto del navegador */
-  @page {
-    margin: 0 !important;
-  }
-
   .renderizador-contenido {
     font-variant-ligatures: none;
     white-space: pre-wrap;
@@ -37,6 +31,10 @@ const ESTILOS_DOCUMENTO = `
     font-size: 16px;
     line-height: 1.5;
     text-align: left;
+  }
+
+  .renderizador-contenido > *:first-child {
+    margin-top: 0 !important;
   }
 
   .renderizador-contenido p { 
@@ -136,7 +134,6 @@ const ESTILOS_DOCUMENTO = `
   .renderizador-contenido [style*="text-align: right"]:not(ul):not(ol) { text-align: right; }
   .renderizador-contenido [style*="text-align: justify"] { text-align: justify; }
 
-  /* Estilos para etiquetas de plantilla */
   span[data-etiqueta] {
     padding: 0 4px;
     border-radius: 4px;
@@ -145,48 +142,45 @@ const ESTILOS_DOCUMENTO = `
 
 @Injectable()
 export class PdfServicio {
-  private browser: puppeteer.Browser | null = null;
-
-  private async obtenerNavegador(): Promise<puppeteer.Browser> {
-    if (!this.browser || !this.browser.connected) {
-      this.browser = await puppeteer.launch({
-        headless: true,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-gpu',
-          '--font-render-hinting=none',
-        ],
-      });
-    }
-    return this.browser;
-  }
-
   async generarPdfDesdeHtml(dto: GenerarPdfDto): Promise<string> {
     const { contenido_html, config } = dto;
     const { widthMm, heightMm, margenes } = config;
 
-    const browser = await this.obtenerNavegador();
-    const pagina = await browser.newPage();
+    console.log('--- INICIO GENERACIÓN PDF ---');
+    console.log('Configuración recibida:', JSON.stringify(config, null, 2));
+    console.log('Márgenes aplicados (mm):', `Top: ${margenes.top}, Right: ${margenes.right}, Bottom: ${margenes.bottom}, Left: ${margenes.left}`);
+
+    // Lanzar una nueva instancia del navegador para cada solicitud
+    // Esto asegura un estado limpio y evita problemas de caché o configuración residual
+    const browser = await puppeteer.launch({
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+        '--font-render-hinting=none',
+      ],
+    });
 
     try {
-      // Usar padding en el contenedor para los márgenes
-      // Puppeteer maneja los saltos de página automáticamente
+      const pagina = await browser.newPage();
+      
       const htmlCompleto = `
         <!DOCTYPE html>
         <html>
           <head>
             <meta charset="UTF-8">
-            <style>${ESTILOS_DOCUMENTO}</style>
+            <style>
+              ${ESTILOS_DOCUMENTO}
+              @page {
+                size: ${widthMm}mm ${heightMm}mm;
+                margin: ${margenes.top}mm ${margenes.right}mm ${margenes.bottom}mm ${margenes.left}mm !important;
+              }
+            </style>
           </head>
           <body>
-            <div class="renderizador-contenido" style="
-              padding-top: ${margenes.top}mm;
-              padding-right: ${margenes.right}mm;
-              padding-bottom: ${margenes.bottom}mm;
-              padding-left: ${margenes.left}mm;
-            ">
+            <div class="renderizador-contenido">
               ${contenido_html}
             </div>
           </body>
@@ -195,31 +189,20 @@ export class PdfServicio {
 
       await pagina.setContent(htmlCompleto, { waitUntil: 'networkidle0' });
 
-      // Generar PDF sin márgenes de Puppeteer (los márgenes están como padding CSS)
+      // Generar PDF usando preferCSSPageSize para respetar las reglas @page
       const pdfBuffer = await pagina.pdf({
-        width: `${widthMm}mm`,
-        height: `${heightMm}mm`,
-        margin: {
-          top: '0mm',
-          right: '0mm',
-          bottom: '0mm',
-          left: '0mm',
-        },
         printBackground: true,
-        preferCSSPageSize: false,
+        preferCSSPageSize: true,
+        displayHeaderFooter: false,
       });
 
-      // Convertir a base64
+      console.log('PDF generado exitosamente. Tamaño del buffer:', pdfBuffer.length);
+      console.log('--- FIN GENERACIÓN PDF ---');
+
       return Buffer.from(pdfBuffer).toString('base64');
     } finally {
-      await pagina.close();
-    }
-  }
-
-  async onModuleDestroy() {
-    if (this.browser) {
-      await this.browser.close();
-      this.browser = null;
+      // Cerrar el navegador completo al finalizar
+      await browser.close();
     }
   }
 }
