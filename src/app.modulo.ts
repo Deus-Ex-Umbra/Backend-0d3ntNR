@@ -21,6 +21,7 @@ import { PlantillasRecetasModule } from './modulos/plantillas-recetas/plantillas
 import { InventarioModule } from './modulos/inventario/inventario.modulo';
 import { AlmacenamientoModule } from './modulos/almacenamiento/almacenamiento.modulo';
 import { ReportesModule } from './modulos/reportes/reportes.modulo';
+import { PdfModulo } from './modulos/pdf/pdf.modulo';
 import { Paciente } from './modulos/pacientes/entidades/paciente.entidad';
 import { PacienteAlergia } from './modulos/pacientes/entidades/paciente-alergia.entidad';
 import { PacienteEnfermedad } from './modulos/pacientes/entidades/paciente-enfermedad.entidad';
@@ -135,6 +136,7 @@ import { HistoriaClinicaVersion } from './modulos/pacientes/entidades/historia-c
     InventarioModule,
     AlmacenamientoModule,
     ReportesModule,
+    PdfModulo,
   ],
   controllers: [AppControlador],
   providers: [AppServicio],
