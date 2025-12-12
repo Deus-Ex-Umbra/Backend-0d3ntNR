@@ -201,7 +201,6 @@ export class PdfServicio {
 
       return Buffer.from(pdfBuffer).toString('base64');
     } finally {
-      // Cerrar el navegador completo al finalizar
       await browser.close();
     }
   }
