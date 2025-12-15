@@ -118,6 +118,7 @@ export class PlanesTratamientoServicio {
       relations: ['producto'],
     });
 
+    // Copiar consumibles generales (GENERAL) a MaterialTratamiento
     const materiales_generales = materiales_plantilla.filter(m => m.tipo === TipoMaterialPlantilla.GENERAL);
     for (const material of materiales_generales) {
       const material_tratamiento = this.material_tratamiento_repositorio.create({
@@ -125,6 +126,8 @@ export class PlanesTratamientoServicio {
         producto: material.producto,
         tipo: TipoMaterialTratamiento.UNICO,
         cantidad_planeada: material.cantidad,
+        confirmado: false,
+        momento_confirmacion: material.momento_confirmacion,
       });
       await this.material_tratamiento_repositorio.save(material_tratamiento);
     }
@@ -146,6 +149,7 @@ export class PlanesTratamientoServicio {
     }
     const citas_creadas = await Promise.all(citas_promesas);
 
+    // Copiar recursos por cita (POR_CITA) a cada MaterialCita creada
     const materiales_por_cita = materiales_plantilla.filter(m => m.tipo === TipoMaterialPlantilla.POR_CITA);
     for (const cita of citas_creadas) {
       for (const material of materiales_por_cita) {
@@ -206,5 +210,59 @@ export class PlanesTratamientoServicio {
       throw new NotFoundException(`Plan de tratamiento con ID "${id}" no encontrado o no le pertenece.`);
     }
     await this.plan_repositorio.softRemove(plan);
+  }
+
+  async obtenerMaterialesPlanTratamiento(usuario_id: number, plan_id: number): Promise<any> {
+    const plan = await this.encontrarPlanPorId(usuario_id, plan_id);
+
+    const materiales = await this.material_tratamiento_repositorio.find({
+      where: { plan_tratamiento: { id: plan_id } },
+      relations: ['producto', 'producto.inventario'],
+    });
+
+    return {
+      materiales: materiales.map(material => ({
+        id: material.id,
+        producto_id: material.producto.id,
+        inventario_id: material.producto.inventario.id,
+        inventario_nombre: material.producto.inventario.nombre,
+        producto_nombre: material.producto.nombre,
+        cantidad_planeada: material.cantidad_planeada,
+        cantidad_usada: material.cantidad_usada,
+        confirmado: material.confirmado,
+        momento_confirmacion: material.momento_confirmacion,
+      })),
+    };
+  }
+
+  async confirmarConsumiblesGenerales(usuario_id: number, plan_id: number): Promise<void> {
+    const plan = await this.encontrarPlanPorId(usuario_id, plan_id);
+
+    const materiales = await this.material_tratamiento_repositorio.find({
+      where: {
+        plan_tratamiento: { id: plan_id },
+        confirmado: false,
+      },
+      relations: ['producto', 'producto.inventario', 'producto.materiales'],
+    });
+
+    // Aquí se registraría en Kardex - Se implementará cuando se cree el servicio de Kardex
+    // Por ahora solo marcamos como confirmado
+    for (const material of materiales) {
+      material.confirmado = true;
+      await this.material_tratamiento_repositorio.save(material);
+    }
+  }
+
+  async esPrimeraCita(plan_tratamiento_id: number, cita_id: number): Promise<boolean> {
+    const citas = await this.plan_repositorio
+      .createQueryBuilder('plan')
+      .innerJoinAndSelect('plan.citas', 'cita')
+      .where('plan.id = :plan_tratamiento_id', { plan_tratamiento_id })
+      .andWhere('cita.materiales_confirmados = true')
+      .getOne();
+
+    // Si no hay citas confirmadas, esta es la primera
+    return !citas || citas.citas.length === 0;
   }
 }

@@ -7,6 +7,11 @@ export enum TipoMaterialPlantilla {
   POR_CITA = 'por_cita',
 }
 
+export enum MomentoConfirmacion {
+  PRIMERA_CITA = 'primera_cita',
+  FIN_TRATAMIENTO = 'fin_tratamiento',
+}
+
 @Entity()
 export class MaterialPlantilla {
   @PrimaryGeneratedColumn()
@@ -25,4 +30,12 @@ export class MaterialPlantilla {
 
   @Column('decimal', { precision: 10, scale: 2 })
   cantidad: number;
+
+  @Column({
+    type: 'varchar',
+    enum: MomentoConfirmacion,
+    nullable: true,
+  })
+  momento_confirmacion: MomentoConfirmacion;
 }
+

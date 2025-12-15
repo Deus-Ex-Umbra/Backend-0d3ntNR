@@ -3,23 +3,20 @@ import { Inventario } from './inventario.entidad';
 import { Material } from './material.entidad';
 import { Activo } from './activo.entidad';
 
-// Tipos principales de producto
 export enum TipoProducto {
   MATERIAL = 'material',
   ACTIVO_FIJO = 'activo_fijo',
 }
 
-// Subtipos para Material (consumibles)
 export enum SubtipoMaterial {
-  CON_LOTE_VENCIMIENTO = 'con_lote_vencimiento', // Fármacos, medicamentos
-  CON_SERIE = 'con_serie', // Implantes
-  SIN_LOTE = 'sin_lote', // Papel toalla, guantes, etc.
+  CON_LOTE_VENCIMIENTO = 'con_lote_vencimiento',
+  CON_SERIE = 'con_serie',
+  SIN_LOTE = 'sin_lote',
 }
 
-// Subtipos para Activo Fijo
 export enum SubtipoActivoFijo {
-  INSTRUMENTAL = 'instrumental', // Ciclo de vida rápido
-  MOBILIARIO_EQUIPO = 'mobiliario_equipo', // Ciclo de vida lento
+  INSTRUMENTAL = 'instrumental',
+  MOBILIARIO_EQUIPO = 'mobiliario_equipo',
 }
 
 @Entity()
@@ -61,6 +58,9 @@ export class Producto {
 
   @Column({ default: true })
   notificar_stock_bajo: boolean;
+
+  @Column({ default: true })
+  permite_decimales: boolean;
 
   @Column({ default: true })
   activo: boolean;

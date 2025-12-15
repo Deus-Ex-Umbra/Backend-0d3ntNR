@@ -2,7 +2,6 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsInt, IsNumber, Min, IsOptional, IsArray, ValidateNested, IsDateString } from 'class-validator';
 import { Type } from 'class-transformer';
 
-// Item de reserva de material
 export class ReservaMaterialItemDto {
     @ApiProperty({ description: 'ID del producto' })
     @IsInt()
@@ -19,7 +18,6 @@ export class ReservaMaterialItemDto {
     material_id?: number;
 }
 
-// DTO para reservar materiales en una cita
 export class ReservarMaterialesCitaDto {
     @ApiProperty({ description: 'ID de la cita' })
     @IsInt()
@@ -32,7 +30,6 @@ export class ReservarMaterialesCitaDto {
     materiales: ReservaMaterialItemDto[];
 }
 
-// Item de reserva de activo
 export class ReservaActivoItemDto {
     @ApiProperty({ description: 'ID del activo' })
     @IsInt()
@@ -47,7 +44,6 @@ export class ReservaActivoItemDto {
     fecha_hora_fin: string;
 }
 
-// DTO para reservar activos fijos en una cita
 export class ReservarActivosCitaDto {
     @ApiProperty({ description: 'ID de la cita' })
     @IsInt()
@@ -60,7 +56,6 @@ export class ReservarActivosCitaDto {
     activos: ReservaActivoItemDto[];
 }
 
-// DTO para reservar materiales en un tratamiento (reserva única)
 export class ReservarMaterialesTratamientoDto {
     @ApiProperty({ description: 'ID del plan de tratamiento' })
     @IsInt()

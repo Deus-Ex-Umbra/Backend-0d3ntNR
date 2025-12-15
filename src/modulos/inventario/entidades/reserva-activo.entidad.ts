@@ -3,7 +3,7 @@ import { Activo } from './activo.entidad';
 import { Cita } from '../../agenda/entidades/cita.entidad';
 import { PlanTratamiento } from '../../tratamientos/entidades/plan-tratamiento.entidad';
 import { Usuario } from '../../usuarios/entidades/usuario.entidad';
-import { EstadoReserva } from './reserva-material.entidad';
+import { EstadoReserva } from './enums';
 
 @Entity()
 @Index(['activo', 'fecha_hora_inicio', 'fecha_hora_fin'])

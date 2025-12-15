@@ -1,8 +1,6 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Not } from 'typeorm';
-
-// Entidades
+import { Repository, Not, In } from 'typeorm';
 import { Inventario, VisibilidadInventario } from './entidades/inventario.entidad';
 import { PermisoInventario, RolInventario } from './entidades/permiso-inventario.entidad';
 import { Producto, TipoProducto, SubtipoMaterial, SubtipoActivoFijo } from './entidades/producto.entidad';
@@ -12,20 +10,14 @@ import { MaterialCita } from './entidades/material-cita.entidad';
 import { MaterialTratamiento, TipoMaterialTratamiento } from './entidades/material-tratamiento.entidad';
 import { TipoMovimientoKardex } from './entidades/kardex.entidad';
 import { TipoAccionAuditoria } from './entidades/auditoria.entidad';
-
-// Entidades externas
 import { Usuario } from '../usuarios/entidades/usuario.entidad';
 import { Cita } from '../agenda/entidades/cita.entidad';
 import { PlanTratamiento } from '../tratamientos/entidades/plan-tratamiento.entidad';
-
-// Servicios especializados
 import { KardexServicio } from './kardex.servicio';
 import { BitacoraServicio } from './bitacora.servicio';
 import { AuditoriaServicio } from './auditoria.servicio';
 import { ReservasServicio } from './reservas.servicio';
 import { FinanzasServicio } from '../finanzas/finanzas.servicio';
-
-// DTOs
 import { CrearInventarioDto } from './dto/crear-inventario.dto';
 import { ActualizarInventarioDto } from './dto/actualizar-inventario.dto';
 import { InvitarUsuarioInventarioDto } from './dto/invitar-usuario-inventario.dto';
@@ -66,18 +58,12 @@ export class InventarioServicio {
     private readonly finanzas_servicio: FinanzasServicio,
   ) { }
 
-  // =====================
-  // INVENTARIOS
-  // =====================
-
   async crearInventario(usuario_id: number, dto: CrearInventarioDto): Promise<Inventario> {
     const inventario = this.inventario_repositorio.create({
       ...dto,
       propietario: { id: usuario_id } as Usuario,
     });
     const guardado = await this.inventario_repositorio.save(inventario);
-
-    // Registrar auditoría
     await this.auditoria_servicio.registrarAccion(
       guardado,
       TipoAccionAuditoria.INVENTARIO_CREADO,
@@ -91,18 +77,19 @@ export class InventarioServicio {
   async obtenerInventarios(usuario_id: number): Promise<any[]> {
     const inventarios_propios = await this.inventario_repositorio.find({
       where: { propietario: { id: usuario_id } },
-      relations: ['propietario', 'permisos', 'permisos.usuario_invitado', 'productos'],
+      relations: ['propietario', 'permisos', 'permisos.usuario_invitado', 'productos', 'productos.materiales', 'productos.activos'],
     });
 
     const permisos = await this.permiso_repositorio.find({
       where: { usuario_invitado: { id: usuario_id } },
-      relations: ['inventario', 'inventario.propietario', 'inventario.productos'],
+      relations: ['inventario', 'inventario.propietario', 'inventario.productos', 'inventario.productos.materiales', 'inventario.productos.activos'],
     });
 
     const inventarios_compartidos = permisos.map(p => ({
       ...p.inventario,
       rol_usuario: p.rol,
       es_propietario: false,
+      resumen: this.calcularResumenInventario(p.inventario),
     }));
 
     const inventarios_propios_formateados = inventarios_propios.map(inv => ({
@@ -116,10 +103,30 @@ export class InventarioServicio {
 
   private calcularResumenInventario(inventario: any): any {
     const productos = inventario.productos || [];
+    let valor_total = 0;
+    let total_consumibles = 0;
+    let total_activos = 0;
+
+    for (const producto of productos) {
+      if (producto.tipo === TipoProducto.MATERIAL && producto.materiales) {
+        for (const m of producto.materiales.filter((mat: Material) => mat.activo)) {
+          valor_total += Number(m.cantidad_actual) * Number(m.costo_unitario || 0);
+          total_consumibles += Number(m.cantidad_actual);
+        }
+      } else if (producto.tipo === TipoProducto.ACTIVO_FIJO && producto.activos) {
+        const activos_validos = producto.activos.filter((a: Activo) => a.estado !== EstadoActivo.DESECHADO);
+        total_activos += activos_validos.length;
+        for (const a of activos_validos) {
+          valor_total += Number(a.costo_compra || 0);
+        }
+      }
+    }
+
     return {
+      valor_total: Math.round(valor_total * 100) / 100,
       total_productos: productos.length,
-      productos_material: productos.filter((p: Producto) => p.tipo === TipoProducto.MATERIAL).length,
-      productos_activo_fijo: productos.filter((p: Producto) => p.tipo === TipoProducto.ACTIVO_FIJO).length,
+      total_consumibles,
+      total_activos,
     };
   }
 
@@ -164,7 +171,7 @@ export class InventarioServicio {
       actualizado,
       TipoAccionAuditoria.INVENTARIO_EDITADO,
       usuario_id,
-      { datos_anteriores, datos_nuevos: dto },
+      { datos_anteriores, datos_nuevos: actualizado },
     );
 
     return actualizado;
@@ -225,14 +232,8 @@ export class InventarioServicio {
     await this.permiso_repositorio.delete(permiso_id);
   }
 
-  // =====================
-  // PRODUCTOS
-  // =====================
-
   async crearProducto(usuario_id: number, dto: CrearProductoDto): Promise<Producto> {
     const inventario = await this.obtenerInventarioPorId(usuario_id, dto.inventario_id);
-
-    // Validar subtipos
     if (dto.tipo === TipoProducto.MATERIAL && !dto.subtipo_material) {
       throw new BadRequestException('Debe especificar subtipo_material para productos de tipo MATERIAL');
     }
@@ -299,7 +300,7 @@ export class InventarioServicio {
       inventario,
       TipoAccionAuditoria.PRODUCTO_EDITADO,
       usuario_id,
-      { producto: actualizado, datos_anteriores, datos_nuevos: dto },
+      { producto: actualizado, datos_anteriores, datos_nuevos: actualizado },
     );
 
     return actualizado;
@@ -318,10 +319,6 @@ export class InventarioServicio {
 
     await this.producto_repositorio.softDelete(producto_id);
   }
-
-  // =====================
-  // STOCK DE PRODUCTOS
-  // =====================
 
   async obtenerStockProducto(usuario_id: number, inventario_id: number, producto_id: number): Promise<any> {
     const producto = await this.obtenerProductoPorId(usuario_id, inventario_id, producto_id);
@@ -358,7 +355,6 @@ export class InventarioServicio {
         })),
       };
     } else {
-      // Activo Fijo
       const activos = await this.activo_repositorio.find({
         where: { producto: { id: producto_id } },
       });
@@ -396,10 +392,6 @@ export class InventarioServicio {
     }
   }
 
-  // =====================
-  // ENTRADAS DE MATERIAL
-  // =====================
-
   async registrarEntradaMaterial(
     usuario_id: number,
     inventario_id: number,
@@ -411,22 +403,16 @@ export class InventarioServicio {
     if (producto.tipo !== TipoProducto.MATERIAL) {
       throw new BadRequestException('Este producto no es de tipo MATERIAL');
     }
-
-    // Validar campos según subtipo
     if (producto.subtipo_material === SubtipoMaterial.CON_LOTE_VENCIMIENTO && !dto.nro_lote) {
       throw new BadRequestException('Debe especificar número de lote para este tipo de material');
     }
     if (producto.subtipo_material === SubtipoMaterial.CON_SERIE && !dto.nro_serie) {
       throw new BadRequestException('Debe especificar número de serie para este tipo de material');
     }
-
-    // Calcular stock anterior
     const materiales_existentes = await this.material_repositorio.find({
       where: { producto: { id: dto.producto_id }, activo: true },
     });
     const stock_anterior = materiales_existentes.reduce((sum, m) => sum + Number(m.cantidad_actual), 0);
-
-    // Crear material
     const material = this.material_repositorio.create({
       producto,
       nro_lote: dto.nro_lote,
@@ -440,8 +426,6 @@ export class InventarioServicio {
     const guardado = await this.material_repositorio.save(material);
 
     const stock_nuevo = stock_anterior + dto.cantidad;
-
-    // Registrar en Kardex
     await this.kardex_servicio.registrarEntrada(
       inventario,
       producto,
@@ -457,16 +441,12 @@ export class InventarioServicio {
         observaciones: dto.observaciones,
       },
     );
-
-    // Registrar en Auditoría
     await this.auditoria_servicio.registrarAccion(
       inventario,
       TipoAccionAuditoria.MATERIAL_CREADO,
       usuario_id,
       { producto, material: guardado, datos_nuevos: dto },
     );
-
-    // Generar egreso si es compra
     if (dto.generar_egreso && dto.tipo_entrada === TipoMovimientoKardex.COMPRA) {
       const costo_total = dto.cantidad * dto.costo_unitario;
       await this.finanzas_servicio.registrarEgreso(usuario_id, {
@@ -478,10 +458,6 @@ export class InventarioServicio {
 
     return guardado;
   }
-
-  // =====================
-  // ENTRADAS DE ACTIVO
-  // =====================
 
   async registrarEntradaActivo(
     usuario_id: number,
@@ -495,12 +471,10 @@ export class InventarioServicio {
       throw new BadRequestException('Este producto no es de tipo ACTIVO_FIJO');
     }
 
-    // Contar activos anteriores
     const activos_existentes = await this.activo_repositorio.count({
       where: { producto: { id: dto.producto_id } },
     });
 
-    // Crear activo
     const activo = this.activo_repositorio.create({
       producto,
       codigo_interno: dto.codigo_interno,
@@ -513,8 +487,6 @@ export class InventarioServicio {
     });
 
     const guardado = await this.activo_repositorio.save(activo);
-
-    // Registrar en Kardex
     await this.kardex_servicio.registrarEntrada(
       inventario,
       producto,
@@ -528,16 +500,12 @@ export class InventarioServicio {
         observaciones: dto.observaciones,
       },
     );
-
-    // Registrar en Auditoría
     await this.auditoria_servicio.registrarAccion(
       inventario,
       TipoAccionAuditoria.ACTIVO_CREADO,
       usuario_id,
       { producto, activo: guardado, datos_nuevos: dto },
     );
-
-    // Generar egreso si es compra
     if (dto.generar_egreso && dto.tipo_entrada === TipoMovimientoKardex.COMPRA) {
       await this.finanzas_servicio.registrarEgreso(usuario_id, {
         concepto: `Compra activo: ${producto.nombre} - ${dto.nombre_asignado || dto.codigo_interno || guardado.id}`,
@@ -548,11 +516,6 @@ export class InventarioServicio {
 
     return guardado;
   }
-
-  // =====================
-  // SALIDAS DE MATERIAL
-  // =====================
-
   async registrarSalidaMaterial(
     usuario_id: number,
     inventario_id: number,
@@ -564,8 +527,6 @@ export class InventarioServicio {
     if (producto.tipo !== TipoProducto.MATERIAL) {
       throw new BadRequestException('Este producto no es de tipo MATERIAL');
     }
-
-    // Obtener materiales disponibles (FIFO por fecha de vencimiento o ingreso)
     let materiales: Material[];
     if (dto.material_id) {
       const material = await this.material_repositorio.findOne({
@@ -588,8 +549,6 @@ export class InventarioServicio {
     if (stock_disponible < dto.cantidad) {
       throw new BadRequestException(`Stock insuficiente. Disponible: ${stock_disponible}, Requerido: ${dto.cantidad}`);
     }
-
-    // Descontar FIFO
     let cantidad_restante = dto.cantidad;
     for (const material of materiales) {
       if (cantidad_restante <= 0) break;
@@ -603,10 +562,7 @@ export class InventarioServicio {
         cantidad_restante -= a_descontar;
       }
     }
-
     const stock_nuevo = stock_anterior - dto.cantidad;
-
-    // Registrar en Kardex
     await this.kardex_servicio.registrarSalida(
       inventario,
       producto,
@@ -620,8 +576,6 @@ export class InventarioServicio {
         observaciones: dto.observaciones,
       },
     );
-
-    // Registrar pago si es venta
     if (dto.registrar_pago && dto.tipo_salida === TipoMovimientoKardex.VENTA && dto.monto_venta) {
       await this.finanzas_servicio.registrarPago(usuario_id, {
         concepto: `Venta: ${producto.nombre} x${dto.cantidad}`,
@@ -638,10 +592,6 @@ export class InventarioServicio {
       stock_nuevo,
     };
   }
-
-  // =====================
-  // CAMBIO DE ESTADO ACTIVO
-  // =====================
 
   async cambiarEstadoActivo(
     usuario_id: number,
@@ -663,10 +613,8 @@ export class InventarioServicio {
     const estado_anterior = activo.estado;
 
     if (estado_anterior === dto.estado) {
-      return activo; // No hay cambio
+      return activo; 
     }
-
-    // Registrar en Bitácora
     await this.bitacora_servicio.registrarCambioEstado(
       inventario,
       activo,
@@ -682,10 +630,6 @@ export class InventarioServicio {
     activo.estado = dto.estado;
     return this.activo_repositorio.save(activo);
   }
-
-  // =====================
-  // ACTUALIZAR ACTIVO
-  // =====================
 
   async actualizarActivo(
     usuario_id: number,
@@ -713,15 +657,11 @@ export class InventarioServicio {
       inventario,
       TipoAccionAuditoria.ACTIVO_EDITADO,
       usuario_id,
-      { activo: actualizado, datos_anteriores, datos_nuevos: dto },
+      { activo: actualizado, datos_anteriores, datos_nuevos: actualizado },
     );
 
     return actualizado;
   }
-
-  // =====================
-  // VENTA DE ACTIVO
-  // =====================
 
   async venderActivo(
     usuario_id: number,
@@ -740,29 +680,23 @@ export class InventarioServicio {
       throw new NotFoundException('Activo no encontrado en este inventario');
     }
 
-    if (activo.estado === EstadoActivo.DESECHADO) {
-      throw new BadRequestException('No se puede vender un activo desechado');
+    if (activo.estado === EstadoActivo.DESECHADO || activo.estado === EstadoActivo.VENDIDO) {
+      throw new BadRequestException('No se puede vender un activo desechado o ya vendido');
     }
 
     const estado_anterior = activo.estado;
-
-    // Cambiar estado a DESECHADO (vendido)
-    activo.estado = EstadoActivo.DESECHADO;
+    activo.estado = EstadoActivo.VENDIDO;
     await this.activo_repositorio.save(activo);
-
-    // Registrar en Bitácora
     await this.bitacora_servicio.registrarCambioEstado(
       inventario,
       activo,
       estado_anterior,
-      EstadoActivo.DESECHADO,
+      EstadoActivo.VENDIDO,
       usuario_id,
       { motivo: `Vendido por ${dto.monto_venta || 0}` },
     );
-
-    // Registrar en Kardex
     const activos_count = await this.activo_repositorio.count({
-      where: { producto: { id: activo.producto.id }, estado: Not(EstadoActivo.DESECHADO) },
+      where: { producto: { id: activo.producto.id }, estado: Not(In([EstadoActivo.DESECHADO, EstadoActivo.VENDIDO])) },
     });
 
     await this.kardex_servicio.registrarSalida(
@@ -778,16 +712,12 @@ export class InventarioServicio {
         observaciones: dto.observaciones,
       },
     );
-
-    // Registrar en Auditoría
     await this.auditoria_servicio.registrarAccion(
       inventario,
       TipoAccionAuditoria.ACTIVO_VENDIDO,
       usuario_id,
       { activo, datos_nuevos: dto },
     );
-
-    // Registrar pago
     if (dto.registrar_pago && dto.monto_venta) {
       await this.finanzas_servicio.registrarPago(usuario_id, {
         concepto: `Venta activo: ${activo.producto.nombre} - ${activo.nombre_asignado || activo.codigo_interno || activo.id}`,
@@ -802,10 +732,6 @@ export class InventarioServicio {
       monto_venta: dto.monto_venta,
     };
   }
-
-  // =====================
-  // AJUSTE DE STOCK
-  // =====================
 
   async ajustarStock(
     usuario_id: number,
@@ -829,14 +755,12 @@ export class InventarioServicio {
       }
       material = found_material;
     } else {
-      // Si no se especifica material, crear uno nuevo o usar el más reciente
       const materiales = await this.material_repositorio.find({
         where: { producto: { id: dto.producto_id }, activo: true },
         order: { fecha_ingreso: 'DESC' },
       });
 
       if (materiales.length === 0) {
-        // Crear material genérico
         material = this.material_repositorio.create({
           producto,
           cantidad_actual: 0,
@@ -867,19 +791,30 @@ export class InventarioServicio {
     material.cantidad_actual = stock_nuevo;
     await this.material_repositorio.save(material);
 
-    // Registrar en Kardex
-    await this.kardex_servicio.registrarSalida(
-      inventario,
-      producto,
-      TipoMovimientoKardex.AJUSTE,
-      Math.abs(stock_nuevo - stock_anterior),
-      stock_anterior,
-      stock_nuevo,
-      usuario_id,
-      { material, observaciones: dto.motivo },
-    );
+    if (dto.tipo_ajuste === TipoAjuste.INCREMENTO) {
+      await this.kardex_servicio.registrarEntrada(
+        inventario,
+        producto,
+        TipoMovimientoKardex.AJUSTE,
+        dto.cantidad,
+        stock_anterior,
+        stock_nuevo,
+        usuario_id,
+        { material, observaciones: dto.motivo },
+      );
+    } else {
+      await this.kardex_servicio.registrarSalida(
+        inventario,
+        producto,
+        TipoMovimientoKardex.AJUSTE,
+        Math.abs(stock_nuevo - stock_anterior),
+        stock_anterior,
+        stock_nuevo,
+        usuario_id,
+        { material, observaciones: dto.motivo },
+      );
+    }
 
-    // Registrar en Auditoría
     await this.auditoria_servicio.registrarAccion(
       inventario,
       TipoAccionAuditoria.AJUSTE_STOCK,
@@ -904,9 +839,6 @@ export class InventarioServicio {
     };
   }
 
-  // =====================
-  // VERIFICACIÓN DE STOCK
-  // =====================
 
   async verificarStockDisponible(producto_id: number, cantidad_requerida: number): Promise<boolean> {
     const producto = await this.producto_repositorio.findOne({
@@ -935,10 +867,6 @@ export class InventarioServicio {
       return activos_disponibles >= cantidad_requerida;
     }
   }
-
-  // =====================
-  // REPORTE DE VALOR
-  // =====================
 
   async obtenerReporteValorInventario(usuario_id: number, inventario_id: number): Promise<any> {
     await this.obtenerInventarioPorId(usuario_id, inventario_id);
@@ -980,7 +908,6 @@ export class InventarioServicio {
     };
   }
 
-  // Exponer servicios especializados
   get kardex() { return this.kardex_servicio; }
   get bitacora() { return this.bitacora_servicio; }
   get auditoria() { return this.auditoria_servicio; }

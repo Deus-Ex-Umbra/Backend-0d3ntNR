@@ -3,14 +3,12 @@ import { Producto } from './producto.entidad';
 import { Bitacora } from './bitacora.entidad';
 import { ReservaActivo } from './reserva-activo.entidad';
 
-// Estados según ciclo de vida
-// Instrumental: DISPONIBLE -> EN_USO -> DESECHADO
-// Mobiliario/Equipo: DISPONIBLE <-> EN_MANTENIMIENTO -> DESECHADO
 export enum EstadoActivo {
   DISPONIBLE = 'disponible',
   EN_USO = 'en_uso',
   EN_MANTENIMIENTO = 'en_mantenimiento',
   DESECHADO = 'desechado',
+  VENDIDO = 'vendido',
 }
 
 @Entity()
@@ -18,7 +16,6 @@ export class Activo {
   @PrimaryGeneratedColumn()
   id: number;
 
-  // ID asignado manualmente por el usuario
   @Column({ nullable: true })
   codigo_interno: string;
 

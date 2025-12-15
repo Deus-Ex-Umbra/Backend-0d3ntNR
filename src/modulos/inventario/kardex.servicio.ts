@@ -15,7 +15,6 @@ export class KardexServicio {
         private readonly kardex_repositorio: Repository<Kardex>,
     ) { }
 
-    // Registrar entrada de stock
     async registrarEntrada(
         inventario: Inventario,
         producto: Producto,
@@ -53,7 +52,6 @@ export class KardexServicio {
         return this.kardex_repositorio.save(kardex);
     }
 
-    // Registrar salida de stock
     async registrarSalida(
         inventario: Inventario,
         producto: Producto,
@@ -89,7 +87,6 @@ export class KardexServicio {
         return this.kardex_repositorio.save(kardex);
     }
 
-    // Obtener historial de un producto
     async obtenerHistorialProducto(
         inventario_id: number,
         producto_id: number,
@@ -117,8 +114,6 @@ export class KardexServicio {
 
         return { registros, total };
     }
-
-    // Obtener historial de inventario
     async obtenerHistorialInventario(
         inventario_id: number,
         filtros: FiltrosKardexDto = {},
@@ -145,7 +140,6 @@ export class KardexServicio {
         return { registros, total };
     }
 
-    // Generar reporte Kardex
     async generarReporteKardex(
         inventario_id: number,
         fecha_inicio: Date,
@@ -176,8 +170,6 @@ export class KardexServicio {
         for (const registro of registros) {
             const cantidad = Number(registro.cantidad);
             const monto = Number(registro.monto) || 0;
-
-            // Acumular por operación
             if (registro.operacion === TipoOperacionKardex.ENTRADA) {
                 resultado.entradas.cantidad += cantidad;
                 resultado.entradas.monto += monto;
@@ -185,15 +177,11 @@ export class KardexServicio {
                 resultado.salidas.cantidad += cantidad;
                 resultado.salidas.monto += monto;
             }
-
-            // Acumular por tipo
             if (!resultado.por_tipo[registro.tipo]) {
                 resultado.por_tipo[registro.tipo] = { cantidad: 0, monto: 0 };
             }
             resultado.por_tipo[registro.tipo].cantidad += cantidad;
             resultado.por_tipo[registro.tipo].monto += monto;
-
-            // Acumular por producto
             if (!productos_map.has(registro.producto.id)) {
                 productos_map.set(registro.producto.id, {
                     nombre: registro.producto.nombre,

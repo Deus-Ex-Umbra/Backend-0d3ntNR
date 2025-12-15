@@ -17,10 +17,11 @@ export class TratamientosServicio {
   ) { }
 
   async crear(crear_tratamiento_dto: CrearTratamientoDto): Promise<Tratamiento> {
-    const { materiales, ...datos_tratamiento } = crear_tratamiento_dto;
+    const { materiales, consumibles_generales, recursos_por_cita, ...datos_tratamiento } = crear_tratamiento_dto;
     const nuevo_tratamiento = this.tratamiento_repositorio.create(datos_tratamiento);
     const tratamiento_guardado = await this.tratamiento_repositorio.save(nuevo_tratamiento);
 
+    // Legacy: materiales genéricos
     if (materiales && materiales.length > 0) {
       for (const material_dto of materiales) {
         const material = this.material_plantilla_repositorio.create({
@@ -28,6 +29,33 @@ export class TratamientosServicio {
           producto: { id: material_dto.producto_id } as Producto,
           tipo: material_dto.tipo,
           cantidad: material_dto.cantidad,
+        });
+        await this.material_plantilla_repositorio.save(material);
+      }
+    }
+
+    // Nuevos: consumibles generales
+    if (consumibles_generales && consumibles_generales.length > 0) {
+      for (const consumible_dto of consumibles_generales) {
+        const material = this.material_plantilla_repositorio.create({
+          tratamiento: tratamiento_guardado,
+          producto: { id: consumible_dto.producto_id } as Producto,
+          tipo: TipoMaterialPlantilla.GENERAL,
+          cantidad: consumible_dto.cantidad,
+          momento_confirmacion: consumible_dto.momento_confirmacion,
+        });
+        await this.material_plantilla_repositorio.save(material);
+      }
+    }
+
+    // Nuevos: recursos por cita
+    if (recursos_por_cita && recursos_por_cita.length > 0) {
+      for (const recurso_dto of recursos_por_cita) {
+        const material = this.material_plantilla_repositorio.create({
+          tratamiento: tratamiento_guardado,
+          producto: { id: recurso_dto.producto_id } as Producto,
+          tipo: TipoMaterialPlantilla.POR_CITA,
+          cantidad: recurso_dto.cantidad,
         });
         await this.material_plantilla_repositorio.save(material);
       }
@@ -112,5 +140,48 @@ export class TratamientosServicio {
     }
     tratamiento.activo = false;
     await this.tratamiento_repositorio.save(tratamiento);
+  }
+
+  async obtenerConsumiblesGenerales(id: number): Promise<any[]> {
+    const materiales = await this.material_plantilla_repositorio.find({
+      where: {
+        tratamiento: { id },
+        tipo: TipoMaterialPlantilla.GENERAL
+      },
+      relations: ['producto', 'producto.inventario'],
+    });
+
+    return materiales.map(material => ({
+      id: material.id,
+      producto_id: material.producto.id,
+      inventario_id: material.producto.inventario.id,
+      inventario_nombre: material.producto.inventario.nombre,
+      producto_nombre: material.producto.nombre,
+      tipo_producto: material.producto.tipo,
+      unidad_medida: material.producto.unidad_medida,
+      cantidad: material.cantidad,
+      momento_confirmacion: material.momento_confirmacion,
+    }));
+  }
+
+  async obtenerRecursosPorCita(id: number): Promise<any[]> {
+    const materiales = await this.material_plantilla_repositorio.find({
+      where: {
+        tratamiento: { id },
+        tipo: TipoMaterialPlantilla.POR_CITA
+      },
+      relations: ['producto', 'producto.inventario'],
+    });
+
+    return materiales.map(material => ({
+      id: material.id,
+      producto_id: material.producto.id,
+      inventario_id: material.producto.inventario.id,
+      inventario_nombre: material.producto.inventario.nombre,
+      producto_nombre: material.producto.nombre,
+      tipo_producto: material.producto.tipo,
+      unidad_medida: material.producto.unidad_medida,
+      cantidad: material.cantidad,
+    }));
   }
 }

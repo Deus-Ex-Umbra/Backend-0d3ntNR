@@ -46,4 +46,9 @@ export class CrearProductoDto {
   @IsOptional()
   @IsBoolean()
   notificar_stock_bajo?: boolean;
+
+  @ApiPropertyOptional({ description: 'Permite cantidades decimales (solo para materiales)', default: true })
+  @IsOptional()
+  @IsBoolean()
+  permite_decimales?: boolean;
 }

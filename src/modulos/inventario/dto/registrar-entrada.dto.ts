@@ -2,7 +2,6 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsInt, IsNumber, Min, IsDateString, IsBoolean, IsOptional, IsString, IsEnum } from 'class-validator';
 import { TipoMovimientoKardex } from '../entidades/kardex.entidad';
 
-// DTO para registrar entrada de materiales (consumibles)
 export class RegistrarEntradaMaterialDto {
     @ApiProperty({ description: 'ID del producto' })
     @IsInt()
@@ -56,7 +55,6 @@ export class RegistrarEntradaMaterialDto {
     generar_egreso?: boolean;
 }
 
-// DTO para registrar entrada de activos fijos
 export class RegistrarEntradaActivoDto {
     @ApiProperty({ description: 'ID del producto' })
     @IsInt()

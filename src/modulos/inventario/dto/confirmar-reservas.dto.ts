@@ -2,7 +2,6 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsInt, IsNumber, Min, IsOptional, IsArray, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 
-// Item de confirmación de material
 export class ConfirmacionMaterialItemDto {
     @ApiProperty({ description: 'ID de la reserva de material' })
     @IsInt()
@@ -14,14 +13,12 @@ export class ConfirmacionMaterialItemDto {
     cantidad_confirmada: number;
 }
 
-// Item de confirmación de activo
 export class ConfirmacionActivoItemDto {
     @ApiProperty({ description: 'ID de la reserva de activo' })
     @IsInt()
     reserva_activo_id: number;
 }
 
-// DTO para confirmar reservas de una cita
 export class ConfirmarReservasCitaDto {
     @ApiProperty({ description: 'ID de la cita' })
     @IsInt()
@@ -42,7 +39,6 @@ export class ConfirmarReservasCitaDto {
     activos?: ConfirmacionActivoItemDto[];
 }
 
-// DTO para confirmar reservas únicas de un tratamiento
 export class ConfirmarReservasTratamientoDto {
     @ApiProperty({ description: 'ID del plan de tratamiento' })
     @IsInt()
@@ -55,7 +51,6 @@ export class ConfirmarReservasTratamientoDto {
     materiales: ConfirmacionMaterialItemDto[];
 }
 
-// DTO para cancelar reservas
 export class CancelarReservasDto {
     @ApiPropertyOptional({ type: [Number], description: 'IDs de reservas de material a cancelar' })
     @IsOptional()

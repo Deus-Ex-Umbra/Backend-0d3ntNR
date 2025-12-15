@@ -1,6 +1,23 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsDate, IsInt, IsOptional, IsString, IsNumber, IsIn, ValidateIf, Min } from 'class-validator';
+import { IsDate, IsInt, IsOptional, IsString, IsNumber, IsIn, ValidateIf, Min, IsArray, ValidateNested, IsBoolean } from 'class-validator';
 import { Type } from 'class-transformer';
+
+export class ReservaConsumibleDto {
+  @ApiProperty({ description: 'ID del material (entidad) a reservar' })
+  @IsInt()
+  material_id: number;
+
+  @ApiProperty({ description: 'Cantidad a reservar' })
+  @IsNumber()
+  @Min(0)
+  cantidad: number;
+}
+
+export class ReservaActivoDto {
+  @ApiProperty({ description: 'ID del activo fijo a reservar' })
+  @IsInt()
+  activo_id: number;
+}
 
 export class CrearCitaDto {
   @ApiProperty({ required: false, description: 'ID del paciente (obligatorio si se quiere monto y estado de pago)' })
@@ -39,10 +56,25 @@ export class CrearCitaDto {
   @IsInt()
   @Min(0)
   horas_aproximadas?: number;
-
   @ApiProperty({ required: false, description: 'Minutos aproximados de duración', default: 30 })
   @IsOptional()
   @IsInt()
   @Min(0)
   minutos_aproximados?: number;
+  @ApiProperty({ required: false, description: 'Consumibles a reservar para esta cita', type: [ReservaConsumibleDto] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ReservaConsumibleDto)
+  consumibles?: ReservaConsumibleDto[];
+  @ApiProperty({ required: false, description: 'Activos fijos a reservar para esta cita', type: [ReservaActivoDto] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ReservaActivoDto)
+  activos_fijos?: ReservaActivoDto[];
+  @ApiProperty({ required: false, description: 'Si true, bloquea guardado si el stock es insuficiente', default: false })
+  @IsOptional()
+  @IsBoolean()
+  modo_estricto?: boolean;
 }

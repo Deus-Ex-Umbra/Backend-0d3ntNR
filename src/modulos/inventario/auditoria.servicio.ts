@@ -15,8 +15,6 @@ export class AuditoriaServicio {
         @InjectRepository(Auditoria)
         private readonly auditoria_repositorio: Repository<Auditoria>,
     ) { }
-
-    // Registrar acción de auditoría
     async registrarAccion(
         inventario: Inventario,
         accion: TipoAccionAuditoria,
@@ -32,7 +30,6 @@ export class AuditoriaServicio {
             user_agent?: string;
         } = {},
     ): Promise<Auditoria> {
-        // Determinar categoría basada en la acción
         let categoria: CategoriaAuditoria;
         if ([TipoAccionAuditoria.PRODUCTO_CREADO, TipoAccionAuditoria.PRODUCTO_EDITADO, TipoAccionAuditoria.PRODUCTO_ELIMINADO].includes(accion)) {
             categoria = CategoriaAuditoria.PRODUCTO;
@@ -63,8 +60,6 @@ export class AuditoriaServicio {
 
         return this.auditoria_repositorio.save(auditoria);
     }
-
-    // Búsqueda avanzada de auditoría
     async buscarAuditoria(
         inventario_id: number,
         filtros: FiltrosAuditoriaDto = {},
@@ -76,10 +71,7 @@ export class AuditoriaServicio {
             .leftJoinAndSelect('auditoria.activo', 'activo')
             .leftJoinAndSelect('auditoria.usuario', 'usuario')
             .where('auditoria.inventario = :inventario_id', { inventario_id });
-
         this.aplicarFiltros(query, filtros);
-
-        // Ordenamiento
         const ordenar_por = filtros.ordenar_por || 'fecha';
         const orden = filtros.orden || 'DESC';
         query.orderBy(`auditoria.${ordenar_por}`, orden);
@@ -95,7 +87,6 @@ export class AuditoriaServicio {
         return { registros, total };
     }
 
-    // Obtener historial de un producto específico
     async obtenerHistorialProducto(
         inventario_id: number,
         producto_id: number,
@@ -105,7 +96,6 @@ export class AuditoriaServicio {
         return this.buscarAuditoria(inventario_id, filtros);
     }
 
-    // Obtener historial de un material específico
     async obtenerHistorialMaterial(
         inventario_id: number,
         material_id: number,
@@ -115,7 +105,6 @@ export class AuditoriaServicio {
         return this.buscarAuditoria(inventario_id, filtros);
     }
 
-    // Obtener historial de un activo específico
     async obtenerHistorialActivo(
         inventario_id: number,
         activo_id: number,
@@ -125,7 +114,6 @@ export class AuditoriaServicio {
         return this.buscarAuditoria(inventario_id, filtros);
     }
 
-    // Obtener acciones de un usuario específico
     async obtenerAccionesUsuario(
         inventario_id: number,
         usuario_id: number,
@@ -135,7 +123,6 @@ export class AuditoriaServicio {
         return this.buscarAuditoria(inventario_id, filtros);
     }
 
-    // Generar reporte anti-sabotaje
     async generarReporteAntiSabotaje(
         inventario_id: number,
         fecha_inicio: Date,
@@ -168,19 +155,14 @@ export class AuditoriaServicio {
         const ip_map = new Map<string, number>();
 
         for (const registro of registros) {
-            // Contar por tipo
             if (!resultado.por_tipo[registro.accion]) {
                 resultado.por_tipo[registro.accion] = 0;
             }
             resultado.por_tipo[registro.accion]++;
-
-            // Contar por categoría
             if (!resultado.por_categoria[registro.categoria]) {
                 resultado.por_categoria[registro.categoria] = 0;
             }
             resultado.por_categoria[registro.categoria]++;
-
-            // Contar por usuario
             if (registro.usuario) {
                 if (!usuarios_map.has(registro.usuario.id)) {
                     usuarios_map.set(registro.usuario.id, {
@@ -190,13 +172,9 @@ export class AuditoriaServicio {
                 }
                 usuarios_map.get(registro.usuario.id)!.acciones++;
             }
-
-            // Contar por IP
             if (registro.ip_address) {
                 ip_map.set(registro.ip_address, (ip_map.get(registro.ip_address) || 0) + 1);
             }
-
-            // Detectar posibles alertas (eliminaciones masivas, ajustes grandes, etc.)
             if ([TipoAccionAuditoria.PRODUCTO_ELIMINADO, TipoAccionAuditoria.MATERIAL_ELIMINADO, TipoAccionAuditoria.ACTIVO_ELIMINADO].includes(registro.accion)) {
                 resultado.alertas.push({
                     tipo: 'eliminacion',
@@ -226,8 +204,6 @@ export class AuditoriaServicio {
 
         return resultado;
     }
-
-    // Buscar en datos JSON (búsqueda avanzada)
     async buscarEnDatos(
         inventario_id: number,
         texto_busqueda: string,

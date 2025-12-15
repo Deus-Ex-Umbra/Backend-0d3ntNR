@@ -3,18 +3,7 @@ import { Material } from './material.entidad';
 import { Cita } from '../../agenda/entidades/cita.entidad';
 import { PlanTratamiento } from '../../tratamientos/entidades/plan-tratamiento.entidad';
 import { Usuario } from '../../usuarios/entidades/usuario.entidad';
-
-export enum TipoReservaMaterial {
-    CITA = 'cita',
-    TRATAMIENTO_UNICA = 'tratamiento_unica', // Reserva única del tratamiento
-    TRATAMIENTO_POR_CITA = 'tratamiento_por_cita', // Por cada cita del tratamiento
-}
-
-export enum EstadoReserva {
-    PENDIENTE = 'pendiente',
-    CONFIRMADA = 'confirmada', // Stock descontado
-    CANCELADA = 'cancelada',
-}
+import { TipoReservaMaterial, EstadoReserva } from './enums';
 
 @Entity()
 @Index(['material', 'estado'])

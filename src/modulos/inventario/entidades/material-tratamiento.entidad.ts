@@ -1,10 +1,11 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne } from 'typeorm';
 import { PlanTratamiento } from '../../tratamientos/entidades/plan-tratamiento.entidad';
 import { Producto } from './producto.entidad';
+import { MomentoConfirmacion } from '../../tratamientos/entidades/material-plantilla.entidad';
 
 export enum TipoMaterialTratamiento {
-  UNICO = 'unico', // Solo consumibles, confirmado al finalizar tratamiento
-  POR_CITA = 'por_cita', // Consumibles + activos, por cada cita del tratamiento
+  UNICO = 'unico',
+  POR_CITA = 'por_cita',
 }
 
 @Entity()
@@ -32,4 +33,11 @@ export class MaterialTratamiento {
 
   @Column({ default: false })
   confirmado: boolean;
+
+  @Column({
+    type: 'varchar',
+    enum: MomentoConfirmacion,
+    nullable: true,
+  })
+  momento_confirmacion: MomentoConfirmacion;
 }

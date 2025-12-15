@@ -6,16 +6,10 @@ import { ReservaMaterial } from './reserva-material.entidad';
 export class Material {
     @PrimaryGeneratedColumn()
     id: number;
-
-    // Para subtipo CON_LOTE_VENCIMIENTO
     @Column({ nullable: true })
     nro_lote: string;
-
-    // Para subtipo CON_SERIE (implantes)
     @Column({ nullable: true })
     nro_serie: string;
-
-    // Para subtipo CON_LOTE_VENCIMIENTO
     @Column({ nullable: true })
     fecha_vencimiento: Date;
 

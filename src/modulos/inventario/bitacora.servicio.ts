@@ -13,8 +13,6 @@ export class BitacoraServicio {
         @InjectRepository(Bitacora)
         private readonly bitacora_repositorio: Repository<Bitacora>,
     ) { }
-
-    // Registrar cambio de estado de un activo
     async registrarCambioEstado(
         inventario: Inventario,
         activo: Activo,
@@ -40,8 +38,6 @@ export class BitacoraServicio {
 
         return this.bitacora_repositorio.save(bitacora);
     }
-
-    // Obtener historial de un activo
     async obtenerHistorialActivo(
         inventario_id: number,
         activo_id: number,
@@ -69,8 +65,6 @@ export class BitacoraServicio {
 
         return { registros, total };
     }
-
-    // Obtener historial de todos los activos del inventario
     async obtenerHistorialInventario(
         inventario_id: number,
         filtros: FiltrosBitacoraDto = {},
@@ -96,8 +90,6 @@ export class BitacoraServicio {
 
         return { registros, total };
     }
-
-    // Obtener eventos recientes (útil para dashboard)
     async obtenerEventosRecientes(
         inventario_id: number,
         limite: number = 10,
@@ -109,8 +101,6 @@ export class BitacoraServicio {
             take: limite,
         });
     }
-
-    // Obtener estadísticas de cambios de estado
     async obtenerEstadisticasCambiosEstado(
         inventario_id: number,
         fecha_inicio: Date,
@@ -137,13 +127,10 @@ export class BitacoraServicio {
         const activos_map = new Map<number, { nombre: string; cambios: number }>();
 
         for (const registro of registros) {
-            // Contar por estado nuevo
             if (!resultado.por_estado_nuevo[registro.estado_nuevo]) {
                 resultado.por_estado_nuevo[registro.estado_nuevo] = 0;
             }
             resultado.por_estado_nuevo[registro.estado_nuevo]++;
-
-            // Contar por activo
             if (!activos_map.has(registro.activo.id)) {
                 activos_map.set(registro.activo.id, {
                     nombre: registro.activo.nombre_asignado || registro.activo.producto?.nombre || `Activo #${registro.activo.id}`,

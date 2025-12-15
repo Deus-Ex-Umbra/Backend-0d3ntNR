@@ -10,7 +10,7 @@ import { JwtAuthGuard } from '../autenticacion/guardias/jwt-auth.guardia';
 @UseGuards(JwtAuthGuard)
 @Controller('tratamientos')
 export class TratamientosControlador {
-  constructor(private readonly tratamientos_servicio: TratamientosServicio) {}
+  constructor(private readonly tratamientos_servicio: TratamientosServicio) { }
 
   @Post()
   crear(@Body() crear_tratamiento_dto: CrearTratamientoDto) {
@@ -30,6 +30,16 @@ export class TratamientosControlador {
   @Get(':id/materiales')
   obtenerMaterialesPlantilla(@Param('id') id: string) {
     return this.tratamientos_servicio.obtenerMaterialesPlantilla(+id);
+  }
+
+  @Get(':id/consumibles-generales')
+  obtenerConsumiblesGenerales(@Param('id') id: string) {
+    return this.tratamientos_servicio.obtenerConsumiblesGenerales(+id);
+  }
+
+  @Get(':id/recursos-por-cita')
+  obtenerRecursosPorCita(@Param('id') id: string) {
+    return this.tratamientos_servicio.obtenerRecursosPorCita(+id);
   }
 
   @Put(':id')

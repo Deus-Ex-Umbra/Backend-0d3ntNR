@@ -4,7 +4,6 @@ import { TipoMovimientoKardex, TipoOperacionKardex } from '../entidades/kardex.e
 import { TipoAccionAuditoria, CategoriaAuditoria } from '../entidades/auditoria.entidad';
 import { EstadoActivo } from '../entidades/activo.entidad';
 
-// Filtros para Kardex
 export class FiltrosKardexDto {
     @ApiPropertyOptional({ description: 'ID del producto' })
     @IsOptional()
@@ -52,7 +51,6 @@ export class FiltrosKardexDto {
     offset?: number;
 }
 
-// Filtros para Bitácora
 export class FiltrosBitacoraDto {
     @ApiPropertyOptional({ description: 'ID del activo' })
     @IsOptional()
@@ -95,7 +93,6 @@ export class FiltrosBitacoraDto {
     offset?: number;
 }
 
-// Filtros para Auditoría (búsqueda avanzada)
 export class FiltrosAuditoriaDto {
     @ApiPropertyOptional({ description: 'ID del producto' })
     @IsOptional()

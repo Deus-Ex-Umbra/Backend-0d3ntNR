@@ -2,6 +2,8 @@ import { ApiProperty } from '@nestjs/swagger';
 import { IsString, IsInt, IsNumber, Min, IsOptional, IsArray, ValidateNested, IsEnum } from 'class-validator';
 import { Type } from 'class-transformer';
 import { TipoMaterialPlantilla } from '../entidades/material-plantilla.entidad';
+import { CrearMaterialGeneralDto } from './crear-material-general.dto';
+import { CrearRecursoPorCitaDto } from './crear-recurso-por-cita.dto';
 
 export class MaterialPlantillaDto {
   @ApiProperty()
@@ -63,10 +65,24 @@ export class CrearTratamientoDto {
   @Min(0)
   minutos_aproximados_citas?: number;
 
-  @ApiProperty({ description: 'Materiales de la plantilla', type: [MaterialPlantillaDto], required: false })
+  @ApiProperty({ description: 'Materiales de la plantilla (legacy)', type: [MaterialPlantillaDto], required: false })
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => MaterialPlantillaDto)
   materiales?: MaterialPlantillaDto[];
+
+  @ApiProperty({ description: 'Consumibles generales del tratamiento', type: [CrearMaterialGeneralDto], required: false })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CrearMaterialGeneralDto)
+  consumibles_generales?: CrearMaterialGeneralDto[];
+
+  @ApiProperty({ description: 'Recursos asignados a cada cita', type: [CrearRecursoPorCitaDto], required: false })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CrearRecursoPorCitaDto)
+  recursos_por_cita?: CrearRecursoPorCitaDto[];
 }

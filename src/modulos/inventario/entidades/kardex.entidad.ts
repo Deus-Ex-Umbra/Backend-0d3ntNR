@@ -4,14 +4,11 @@ import { Producto } from './producto.entidad';
 import { Material } from './material.entidad';
 import { Usuario } from '../../usuarios/entidades/usuario.entidad';
 
-// Tipos de movimiento para el Kardex
 export enum TipoMovimientoKardex {
-    // Entradas
     COMPRA = 'compra',
     REGALO = 'regalo',
     DONACION = 'donacion',
     OTRO_INGRESO = 'otro_ingreso',
-    // Salidas
     CONSUMO_CITA = 'consumo_cita',
     CONSUMO_TRATAMIENTO = 'consumo_tratamiento',
     VENTA = 'venta',
@@ -62,14 +59,12 @@ export class Kardex {
     @Column('decimal', { precision: 10, scale: 2 })
     stock_nuevo: number;
 
-    // Para compras: costo total. Para ventas: monto de venta
     @Column('decimal', { precision: 10, scale: 2, nullable: true })
     monto: number;
 
     @Column('decimal', { precision: 10, scale: 2, nullable: true })
     costo_unitario: number;
 
-    // Referencia a la entidad relacionada (cita_id, tratamiento_id, etc.)
     @Column({ nullable: true })
     referencia_tipo: string;
 

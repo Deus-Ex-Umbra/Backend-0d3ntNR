@@ -5,30 +5,23 @@ import { Material } from './material.entidad';
 import { Activo } from './activo.entidad';
 import { Usuario } from '../../usuarios/entidades/usuario.entidad';
 
-// Tipos de acción para auditoría (anti-sabotaje)
 export enum TipoAccionAuditoria {
-    // Productos
     PRODUCTO_CREADO = 'producto_creado',
     PRODUCTO_EDITADO = 'producto_editado',
     PRODUCTO_ELIMINADO = 'producto_eliminado',
-    // Materiales
     MATERIAL_CREADO = 'material_creado',
     MATERIAL_EDITADO = 'material_editado',
     MATERIAL_ELIMINADO = 'material_eliminado',
-    // Activos
     ACTIVO_CREADO = 'activo_creado',
     ACTIVO_EDITADO = 'activo_editado',
     ACTIVO_ELIMINADO = 'activo_eliminado',
     ACTIVO_VENDIDO = 'activo_vendido',
-    // Ajustes
     AJUSTE_STOCK = 'ajuste_stock',
-    // Inventario
     INVENTARIO_CREADO = 'inventario_creado',
     INVENTARIO_EDITADO = 'inventario_editado',
     INVENTARIO_ELIMINADO = 'inventario_eliminado',
 }
 
-// Categorías para filtrado rápido
 export enum CategoriaAuditoria {
     PRODUCTO = 'producto',
     MATERIAL = 'material',
@@ -69,12 +62,8 @@ export class Auditoria {
 
     @ManyToOne(() => Activo, { nullable: true, onDelete: 'SET NULL' })
     activo: Activo;
-
-    // Datos anteriores en formato JSON
     @Column({ type: 'text', nullable: true })
     datos_anteriores: string;
-
-    // Datos nuevos en formato JSON
     @Column({ type: 'text', nullable: true })
     datos_nuevos: string;
 
@@ -86,8 +75,6 @@ export class Auditoria {
 
     @ManyToOne(() => Usuario, { onDelete: 'SET NULL', nullable: true })
     usuario: Usuario;
-
-    // Para anti-sabotaje
     @Column({ nullable: true })
     ip_address: string;
 

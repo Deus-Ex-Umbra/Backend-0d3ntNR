@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ScheduleModule } from '@nestjs/schedule';
 import { AppControlador } from './app.controlador';
 import { AppServicio } from './app.servicio';
 import { PacientesModule } from './modulos/pacientes/pacientes.modulo';
@@ -45,7 +46,6 @@ import { EdicionImagen } from './modulos/ediciones-imagenes/entidades/edicion-im
 import { ComentarioImagen } from './modulos/ediciones-imagenes/entidades/comentario-imagen.entidad';
 import { PlantillaConsentimiento } from './modulos/plantillas-consentimiento/entidades/plantilla-consentimiento.entidad';
 import { PlantillaReceta } from './modulos/plantillas-recetas/entidades/plantilla-receta.entidad';
-// Inventario - Entidades refactorizadas
 import { Inventario } from './modulos/inventario/entidades/inventario.entidad';
 import { PermisoInventario } from './modulos/inventario/entidades/permiso-inventario.entidad';
 import { Producto } from './modulos/inventario/entidades/producto.entidad';
@@ -66,6 +66,7 @@ import { HistoriaClinicaVersion } from './modulos/pacientes/entidades/historia-c
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    ScheduleModule.forRoot(),
     TypeOrmModule.forRoot({
       type: 'postgres',
       host: process.env.DB_HOST || 'localhost',
@@ -97,7 +98,6 @@ import { HistoriaClinicaVersion } from './modulos/pacientes/entidades/historia-c
         ComentarioImagen,
         PlantillaConsentimiento,
         PlantillaReceta,
-        // Inventario - Entidades refactorizadas
         Inventario,
         PermisoInventario,
         Producto,
@@ -110,7 +110,6 @@ import { HistoriaClinicaVersion } from './modulos/pacientes/entidades/historia-c
         ReservaActivo,
         MaterialCita,
         MaterialTratamiento,
-        // Otros
         Reporte,
         ConsentimientoInformado,
         HistoriaClinicaVersion,

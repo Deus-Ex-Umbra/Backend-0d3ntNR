@@ -3,7 +3,6 @@ import { Inventario } from './inventario.entidad';
 import { Activo, EstadoActivo } from './activo.entidad';
 import { Usuario } from '../../usuarios/entidades/usuario.entidad';
 
-// Bitácora: Historial del ciclo de vida de activos fijos
 @Entity()
 @Index(['inventario', 'fecha'])
 @Index(['activo', 'fecha'])
@@ -29,7 +28,6 @@ export class Bitacora {
     })
     estado_nuevo: EstadoActivo;
 
-    // Referencia a la entidad relacionada (cita_id, etc.)
     @Column({ nullable: true })
     referencia_tipo: string;
 

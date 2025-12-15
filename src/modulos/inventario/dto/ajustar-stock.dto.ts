@@ -4,7 +4,7 @@ import { IsInt, IsNumber, Min, IsOptional, IsString, IsEnum } from 'class-valida
 export enum TipoAjuste {
   INCREMENTO = 'incremento',
   DECREMENTO = 'decremento',
-  ESTABLECER = 'establecer', // Establecer cantidad exacta
+  ESTABLECER = 'establecer',
 }
 
 export class AjustarStockDto {

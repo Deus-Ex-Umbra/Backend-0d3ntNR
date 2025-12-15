@@ -146,11 +146,18 @@ export class AgendaServicio {
       monto_esperado,
       horas_aproximadas,
       minutos_aproximados,
+      consumibles,
+      activos_fijos,
+      modo_estricto,
       ...cita_data
     } = crear_cita_dto;
 
     if (!paciente_id && (estado_pago || monto_esperado)) {
       throw new BadRequestException('Las citas sin paciente no pueden tener estado de pago ni monto esperado');
+    }
+
+    if (!paciente_id && ((consumibles && consumibles.length > 0) || (activos_fijos && activos_fijos.length > 0))) {
+      throw new BadRequestException('Las citas sin paciente no pueden tener reservas de recursos');
     }
 
     const horas = horas_aproximadas !== undefined ? horas_aproximadas : 0;
@@ -160,6 +167,45 @@ export class AgendaServicio {
 
     if (!validacion.disponible) {
       throw new ConflictException(validacion.mensaje_detallado || 'Conflicto de horario');
+    }
+
+    const fecha_inicio = new Date(cita_data.fecha);
+    const fecha_fin = new Date(fecha_inicio);
+    fecha_fin.setHours(fecha_fin.getHours() + horas);
+    fecha_fin.setMinutes(fecha_fin.getMinutes() + minutos);
+    if (consumibles && consumibles.length > 0 && modo_estricto) {
+      for (const consumible of consumibles) {
+        const { disponible, stock_disponible, mensaje } = await this.inventario_servicio.reservas.validarDisponibilidadMaterial(
+          consumible.material_id,
+          consumible.cantidad,
+          true
+        );
+        if (!disponible) {
+          throw new BadRequestException(mensaje || `Stock insuficiente para material ${consumible.material_id}. Disponible: ${stock_disponible}`);
+        }
+      }
+    }
+
+    if (activos_fijos && activos_fijos.length > 0) {
+      for (const activo of activos_fijos) {
+        const { disponible, conflictos } = await this.inventario_servicio.reservas.verificarDisponibilidadActivoGlobal(
+          activo.activo_id,
+          fecha_inicio,
+          fecha_fin
+        );
+        if (!disponible) {
+          if (conflictos.length > 0) {
+            const conflicto = conflictos[0];
+            const hora_inicio = new Date(conflicto.hora_inicio).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' });
+            const hora_fin = new Date(conflicto.hora_fin).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' });
+            throw new ConflictException(
+              `El activo ya está reservado de ${hora_inicio} a ${hora_fin} por ${conflicto.usuario_nombre}`
+            );
+          } else {
+            throw new BadRequestException(`El activo ${activo.activo_id} no está disponible`);
+          }
+        }
+      }
     }
 
     const nueva_cita = this.cita_repositorio.create({
@@ -179,7 +225,38 @@ export class AgendaServicio {
       nueva_cita.plan_tratamiento = { id: plan_tratamiento_id } as PlanTratamiento;
     }
 
-    return this.cita_repositorio.save(nueva_cita);
+    const cita_guardada = await this.cita_repositorio.save(nueva_cita);
+    if (consumibles && consumibles.length > 0) {
+      for (const consumible of consumibles) {
+        try {
+          await this.inventario_servicio.reservas.reservarMaterialCita(
+            consumible.material_id,
+            cita_guardada,
+            consumible.cantidad,
+            usuario_id
+          );
+        } catch (error) {
+          if (modo_estricto) {
+            throw error;
+          }
+          console.warn(`No se pudo reservar material ${consumible.material_id}:`, error.message);
+        }
+      }
+    }
+
+    if (activos_fijos && activos_fijos.length > 0) {
+      for (const activo of activos_fijos) {
+        await this.inventario_servicio.reservas.reservarActivoCitaGlobal(
+          activo.activo_id,
+          cita_guardada,
+          fecha_inicio,
+          fecha_fin,
+          usuario_id
+        );
+      }
+    }
+
+    return cita_guardada;
   }
 
   async obtenerCitasPorMes(usuario_id: number, mes: number, ano: number, ligero: boolean = false): Promise<Cita[]> {
@@ -304,8 +381,16 @@ export class AgendaServicio {
     if (!cita) {
       throw new NotFoundException(`Cita con ID "${id}" no encontrada.`);
     }
-
     const cita_guardada = await this.cita_repositorio.save(cita);
+    if (actualizar_cita_dto.consumibles !== undefined || actualizar_cita_dto.activos_fijos !== undefined) {
+      await this.inventario_servicio.reservas.actualizarRecursosCita(
+        cita_guardada,
+        actualizar_cita_dto.consumibles,
+        actualizar_cita_dto.activos_fijos,
+        usuario_id,
+        actualizar_cita_dto.modo_estricto
+      );
+    }
 
     const nuevo_estado = cita_guardada.estado_pago;
     const cambio_a_pagado = estado_anterior !== 'pagado' && nuevo_estado === 'pagado';
@@ -377,7 +462,18 @@ export class AgendaServicio {
   async obtenerPorId(usuario_id: number, id: number): Promise<Cita> {
     const cita = await this.cita_repositorio.findOne({
       where: { id, usuario: { id: usuario_id } },
-      relations: ['paciente', 'plan_tratamiento'],
+      relations: [
+        'paciente', 
+        'plan_tratamiento',
+        'reservas_materiales',
+        'reservas_materiales.material',
+        'reservas_materiales.material.producto',
+        'reservas_materiales.material.producto.inventario',
+        'reservas_activos',
+        'reservas_activos.activo',
+        'reservas_activos.activo.producto',
+        'reservas_activos.activo.producto.inventario'
+      ],
     });
 
     if (!cita) {
@@ -390,7 +486,19 @@ export class AgendaServicio {
   async obtenerPorIdCompleto(usuario_id: number, id: number): Promise<Cita> {
     const cita = await this.cita_repositorio.findOne({
       where: { id, usuario: { id: usuario_id } },
-      relations: ['paciente', 'plan_tratamiento', 'plan_tratamiento.paciente'],
+      relations: [
+        'paciente', 
+        'plan_tratamiento', 
+        'plan_tratamiento.paciente',
+        'reservas_materiales',
+        'reservas_materiales.material',
+        'reservas_materiales.material.producto',
+        'reservas_materiales.material.producto.inventario',
+        'reservas_activos',
+        'reservas_activos.activo',
+        'reservas_activos.activo.producto',
+        'reservas_activos.activo.producto.inventario'
+      ],
     });
 
     if (!cita) {

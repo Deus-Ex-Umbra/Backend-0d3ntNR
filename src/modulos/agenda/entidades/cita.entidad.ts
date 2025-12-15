@@ -1,7 +1,9 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, DeleteDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, DeleteDateColumn, OneToMany } from 'typeorm';
 import { Paciente } from '../../pacientes/entidades/paciente.entidad';
 import { PlanTratamiento } from '../../tratamientos/entidades/plan-tratamiento.entidad';
 import { Usuario } from '../../usuarios/entidades/usuario.entidad';
+import { ReservaMaterial } from '../../inventario/entidades/reserva-material.entidad';
+import { ReservaActivo } from '../../inventario/entidades/reserva-activo.entidad';
 
 @Entity()
 export class Cita {
@@ -37,6 +39,12 @@ export class Cita {
 
   @ManyToOne(() => PlanTratamiento, (plan) => plan.citas, { nullable: true, onDelete: 'CASCADE', onUpdate: 'CASCADE' })
   plan_tratamiento: PlanTratamiento;
+
+  @OneToMany(() => ReservaMaterial, (reserva) => reserva.cita)
+  reservas_materiales: ReservaMaterial[];
+
+  @OneToMany(() => ReservaActivo, (reserva) => reserva.cita)
+  reservas_activos: ReservaActivo[];
 
   @DeleteDateColumn({ nullable: true })
   eliminado_en?: Date | null;
