@@ -22,6 +22,8 @@ import { RegistrarSalidaMaterialDto, RegistrarSalidaActivoDto } from './dto/regi
 import { CambiarEstadoActivoDto } from './dto/cambiar-estado-activo.dto';
 import { ActualizarActivoDto } from './dto/actualizar-activo.dto';
 import { AjustarStockDto } from './dto/ajustar-stock.dto';
+import { AsignarMaterialesTratamientoDto } from './dto/asignar-materiales-tratamiento.dto';
+import { ConfirmarMaterialesGeneralesDto } from './dto/confirmar-materiales-generales.dto';
 import { ReservarMaterialesCitaDto, ReservarActivosCitaDto } from './dto/reservar.dto';
 import { ConfirmarReservasCitaDto, CancelarReservasDto } from './dto/confirmar-reservas.dto';
 import { FiltrosKardexDto, FiltrosBitacoraDto, FiltrosAuditoriaDto } from './dto/filtros-historial.dto';
@@ -434,5 +436,24 @@ export class InventarioControlador {
       new Date(body.fecha_fin),
       body.cita_id_excluir,
     );
+  }
+
+  @Post('tratamientos/:id/asignar-materiales')
+  @ApiOperation({ summary: 'Asignar materiales a un plan de tratamiento' })
+  asignarMaterialesTratamiento(
+    @Param('id') id: string,
+    @Body() dto: AsignarMaterialesTratamientoDto
+  ) {
+    return this.inventario_servicio.asignarMaterialesTratamiento(+id, dto);
+  }
+
+  @Post('tratamientos/:id/confirmar-materiales-generales')
+  @ApiOperation({ summary: 'Confirmar materiales generales de un plan' })
+  confirmarMaterialesGenerales(
+    @Request() req,
+    @Param('id') id: string,
+    @Body() dto: ConfirmarMaterialesGeneralesDto
+  ) {
+    return this.inventario_servicio.confirmarMaterialesGenerales(req.user.id, +id, dto);
   }
 }

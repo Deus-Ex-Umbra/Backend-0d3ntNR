@@ -1,4 +1,5 @@
-import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
+import { MaterialPlantilla } from './material-plantilla.entidad';
 
 @Entity()
 export class Tratamiento {
@@ -31,4 +32,7 @@ export class Tratamiento {
 
   @Column({ default: true })
   activo: boolean;
+
+  @OneToMany(() => MaterialPlantilla, (material) => material.tratamiento, { cascade: true })
+  materiales: MaterialPlantilla[];
 }

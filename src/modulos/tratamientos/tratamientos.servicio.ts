@@ -98,7 +98,7 @@ export class TratamientosServicio {
   }
 
   async actualizar(id: number, actualizar_tratamiento_dto: ActualizarTratamientoDto): Promise<Tratamiento> {
-    const { materiales, ...datos_tratamiento } = actualizar_tratamiento_dto;
+    const { materiales, consumibles_generales, recursos_por_cita, ...datos_tratamiento } = actualizar_tratamiento_dto;
 
     const tratamiento = await this.tratamiento_repositorio.preload({
       id: id,
@@ -111,20 +111,67 @@ export class TratamientosServicio {
 
     const tratamiento_actualizado = await this.tratamiento_repositorio.save(tratamiento);
 
-    if (materiales !== undefined) {
-      await this.material_plantilla_repositorio.delete({ tratamiento: { id } });
+    // Actualizar consumibles generales
+    if (consumibles_generales !== undefined) {
+      await this.material_plantilla_repositorio.delete({
+        tratamiento: { id },
+        tipo: TipoMaterialPlantilla.GENERAL
+      });
 
-      if (materiales.length > 0) {
-        for (const material_dto of materiales) {
+      if (consumibles_generales.length > 0) {
+        for (const consumible_dto of consumibles_generales) {
           const material = this.material_plantilla_repositorio.create({
             tratamiento: tratamiento_actualizado,
-            producto: { id: material_dto.producto_id } as Producto,
-            tipo: material_dto.tipo,
-            cantidad: material_dto.cantidad,
+            producto: { id: consumible_dto.producto_id } as Producto,
+            tipo: TipoMaterialPlantilla.GENERAL,
+            cantidad: consumible_dto.cantidad,
+            momento_confirmacion: consumible_dto.momento_confirmacion,
           });
           await this.material_plantilla_repositorio.save(material);
         }
       }
+    }
+
+    // Actualizar recursos por cita
+    if (recursos_por_cita !== undefined) {
+      await this.material_plantilla_repositorio.delete({
+        tratamiento: { id },
+        tipo: TipoMaterialPlantilla.POR_CITA
+      });
+
+      if (recursos_por_cita.length > 0) {
+        for (const recurso_dto of recursos_por_cita) {
+          const material = this.material_plantilla_repositorio.create({
+            tratamiento: tratamiento_actualizado,
+            producto: { id: recurso_dto.producto_id } as Producto,
+            tipo: TipoMaterialPlantilla.POR_CITA,
+            cantidad: recurso_dto.cantidad,
+          });
+          await this.material_plantilla_repositorio.save(material);
+        }
+      }
+    }
+
+    // Legacy support (opcional, si se sigue usando 'materiales' mezclados)
+    if (materiales !== undefined) {
+       // Si se envía 'materiales', asumimos que se quiere reemplazar todo o manejarlo como antes.
+       // Para evitar conflictos con la lógica anterior, podríamos decidir no soportarlo si ya usamos los nuevos campos.
+       // O implementarlo borrando todo si se envía.
+       // Por seguridad, si se envían los campos específicos, ignoramos 'materiales'.
+       if (consumibles_generales === undefined && recursos_por_cita === undefined) {
+          await this.material_plantilla_repositorio.delete({ tratamiento: { id } });
+          if (materiales.length > 0) {
+            for (const material_dto of materiales) {
+              const material = this.material_plantilla_repositorio.create({
+                tratamiento: tratamiento_actualizado,
+                producto: { id: material_dto.producto_id } as Producto,
+                tipo: material_dto.tipo,
+                cantidad: material_dto.cantidad,
+              });
+              await this.material_plantilla_repositorio.save(material);
+            }
+          }
+       }
     }
 
     return tratamiento_actualizado;

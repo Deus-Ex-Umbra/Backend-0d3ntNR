@@ -28,6 +28,8 @@ import { RegistrarSalidaMaterialDto, RegistrarSalidaActivoDto } from './dto/regi
 import { CambiarEstadoActivoDto } from './dto/cambiar-estado-activo.dto';
 import { ActualizarActivoDto } from './dto/actualizar-activo.dto';
 import { AjustarStockDto, TipoAjuste } from './dto/ajustar-stock.dto';
+import { AsignarMaterialesTratamientoDto } from './dto/asignar-materiales-tratamiento.dto';
+import { ConfirmarMaterialesGeneralesDto } from './dto/confirmar-materiales-generales.dto';
 
 @Injectable()
 export class InventarioServicio {
@@ -613,7 +615,7 @@ export class InventarioServicio {
     const estado_anterior = activo.estado;
 
     if (estado_anterior === dto.estado) {
-      return activo; 
+      return activo;
     }
     await this.bitacora_servicio.registrarCambioEstado(
       inventario,
@@ -906,6 +908,89 @@ export class InventarioServicio {
       cantidad_activos,
       total_productos: productos.length,
     };
+  }
+
+  async asignarMaterialesTratamiento(plan_tratamiento_id: number, dto: AsignarMaterialesTratamientoDto) {
+    const plan = await this.plan_tratamiento_repositorio.findOne({
+      where: { id: plan_tratamiento_id },
+      relations: ['materiales_tratamiento']
+    });
+
+    if (!plan) {
+      throw new NotFoundException('Plan de tratamiento no encontrado');
+    }
+
+    // Eliminar materiales existentes para este plan
+    await this.material_tratamiento_repositorio.delete({ plan_tratamiento: { id: plan_tratamiento_id } });
+
+    const nuevos_materiales: MaterialTratamiento[] = [];
+    for (const matDto of dto.materiales) {
+      const producto = await this.producto_repositorio.findOne({ where: { id: matDto.producto_id } });
+      if (!producto) continue;
+
+      const nuevo = this.material_tratamiento_repositorio.create({
+        plan_tratamiento: plan,
+        producto: producto,
+        tipo: matDto.tipo,
+        cantidad_planeada: matDto.cantidad_planeada,
+        momento_confirmacion: matDto.momento_confirmacion,
+      });
+      nuevos_materiales.push(nuevo);
+    }
+
+    return await this.material_tratamiento_repositorio.save(nuevos_materiales);
+  }
+
+  async confirmarMaterialesGenerales(usuario_id: number, plan_tratamiento_id: number, dto: ConfirmarMaterialesGeneralesDto) {
+    const plan = await this.plan_tratamiento_repositorio.findOne({
+      where: { id: plan_tratamiento_id },
+      relations: ['paciente']
+    });
+
+    if (!plan) {
+      throw new NotFoundException('Plan de tratamiento no encontrado');
+    }
+
+    // Procesar procesamiento de pago si existe
+    if (dto.monto_pago && dto.monto_pago > 0) {
+      await this.finanzas_servicio.registrarPago(usuario_id, {
+        fecha: new Date(),
+        monto: dto.monto_pago,
+        concepto: `Pago materiales generales tratamiento #${plan.id}`,
+        plan_tratamiento_id: plan.id
+      });
+    }
+
+    // Procesar materiales
+    for (const matDto of dto.materiales) {
+      const material_tratamiento = await this.material_tratamiento_repositorio.findOne({
+        where: { id: matDto.material_tratamiento_id },
+        relations: ['producto', 'producto.inventario']
+      });
+
+      if (!material_tratamiento) continue;
+      if (material_tratamiento.confirmado) continue;
+
+      // Actualizar estado en tratamiento
+      material_tratamiento.cantidad_usada = matDto.cantidad_usada;
+      material_tratamiento.confirmado = true;
+      await this.material_tratamiento_repositorio.save(material_tratamiento);
+
+      // Descontar del inventario (FIFO)
+      const cantidad_a_descontar = matDto.cantidad_usada;
+      if (cantidad_a_descontar > 0) {
+        // Usamos registrarSalidaMaterial que ya maneja la lógica FIFO y Kardex
+        await this.registrarSalidaMaterial(usuario_id, material_tratamiento.producto.inventario.id, {
+          producto_id: material_tratamiento.producto.id,
+          cantidad: cantidad_a_descontar,
+          tipo_salida: TipoMovimientoKardex.CONSUMO_TRATAMIENTO,
+          observaciones: `Consumo general tratamiento #${plan.id}`,
+          registrar_pago: false // El pago ya se manejó arriba si aplicaba
+        });
+      }
+    }
+
+    return { mensaje: 'Materiales confirmados correctamente' };
   }
 
   get kardex() { return this.kardex_servicio; }

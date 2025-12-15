@@ -1,7 +1,8 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsArray, ValidateNested, IsInt, IsNumber, Min, IsEnum } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsArray, ValidateNested, IsInt, IsNumber, Min, IsEnum, IsOptional } from 'class-validator';
 import { Type } from 'class-transformer';
 import { TipoMaterialTratamiento } from '../entidades/material-tratamiento.entidad';
+import { MomentoConfirmacion } from '../../tratamientos/entidades/material-plantilla.entidad';
 
 class MaterialTratamientoDto {
   @ApiProperty({ description: 'ID del producto' })
@@ -16,6 +17,11 @@ class MaterialTratamientoDto {
   @IsNumber()
   @Min(0)
   cantidad_planeada: number;
+
+  @ApiPropertyOptional({ enum: MomentoConfirmacion })
+  @IsOptional()
+  @IsEnum(MomentoConfirmacion)
+  momento_confirmacion?: MomentoConfirmacion;
 }
 
 export class AsignarMaterialesTratamientoDto {

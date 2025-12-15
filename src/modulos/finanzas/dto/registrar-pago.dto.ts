@@ -7,6 +7,11 @@ export class RegistrarPagoDto {
   @IsOptional()
   @IsInt()
   cita_id?: number;
+
+  @ApiProperty({ description: 'ID del plan de tratamiento (opcional)', required: false })
+  @IsOptional()
+  @IsInt()
+  plan_tratamiento_id?: number;
   
   @ApiProperty()
   @Type(() => Date)

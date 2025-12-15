@@ -4,6 +4,7 @@ import { RegistrarEgresoDto } from './dto/registrar-egreso.dto';
 import { RegistrarPagoDto } from './dto/registrar-pago.dto';
 import { ActualizarPagoDto } from './dto/actualizar-pago.dto';
 import { ActualizarEgresoDto } from './dto/actualizar-egreso.dto';
+import { FiltrarAnalisisDto } from './dto/filtrar-analisis.dto';
 import { ApiTags, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../autenticacion/guardias/jwt-auth.guardia';
 
@@ -12,7 +13,7 @@ import { JwtAuthGuard } from '../autenticacion/guardias/jwt-auth.guardia';
 @UseGuards(JwtAuthGuard)
 @Controller('finanzas')
 export class FinanzasControlador {
-  constructor(private readonly finanzas_servicio: FinanzasServicio) {}
+  constructor(private readonly finanzas_servicio: FinanzasServicio) { }
 
   @Post('egresos')
   registrarEgreso(@Request() req, @Body() registrar_egreso_dto: RegistrarEgresoDto) {
@@ -49,6 +50,11 @@ export class FinanzasControlador {
   @ApiQuery({ name: 'fecha_fin', required: false, type: String })
   obtenerReporte(@Request() req, @Query('fecha_inicio') fecha_inicio?: string, @Query('fecha_fin') fecha_fin?: string) {
     return this.finanzas_servicio.generarReporte(req.user.id, fecha_inicio, fecha_fin);
+  }
+
+  @Post('analisis')
+  obtenerAnalisis(@Request() req, @Body() filtros: FiltrarAnalisisDto) {
+    return this.finanzas_servicio.generarAnalisis(req.user.id, filtros);
   }
 
   @Get('grafico')
