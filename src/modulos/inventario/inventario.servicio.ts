@@ -724,7 +724,7 @@ export class InventarioServicio {
       await this.finanzas_servicio.registrarPago(usuario_id, {
         concepto: `Venta activo: ${activo.producto.nombre} - ${activo.nombre_asignado || activo.codigo_interno || activo.id}`,
         monto: dto.monto_venta,
-        fecha: new Date(),
+        fecha: dto.fecha_venta ? new Date(dto.fecha_venta) : new Date(),
       });
     }
 

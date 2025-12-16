@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsInt, IsNumber, Min, IsBoolean, IsOptional, IsString, IsEnum } from 'class-validator';
+import { IsInt, IsNumber, Min, IsBoolean, IsOptional, IsString, IsEnum, IsDateString } from 'class-validator';
 import { TipoMovimientoKardex } from '../entidades/kardex.entidad';
 
 export class RegistrarSalidaMaterialDto {
@@ -69,4 +69,9 @@ export class RegistrarSalidaActivoDto {
     @IsOptional()
     @IsBoolean()
     registrar_pago?: boolean;
+
+    @ApiPropertyOptional({ description: 'Fecha de la venta' })
+    @IsOptional()
+    @IsDateString()
+    fecha_venta?: string;
 }

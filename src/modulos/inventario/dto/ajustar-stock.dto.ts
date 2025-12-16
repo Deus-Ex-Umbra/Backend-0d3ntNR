@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsInt, IsNumber, Min, IsOptional, IsString, IsEnum } from 'class-validator';
+import { IsInt, IsNumber, Min, IsOptional, IsString, IsEnum, IsDateString } from 'class-validator';
 
 export enum TipoAjuste {
   INCREMENTO = 'incremento',
@@ -34,4 +34,9 @@ export class AjustarStockDto {
   @IsOptional()
   @IsString()
   observaciones?: string;
+
+  @ApiPropertyOptional({ description: 'Fecha del ajuste' })
+  @IsOptional()
+  @IsDateString()
+  fecha?: string;
 }

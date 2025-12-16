@@ -1,5 +1,5 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsNumber, Min, IsBoolean, IsOptional } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsNumber, Min, IsBoolean, IsOptional, IsDateString } from 'class-validator';
 
 export class VenderActivoDto {
   @ApiProperty({ description: 'Monto de la venta' })
@@ -11,4 +11,9 @@ export class VenderActivoDto {
   @IsOptional()
   @IsBoolean()
   registrar_pago?: boolean;
+
+  @ApiPropertyOptional({ description: 'Fecha de la venta' })
+  @IsOptional()
+  @IsDateString()
+  fecha_venta?: string;
 }
