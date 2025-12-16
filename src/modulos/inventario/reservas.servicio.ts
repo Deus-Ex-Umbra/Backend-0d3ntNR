@@ -592,7 +592,8 @@ export class ReservasServicio {
             .andWhere(
                 '(reserva.fecha_hora_inicio < :fecha_fin AND reserva.fecha_hora_fin > :fecha_inicio)',
                 { fecha_inicio: fecha_hora_inicio, fecha_fin: fecha_hora_fin }
-            );
+            )
+            .andWhere('(cita.id IS NULL OR cita.eliminado_en IS NULL)');
 
         if (cita_id_excluir) {
             query.andWhere('(reserva.cita IS NULL OR reserva.cita != :cita_id_excluir)', { cita_id_excluir });
@@ -668,6 +669,7 @@ export class ReservasServicio {
             .where('reserva.estado = :estado', { estado: EstadoReserva.PENDIENTE })
             .andWhere('reserva.fecha_hora_inicio >= :inicio', { inicio: inicio_rango })
             .andWhere('reserva.fecha_hora_inicio <= :fin', { fin: fin_rango })
+            .andWhere('(cita.id IS NULL OR cita.eliminado_en IS NULL)')
             .getMany();
 
         let procesados = 0;

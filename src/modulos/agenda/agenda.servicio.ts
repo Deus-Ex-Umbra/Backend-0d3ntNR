@@ -455,6 +455,7 @@ export class AgendaServicio {
       .where('cita.paciente IS NOT NULL')
       .andWhere('cita.estado_pago != :estado', { estado: 'pagado' })
       .andWhere('cita.usuario.id = :usuario_id', { usuario_id })
+      .andWhere('cita.eliminado_en IS NULL')
       .orderBy('cita.fecha', 'DESC')
       .getMany();
   }
@@ -463,7 +464,7 @@ export class AgendaServicio {
     const cita = await this.cita_repositorio.findOne({
       where: { id, usuario: { id: usuario_id } },
       relations: [
-        'paciente', 
+        'paciente',
         'plan_tratamiento',
         'reservas_materiales',
         'reservas_materiales.material',
@@ -487,8 +488,8 @@ export class AgendaServicio {
     const cita = await this.cita_repositorio.findOne({
       where: { id, usuario: { id: usuario_id } },
       relations: [
-        'paciente', 
-        'plan_tratamiento', 
+        'paciente',
+        'plan_tratamiento',
         'plan_tratamiento.paciente',
         'reservas_materiales',
         'reservas_materiales.material',

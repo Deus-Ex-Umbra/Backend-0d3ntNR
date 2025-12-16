@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { PlanTratamiento } from './entidades/plan-tratamiento.entidad';
@@ -11,6 +11,9 @@ import { Cita } from '../agenda/entidades/cita.entidad';
 import { Usuario } from '../usuarios/entidades/usuario.entidad';
 import { MaterialTratamiento, TipoMaterialTratamiento } from '../inventario/entidades/material-tratamiento.entidad';
 import { MaterialCita } from '../inventario/entidades/material-cita.entidad';
+import { Material } from '../inventario/entidades/material.entidad';
+import { KardexServicio } from '../inventario/kardex.servicio';
+import { TipoMovimientoKardex } from '../inventario/entidades/kardex.entidad';
 
 @Injectable()
 export class PlanesTratamientoServicio {
@@ -23,9 +26,13 @@ export class PlanesTratamientoServicio {
     private readonly material_tratamiento_repositorio: Repository<MaterialTratamiento>,
     @InjectRepository(MaterialCita)
     private readonly material_cita_repositorio: Repository<MaterialCita>,
+    @InjectRepository(Material)
+    private readonly material_repositorio: Repository<Material>,
     private readonly pacientes_servicio: PacientesServicio,
     private readonly tratamientos_servicio: TratamientosServicio,
+    @Inject(forwardRef(() => AgendaServicio))
     private readonly agenda_servicio: AgendaServicio,
+    private readonly kardex_servicio: KardexServicio,
   ) { }
 
   private parsearFechaLocal(fecha_str: string, hora_str: string): Date {
@@ -205,10 +212,27 @@ export class PlanesTratamientoServicio {
   }
 
   async eliminarPlan(usuario_id: number, id: number): Promise<void> {
-    const plan = await this.plan_repositorio.findOne({ where: { id, usuario: { id: usuario_id } } });
+    const plan = await this.plan_repositorio.findOne({
+      where: { id, usuario: { id: usuario_id } },
+      relations: ['citas']
+    });
+
     if (!plan) {
       throw new NotFoundException(`Plan de tratamiento con ID "${id}" no encontrado o no le pertenece.`);
     }
+
+    // Eliminar citas asociadas en cascada (lógicamente) y liberar recursos
+    if (plan.citas && plan.citas.length > 0) {
+      for (const cita of plan.citas) {
+        try {
+          await this.agenda_servicio.eliminar(usuario_id, cita.id);
+        } catch (error) {
+          console.warn(`Error al eliminar cita asociada ${cita.id} del plan ${id}:`, error.message);
+          // Continuamos con las siguientes citas aunque una falle
+        }
+      }
+    }
+
     await this.plan_repositorio.softRemove(plan);
   }
 
@@ -246,11 +270,60 @@ export class PlanesTratamientoServicio {
       relations: ['producto', 'producto.inventario', 'producto.materiales'],
     });
 
-    // Aquí se registraría en Kardex - Se implementará cuando se cree el servicio de Kardex
-    // Por ahora solo marcamos como confirmado
-    for (const material of materiales) {
-      material.confirmado = true;
-      await this.material_tratamiento_repositorio.save(material);
+    for (const material_tratamiento of materiales) {
+      const cantidad_requerida = Number(material_tratamiento.cantidad_planeada);
+
+      // Buscar materiales físicos con stock disponible (FIFO por fecha de vencimiento)
+      const materiales_fisicos = (material_tratamiento.producto.materiales || [])
+        .filter((m: Material) => m.activo && Number(m.cantidad_actual) > 0)
+        .sort((a: Material, b: Material) => {
+          if (a.fecha_vencimiento && b.fecha_vencimiento) {
+            return new Date(a.fecha_vencimiento).getTime() - new Date(b.fecha_vencimiento).getTime();
+          }
+          return 0;
+        });
+
+      let cantidad_restante = cantidad_requerida;
+
+      for (const material_fisico of materiales_fisicos) {
+        if (cantidad_restante <= 0) break;
+
+        const disponible = Number(material_fisico.cantidad_actual) - Number(material_fisico.cantidad_reservada || 0);
+        const a_descontar = Math.min(cantidad_restante, disponible);
+
+        if (a_descontar > 0) {
+          const stock_anterior = Number(material_fisico.cantidad_actual);
+          const stock_nuevo = stock_anterior - a_descontar;
+
+          // Registrar salida en Kardex
+          await this.kardex_servicio.registrarSalida(
+            material_tratamiento.producto.inventario,
+            material_tratamiento.producto,
+            TipoMovimientoKardex.CONSUMO_TRATAMIENTO,
+            a_descontar,
+            stock_anterior,
+            stock_nuevo,
+            usuario_id,
+            {
+              material: material_fisico,
+              referencia_tipo: 'plan_tratamiento',
+              referencia_id: plan_id,
+              observaciones: `Consumible general confirmado para tratamiento #${plan_id}`,
+            }
+          );
+
+          // Actualizar stock del material
+          material_fisico.cantidad_actual = stock_nuevo;
+          await this.material_repositorio.save(material_fisico);
+
+          cantidad_restante -= a_descontar;
+        }
+      }
+
+      // Marcar como confirmado y registrar cantidad usada
+      material_tratamiento.confirmado = true;
+      material_tratamiento.cantidad_usada = cantidad_requerida - cantidad_restante;
+      await this.material_tratamiento_repositorio.save(material_tratamiento);
     }
   }
 
@@ -260,6 +333,7 @@ export class PlanesTratamientoServicio {
       .innerJoinAndSelect('plan.citas', 'cita')
       .where('plan.id = :plan_tratamiento_id', { plan_tratamiento_id })
       .andWhere('cita.materiales_confirmados = true')
+      .andWhere('cita.eliminado_en IS NULL')
       .getOne();
 
     // Si no hay citas confirmadas, esta es la primera

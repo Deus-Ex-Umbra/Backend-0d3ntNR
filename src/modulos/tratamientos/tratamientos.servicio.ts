@@ -84,17 +84,33 @@ export class TratamientosServicio {
       relations: ['producto', 'producto.inventario', 'producto.materiales', 'producto.activos'],
     });
 
-    return materiales.map(material => ({
-      id: material.id,
-      producto_id: material.producto.id,
-      inventario_id: material.producto.inventario.id,
-      inventario_nombre: material.producto.inventario.nombre,
-      producto_nombre: material.producto.nombre,
-      tipo_producto: material.producto.tipo,
-      unidad_medida: material.producto.unidad_medida,
-      tipo_material: material.tipo,
-      cantidad: material.cantidad,
-    }));
+    return materiales.map(material => {
+      // Calcular stock disponible para materiales
+      let stock_disponible = 0;
+      if (material.producto.materiales && material.producto.materiales.length > 0) {
+        stock_disponible = material.producto.materiales
+          .filter((m: any) => m.activo)
+          .reduce((sum: number, m: any) => sum + Number(m.cantidad_actual), 0);
+      }
+
+      // Usar permite_decimales del producto directamente
+      const permite_decimales = material.producto.permite_decimales ?? true;
+
+      return {
+        id: material.id,
+        producto_id: material.producto.id,
+        inventario_id: material.producto.inventario.id,
+        inventario_nombre: material.producto.inventario.nombre,
+        producto_nombre: material.producto.nombre,
+        tipo_producto: material.producto.tipo,
+        unidad_medida: material.producto.unidad_medida,
+        permite_decimales,
+        stock_disponible,
+        tipo_material: material.tipo,
+        cantidad: material.cantidad,
+        momento_confirmacion: material.momento_confirmacion,
+      };
+    });
   }
 
   async actualizar(id: number, actualizar_tratamiento_dto: ActualizarTratamientoDto): Promise<Tratamiento> {
@@ -154,24 +170,24 @@ export class TratamientosServicio {
 
     // Legacy support (opcional, si se sigue usando 'materiales' mezclados)
     if (materiales !== undefined) {
-       // Si se envía 'materiales', asumimos que se quiere reemplazar todo o manejarlo como antes.
-       // Para evitar conflictos con la lógica anterior, podríamos decidir no soportarlo si ya usamos los nuevos campos.
-       // O implementarlo borrando todo si se envía.
-       // Por seguridad, si se envían los campos específicos, ignoramos 'materiales'.
-       if (consumibles_generales === undefined && recursos_por_cita === undefined) {
-          await this.material_plantilla_repositorio.delete({ tratamiento: { id } });
-          if (materiales.length > 0) {
-            for (const material_dto of materiales) {
-              const material = this.material_plantilla_repositorio.create({
-                tratamiento: tratamiento_actualizado,
-                producto: { id: material_dto.producto_id } as Producto,
-                tipo: material_dto.tipo,
-                cantidad: material_dto.cantidad,
-              });
-              await this.material_plantilla_repositorio.save(material);
-            }
+      // Si se envía 'materiales', asumimos que se quiere reemplazar todo o manejarlo como antes.
+      // Para evitar conflictos con la lógica anterior, podríamos decidir no soportarlo si ya usamos los nuevos campos.
+      // O implementarlo borrando todo si se envía.
+      // Por seguridad, si se envían los campos específicos, ignoramos 'materiales'.
+      if (consumibles_generales === undefined && recursos_por_cita === undefined) {
+        await this.material_plantilla_repositorio.delete({ tratamiento: { id } });
+        if (materiales.length > 0) {
+          for (const material_dto of materiales) {
+            const material = this.material_plantilla_repositorio.create({
+              tratamiento: tratamiento_actualizado,
+              producto: { id: material_dto.producto_id } as Producto,
+              tipo: material_dto.tipo,
+              cantidad: material_dto.cantidad,
+            });
+            await this.material_plantilla_repositorio.save(material);
           }
-       }
+        }
+      }
     }
 
     return tratamiento_actualizado;
