@@ -62,6 +62,7 @@ import { Reporte } from './modulos/reportes/entidades/reporte.entidad';
 import { ConsentimientoInformado } from './modulos/pacientes/entidades/consentimiento-informado.entidad';
 import { TamanoPapel } from './modulos/catalogo/entidades/tamano-papel.entidad';
 import { HistoriaClinicaVersion } from './modulos/pacientes/entidades/historia-clinica-version.entidad';
+import { ConfiguracionClinica } from './modulos/catalogo/entidades/configuracion-clinica.entidad';
 
 @Module({
   imports: [
@@ -114,6 +115,7 @@ import { HistoriaClinicaVersion } from './modulos/pacientes/entidades/historia-c
         ConsentimientoInformado,
         HistoriaClinicaVersion,
         TamanoPapel,
+        ConfiguracionClinica,
       ],
       synchronize: true,
       ssl: {

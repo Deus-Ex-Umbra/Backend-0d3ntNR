@@ -21,6 +21,8 @@ import { TamanoPapel } from './entidades/tamano-papel.entidad';
 import { CrearTamanoPapelDto } from './dto/crear-tamano-papel.dto';
 import { ActualizarTamanoPapelDto } from './dto/actualizar-tamano-papel.dto';
 import { OnModuleInit } from '@nestjs/common';
+import { ConfiguracionClinica } from './entidades/configuracion-clinica.entidad';
+import { ActualizarConfiguracionClinicaDto } from './dto/actualizar-configuracion-clinica.dto';
 
 @Injectable()
 export class CatalogoServicio implements OnModuleInit {
@@ -39,7 +41,9 @@ export class CatalogoServicio implements OnModuleInit {
     private readonly etiqueta_plantilla_repositorio: Repository<EtiquetaPlantilla>,
     @InjectRepository(TamanoPapel)
     private readonly tamano_papel_repositorio: Repository<TamanoPapel>,
-  ) {}
+    @InjectRepository(ConfiguracionClinica)
+    private readonly configuracion_clinica_repositorio: Repository<ConfiguracionClinica>,
+  ) { }
 
   async onModuleInit() {
     await this.seedTamanosPapel();
@@ -276,6 +280,32 @@ export class CatalogoServicio implements OnModuleInit {
   async eliminarEtiquetaPlantilla(id: number, usuario_id: number): Promise<void> {
     const resultado = await this.etiqueta_plantilla_repositorio.update({ id, usuario: { id: usuario_id } }, { activo: false });
     if (resultado.affected === 0) throw new NotFoundException('Etiqueta no encontrada');
+  }
+
+  async obtenerConfiguracionClinica(usuario_id: number): Promise<ConfiguracionClinica> {
+    let config = await this.configuracion_clinica_repositorio.findOne({ where: { usuario_id } });
+    if (!config) {
+      config = this.configuracion_clinica_repositorio.create({
+        usuario_id,
+        mensaje_bienvenida_antes: 'Bienvenido,',
+        mensaje_bienvenida_despues: '¿qué haremos hoy?',
+      });
+      config = await this.configuracion_clinica_repositorio.save(config);
+    }
+    return config;
+  }
+
+  async actualizarConfiguracionClinica(usuario_id: number, dto: ActualizarConfiguracionClinicaDto): Promise<ConfiguracionClinica> {
+    let config = await this.configuracion_clinica_repositorio.findOne({ where: { usuario_id } });
+    if (!config) {
+      config = this.configuracion_clinica_repositorio.create({
+        usuario_id,
+        ...dto,
+      });
+    } else {
+      Object.assign(config, dto);
+    }
+    return this.configuracion_clinica_repositorio.save(config);
   }
 }
 

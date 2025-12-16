@@ -16,13 +16,14 @@ import { CrearEtiquetaPlantillaDto } from './dto/crear-etiqueta-plantilla.dto';
 import { ActualizarEtiquetaPlantillaDto } from './dto/actualizar-etiqueta-plantilla.dto';
 import { CrearTamanoPapelDto } from './dto/crear-tamano-papel.dto';
 import { ActualizarTamanoPapelDto } from './dto/actualizar-tamano-papel.dto';
+import { ActualizarConfiguracionClinicaDto } from './dto/actualizar-configuracion-clinica.dto';
 
 @ApiTags('Catálogo')
 @ApiBearerAuth('JWT-auth')
 @UseGuards(JwtAuthGuard)
 @Controller('catalogo')
 export class CatalogoControlador {
-  constructor(private readonly catalogo_servicio: CatalogoServicio) {}
+  constructor(private readonly catalogo_servicio: CatalogoServicio) { }
 
   @Post('alergias')
   crearAlergia(@Body() dto: CrearAlergiaDto) {
@@ -162,5 +163,15 @@ export class CatalogoControlador {
   @Delete('tamanos-papel/:id')
   eliminarTamanoPapel(@Param('id') id: string) {
     return this.catalogo_servicio.eliminarTamanoPapel(+id);
+  }
+
+  @Get('configuracion-clinica')
+  obtenerConfiguracionClinica(@Req() req: any) {
+    return this.catalogo_servicio.obtenerConfiguracionClinica(req.user.id);
+  }
+
+  @Put('configuracion-clinica')
+  actualizarConfiguracionClinica(@Body() dto: ActualizarConfiguracionClinicaDto, @Req() req: any) {
+    return this.catalogo_servicio.actualizarConfiguracionClinica(req.user.id, dto);
   }
 }

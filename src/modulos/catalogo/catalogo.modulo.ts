@@ -9,11 +9,12 @@ import { EtiquetaPlantilla } from './entidades/etiqueta-plantilla.entidad';
 import { CatalogoControlador } from './catalogo.controlador';
 import { CatalogoServicio } from './catalogo.servicio';
 import { TamanoPapel } from './entidades/tamano-papel.entidad';
+import { ConfiguracionClinica } from './entidades/configuracion-clinica.entidad';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Alergia, Enfermedad, Medicamento, ColorCategoria, Etiqueta, EtiquetaPlantilla, TamanoPapel])],
+  imports: [TypeOrmModule.forFeature([Alergia, Enfermedad, Medicamento, ColorCategoria, Etiqueta, EtiquetaPlantilla, TamanoPapel, ConfiguracionClinica])],
   controllers: [CatalogoControlador],
   providers: [CatalogoServicio],
   exports: [CatalogoServicio],
 })
-export class CatalogoModule {}
+export class CatalogoModule { }
