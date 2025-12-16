@@ -420,37 +420,27 @@ export class ReservasServicio {
         await queryRunner.startTransaction();
 
         try {
-            // Process consumable materials
             for (const item of materiales) {
                 const reserva = await queryRunner.manager.findOne(ReservaMaterial, {
                     where: { id: item.material_cita_id },
                     relations: ['material', 'material.producto', 'material.producto.inventario']
                 });
-
                 if (!reserva) continue;
                 if (reserva.estado === EstadoReserva.CONFIRMADA) continue;
-
                 const material = reserva.material;
                 const producto = material.producto;
                 const inventario = producto.inventario;
-
-                // Calculate stock changes
                 const stock_anterior = Number(material.cantidad_actual);
                 material.cantidad_reservada = Number(material.cantidad_reservada) - Number(reserva.cantidad_reservada);
                 if (material.cantidad_reservada < 0) material.cantidad_reservada = 0;
                 material.cantidad_actual = Number(material.cantidad_actual) - Number(item.cantidad_usada);
                 if (material.cantidad_actual < 0) material.cantidad_actual = 0;
                 const stock_nuevo = Number(material.cantidad_actual);
-
-                // Update reservation
                 reserva.cantidad_confirmada = item.cantidad_usada;
                 reserva.estado = EstadoReserva.CONFIRMADA;
                 reserva.fecha_confirmacion = new Date();
-
                 await queryRunner.manager.save(Material, material);
                 await queryRunner.manager.save(ReservaMaterial, reserva);
-
-                // Register in Kardex
                 await this.kardex_servicio.registrarSalida(
                     inventario,
                     producto,
@@ -467,24 +457,17 @@ export class ReservasServicio {
                     }
                 );
             }
-
-            // Process fixed assets - change state to EN_USO
             const reservas_activos = await queryRunner.manager.find(ReservaActivo, {
                 where: { cita: { id: cita_id }, estado: EstadoReserva.PENDIENTE },
                 relations: ['activo', 'activo.producto', 'activo.producto.inventario']
             });
-
             for (const reserva_activo of reservas_activos) {
                 const activo = reserva_activo.activo;
                 const inventario = activo.producto.inventario;
                 const estado_anterior = activo.estado;
-
-                // Change state to EN_USO
                 if (activo.estado !== EstadoActivo.EN_USO) {
                     activo.estado = EstadoActivo.EN_USO;
                     await queryRunner.manager.save(Activo, activo);
-
-                    // Register in Bitacora
                     await this.bitacora_servicio.registrarCambioEstado(
                         inventario,
                         activo,
@@ -498,19 +481,14 @@ export class ReservasServicio {
                         }
                     );
                 }
-
-                // Update reservation
                 reserva_activo.estado = EstadoReserva.CONFIRMADA;
                 await queryRunner.manager.save(ReservaActivo, reserva_activo);
             }
-
-            // Mark the appointment as materials confirmed
             const cita = await queryRunner.manager.findOne(Cita, { where: { id: cita_id } });
             if (cita) {
                 cita.materiales_confirmados = true;
                 await queryRunner.manager.save(Cita, cita);
             }
-
             await queryRunner.commitTransaction();
         } catch (err) {
             await queryRunner.rollbackTransaction();

@@ -142,7 +142,6 @@ const ESTILOS_DOCUMENTO = `
 
 @Injectable()
 export class PdfServicio {
-  // Conversión mm a px igual que el frontend (96 DPI)
   private mmToPx(mm: number): number {
     return Math.round((mm / 25.4) * 96);
   }
@@ -150,14 +149,10 @@ export class PdfServicio {
   async generarPdfDesdeHtml(dto: GenerarPdfDto): Promise<string> {
     const { contenido_html, config } = dto;
     const { widthMm, heightMm, margenes } = config;
-
-    // Calcular dimensiones en píxeles (igual que el frontend)
     const pageWidthPx = this.mmToPx(widthMm);
     const pageHeightPx = this.mmToPx(heightMm);
     const paddingLeft = this.mmToPx(margenes.left);
     const paddingRight = this.mmToPx(margenes.right);
-
-    // Ancho del área de contenido (igual que contentAreaWidth del frontend)
     const contentAreaWidth = pageWidthPx - paddingLeft - paddingRight;
 
     const browser = await puppeteer.launch({
@@ -173,16 +168,11 @@ export class PdfServicio {
 
     try {
       const pagina = await browser.newPage();
-
-      // Establecer viewport para controlar el renderizado exacto
       await pagina.setViewport({
         width: contentAreaWidth,
         height: pageHeightPx,
         deviceScaleFactor: 1,
       });
-
-      // HTML que replica EXACTAMENTE la estructura del frontend
-      // Los márgenes se manejan vía @page para que CSS los aplique a TODAS las páginas
       const htmlCompleto = `
         <!DOCTYPE html>
         <html>
@@ -200,7 +190,6 @@ export class PdfServicio {
                 margin: 0 !important;
                 padding: 0 !important;
                 width: ${contentAreaWidth}px;
-                /* Misma fuente que el frontend renderizador-html.tsx */
                 font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
                 font-size: 16px;
                 line-height: 1.5;
@@ -209,13 +198,11 @@ export class PdfServicio {
               }
               
               .renderizador-contenido {
-                /* Ancho EXACTO del área de contenido */
                 width: ${contentAreaWidth}px !important;
                 max-width: ${contentAreaWidth}px !important;
                 box-sizing: border-box;
                 padding: 0;
                 margin: 0;
-                /* Misma fuente que el frontend */
                 font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
                 font-size: 16px;
                 line-height: 1.5;
@@ -224,7 +211,6 @@ export class PdfServicio {
                 font-kerning: normal;
               }
               
-              /* Eliminar margen superior del primer elemento para evitar duplicación */
               .renderizador-contenido > *:first-child {
                 margin-top: 0 !important;
                 padding-top: 0 !important;
@@ -242,8 +228,6 @@ export class PdfServicio {
       `;
 
       await pagina.setContent(htmlCompleto, { waitUntil: 'networkidle0' });
-
-      // Usar preferCSSPageSize: true para que @page maneje márgenes en TODAS las páginas
       const pdfBuffer = await pagina.pdf({
         printBackground: true,
         preferCSSPageSize: true,

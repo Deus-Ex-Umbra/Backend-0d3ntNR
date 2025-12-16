@@ -20,8 +20,6 @@ export class TratamientosServicio {
     const { materiales, consumibles_generales, recursos_por_cita, ...datos_tratamiento } = crear_tratamiento_dto;
     const nuevo_tratamiento = this.tratamiento_repositorio.create(datos_tratamiento);
     const tratamiento_guardado = await this.tratamiento_repositorio.save(nuevo_tratamiento);
-
-    // Legacy: materiales genéricos
     if (materiales && materiales.length > 0) {
       for (const material_dto of materiales) {
         const material = this.material_plantilla_repositorio.create({
@@ -33,8 +31,6 @@ export class TratamientosServicio {
         await this.material_plantilla_repositorio.save(material);
       }
     }
-
-    // Nuevos: consumibles generales
     if (consumibles_generales && consumibles_generales.length > 0) {
       for (const consumible_dto of consumibles_generales) {
         const material = this.material_plantilla_repositorio.create({
@@ -47,8 +43,6 @@ export class TratamientosServicio {
         await this.material_plantilla_repositorio.save(material);
       }
     }
-
-    // Nuevos: recursos por cita
     if (recursos_por_cita && recursos_por_cita.length > 0) {
       for (const recurso_dto of recursos_por_cita) {
         const material = this.material_plantilla_repositorio.create({
@@ -85,15 +79,12 @@ export class TratamientosServicio {
     });
 
     return materiales.map(material => {
-      // Calcular stock disponible para materiales
       let stock_disponible = 0;
       if (material.producto.materiales && material.producto.materiales.length > 0) {
         stock_disponible = material.producto.materiales
           .filter((m: any) => m.activo)
           .reduce((sum: number, m: any) => sum + Number(m.cantidad_actual), 0);
       }
-
-      // Usar permite_decimales del producto directamente
       const permite_decimales = material.producto.permite_decimales ?? true;
 
       return {
@@ -124,10 +115,7 @@ export class TratamientosServicio {
     if (!tratamiento) {
       throw new NotFoundException(`Tratamiento con ID "${id}" no encontrado.`);
     }
-
     const tratamiento_actualizado = await this.tratamiento_repositorio.save(tratamiento);
-
-    // Actualizar consumibles generales
     if (consumibles_generales !== undefined) {
       await this.material_plantilla_repositorio.delete({
         tratamiento: { id },
@@ -147,8 +135,6 @@ export class TratamientosServicio {
         }
       }
     }
-
-    // Actualizar recursos por cita
     if (recursos_por_cita !== undefined) {
       await this.material_plantilla_repositorio.delete({
         tratamiento: { id },
@@ -167,13 +153,7 @@ export class TratamientosServicio {
         }
       }
     }
-
-    // Legacy support (opcional, si se sigue usando 'materiales' mezclados)
     if (materiales !== undefined) {
-      // Si se envía 'materiales', asumimos que se quiere reemplazar todo o manejarlo como antes.
-      // Para evitar conflictos con la lógica anterior, podríamos decidir no soportarlo si ya usamos los nuevos campos.
-      // O implementarlo borrando todo si se envía.
-      // Por seguridad, si se envían los campos específicos, ignoramos 'materiales'.
       if (consumibles_generales === undefined && recursos_por_cita === undefined) {
         await this.material_plantilla_repositorio.delete({ tratamiento: { id } });
         if (materiales.length > 0) {

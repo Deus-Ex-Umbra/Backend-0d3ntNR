@@ -18,6 +18,9 @@ export class ConfiguracionClinica {
     @Column({ default: '¿qué haremos hoy?' })
     mensaje_bienvenida_despues: string;
 
+    @Column({ type: 'text', nullable: true })
+    tema_personalizado: string;
+
     @ManyToOne(() => Usuario)
     @JoinColumn({ name: 'usuario_id' })
     usuario: Usuario;

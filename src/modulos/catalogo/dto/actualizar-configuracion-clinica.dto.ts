@@ -16,4 +16,8 @@ export class ActualizarConfiguracionClinicaDto {
     @IsOptional()
     @IsString()
     mensaje_bienvenida_despues?: string;
+
+    @IsOptional()
+    @IsString()
+    tema_personalizado?: string;
 }

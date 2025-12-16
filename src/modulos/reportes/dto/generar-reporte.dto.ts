@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsArray, IsEnum, IsOptional, IsDateString, ArrayMinSize } from 'class-validator';
+import { IsArray, IsEnum, IsOptional, IsDateString, ArrayMinSize, IsBoolean } from 'class-validator';
 
 export enum AreaReporte {
   FINANZAS = 'finanzas',
@@ -9,9 +9,9 @@ export enum AreaReporte {
 }
 
 export class GenerarReporteDto {
-  @ApiProperty({ 
-    enum: AreaReporte, 
-    isArray: true, 
+  @ApiProperty({
+    enum: AreaReporte,
+    isArray: true,
     description: 'Áreas a incluir en el reporte',
     example: ['finanzas', 'agenda']
   })
@@ -29,4 +29,9 @@ export class GenerarReporteDto {
   @IsOptional()
   @IsDateString()
   fecha_fin?: string;
+
+  @ApiProperty({ required: false, default: true, description: 'Incluir sugerencias y conclusiones de IA al final del reporte' })
+  @IsOptional()
+  @IsBoolean()
+  incluir_sugerencias?: boolean;
 }

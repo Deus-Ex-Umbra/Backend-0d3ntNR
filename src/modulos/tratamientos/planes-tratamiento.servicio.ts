@@ -124,8 +124,6 @@ export class PlanesTratamientoServicio {
       where: { tratamiento: { id: tratamiento_id } },
       relations: ['producto'],
     });
-
-    // Copiar consumibles generales (GENERAL) a MaterialTratamiento
     const materiales_generales = materiales_plantilla.filter(m => m.tipo === TipoMaterialPlantilla.GENERAL);
     for (const material of materiales_generales) {
       const material_tratamiento = this.material_tratamiento_repositorio.create({
@@ -155,8 +153,6 @@ export class PlanesTratamientoServicio {
       );
     }
     const citas_creadas = await Promise.all(citas_promesas);
-
-    // Copiar recursos por cita (POR_CITA) a cada MaterialCita creada
     const materiales_por_cita = materiales_plantilla.filter(m => m.tipo === TipoMaterialPlantilla.POR_CITA);
     for (const cita of citas_creadas) {
       for (const material of materiales_por_cita) {
@@ -220,15 +216,12 @@ export class PlanesTratamientoServicio {
     if (!plan) {
       throw new NotFoundException(`Plan de tratamiento con ID "${id}" no encontrado o no le pertenece.`);
     }
-
-    // Eliminar citas asociadas en cascada (lógicamente) y liberar recursos
     if (plan.citas && plan.citas.length > 0) {
       for (const cita of plan.citas) {
         try {
           await this.agenda_servicio.eliminar(usuario_id, cita.id);
         } catch (error) {
           console.warn(`Error al eliminar cita asociada ${cita.id} del plan ${id}:`, error.message);
-          // Continuamos con las siguientes citas aunque una falle
         }
       }
     }
@@ -272,8 +265,6 @@ export class PlanesTratamientoServicio {
 
     for (const material_tratamiento of materiales) {
       const cantidad_requerida = Number(material_tratamiento.cantidad_planeada);
-
-      // Buscar materiales físicos con stock disponible (FIFO por fecha de vencimiento)
       const materiales_fisicos = (material_tratamiento.producto.materiales || [])
         .filter((m: Material) => m.activo && Number(m.cantidad_actual) > 0)
         .sort((a: Material, b: Material) => {
@@ -294,8 +285,6 @@ export class PlanesTratamientoServicio {
         if (a_descontar > 0) {
           const stock_anterior = Number(material_fisico.cantidad_actual);
           const stock_nuevo = stock_anterior - a_descontar;
-
-          // Registrar salida en Kardex
           await this.kardex_servicio.registrarSalida(
             material_tratamiento.producto.inventario,
             material_tratamiento.producto,
@@ -311,16 +300,12 @@ export class PlanesTratamientoServicio {
               observaciones: `Consumible general confirmado para tratamiento #${plan_id}`,
             }
           );
-
-          // Actualizar stock del material
           material_fisico.cantidad_actual = stock_nuevo;
           await this.material_repositorio.save(material_fisico);
 
           cantidad_restante -= a_descontar;
         }
       }
-
-      // Marcar como confirmado y registrar cantidad usada
       material_tratamiento.confirmado = true;
       material_tratamiento.cantidad_usada = cantidad_requerida - cantidad_restante;
       await this.material_tratamiento_repositorio.save(material_tratamiento);
@@ -335,8 +320,6 @@ export class PlanesTratamientoServicio {
       .andWhere('cita.materiales_confirmados = true')
       .andWhere('cita.eliminado_en IS NULL')
       .getOne();
-
-    // Si no hay citas confirmadas, esta es la primera
     return !citas || citas.citas.length === 0;
   }
 }

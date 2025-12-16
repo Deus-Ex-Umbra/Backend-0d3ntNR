@@ -9,7 +9,11 @@ import { Pago } from '../finanzas/entidades/pago.entidad';
 import { Egreso } from '../finanzas/entidades/egreso.entidad';
 import { Inventario } from '../inventario/entidades/inventario.entidad';
 import { Producto } from '../inventario/entidades/producto.entidad';
+import { Kardex } from '../inventario/entidades/kardex.entidad';
+import { Activo } from '../inventario/entidades/activo.entidad';
 import { Reporte } from './entidades/reporte.entidad';
+import { Usuario } from '../usuarios/entidades/usuario.entidad';
+import { ConfiguracionClinica } from '../catalogo/entidades/configuracion-clinica.entidad';
 import { GeminiModule } from '../gemini/gemini.modulo';
 import { AlmacenamientoModule } from '../almacenamiento/almacenamiento.modulo';
 
@@ -23,7 +27,11 @@ import { AlmacenamientoModule } from '../almacenamiento/almacenamiento.modulo';
       Egreso,
       Inventario,
       Producto,
+      Kardex,
+      Activo,
       Reporte,
+      Usuario,
+      ConfiguracionClinica,
     ]),
     GeminiModule,
     AlmacenamientoModule,
@@ -32,4 +40,4 @@ import { AlmacenamientoModule } from '../almacenamiento/almacenamiento.modulo';
   providers: [ReportesServicio],
   exports: [ReportesServicio],
 })
-export class ReportesModule {}
+export class ReportesModule { }

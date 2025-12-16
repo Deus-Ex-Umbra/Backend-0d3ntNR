@@ -919,8 +919,6 @@ export class InventarioServicio {
     if (!plan) {
       throw new NotFoundException('Plan de tratamiento no encontrado');
     }
-
-    // Eliminar materiales existentes para este plan
     await this.material_tratamiento_repositorio.delete({ plan_tratamiento: { id: plan_tratamiento_id } });
 
     const nuevos_materiales: MaterialTratamiento[] = [];
@@ -950,8 +948,6 @@ export class InventarioServicio {
     if (!plan) {
       throw new NotFoundException('Plan de tratamiento no encontrado');
     }
-
-    // Procesar procesamiento de pago si existe
     if (dto.monto_pago && dto.monto_pago > 0) {
       await this.finanzas_servicio.registrarPago(usuario_id, {
         fecha: new Date(),
@@ -960,32 +956,24 @@ export class InventarioServicio {
         plan_tratamiento_id: plan.id
       });
     }
-
-    // Procesar materiales
     for (const matDto of dto.materiales) {
       const material_tratamiento = await this.material_tratamiento_repositorio.findOne({
         where: { id: matDto.material_tratamiento_id },
         relations: ['producto', 'producto.inventario']
       });
-
       if (!material_tratamiento) continue;
       if (material_tratamiento.confirmado) continue;
-
-      // Actualizar estado en tratamiento
       material_tratamiento.cantidad_usada = matDto.cantidad_usada;
       material_tratamiento.confirmado = true;
       await this.material_tratamiento_repositorio.save(material_tratamiento);
-
-      // Descontar del inventario (FIFO)
       const cantidad_a_descontar = matDto.cantidad_usada;
       if (cantidad_a_descontar > 0) {
-        // Usamos registrarSalidaMaterial que ya maneja la lógica FIFO y Kardex
         await this.registrarSalidaMaterial(usuario_id, material_tratamiento.producto.inventario.id, {
           producto_id: material_tratamiento.producto.id,
           cantidad: cantidad_a_descontar,
           tipo_salida: TipoMovimientoKardex.CONSUMO_TRATAMIENTO,
           observaciones: `Consumo general tratamiento #${plan.id}`,
-          registrar_pago: false // El pago ya se manejó arriba si aplicaba
+          registrar_pago: false
         });
       }
     }
