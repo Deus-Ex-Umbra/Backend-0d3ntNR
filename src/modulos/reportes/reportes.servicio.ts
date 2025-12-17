@@ -52,7 +52,6 @@ export class ReportesServicio {
   ) { }
 
   async generarReporte(usuario_id: number, dto: GenerarReporteDto): Promise<Buffer> {
-    // Parsear fechas asegurando que se interpreten como locales (00:00:00) y no UTC
     let fecha_inicio = new Date(0);
     if (dto.fecha_inicio) {
       const [year, month, day] = dto.fecha_inicio.toString().split('-').map(Number);
@@ -64,7 +63,6 @@ export class ReportesServicio {
       const [year, month, day] = dto.fecha_fin.toString().split('-').map(Number);
       fecha_fin = new Date(year, month - 1, day);
     }
-    // Establecer final del día para la fecha fin
     fecha_fin.setHours(23, 59, 59, 999);
 
     const usuario = await this.usuario_repositorio.findOne({ where: { id: usuario_id } });
@@ -424,7 +422,6 @@ El texto dentro de cada campo debe usar formato Markdown simple (negritas, lista
             minute: '2-digit',
           }).format(d);
         };
-        // Capitalizar primera letra
         const fechaAmigable = formatoFechaHoraAmigable(fechaGen);
         const fechaFinal = fechaAmigable.charAt(0).toUpperCase() + fechaAmigable.slice(1);
 
@@ -1128,7 +1125,6 @@ El texto dentro de cada campo debe usar formato Markdown simple (negritas, lista
   }
 
   async generarYGuardarReporte(usuario_id: number, dto: GenerarReporteDto) {
-    // Parsear fechas asegurando que se interpreten como locales (00:00:00) y no UTC
     let fecha_inicio = new Date(0);
     if (dto.fecha_inicio) {
       const [year, month, day] = dto.fecha_inicio.toString().split('-').map(Number);
@@ -1140,7 +1136,6 @@ El texto dentro de cada campo debe usar formato Markdown simple (negritas, lista
       const [year, month, day] = dto.fecha_fin.toString().split('-').map(Number);
       fecha_fin = new Date(year, month - 1, day);
     }
-    // Establecer final del día para la fecha fin
     fecha_fin.setHours(23, 59, 59, 999);
 
     const usuario = await this.usuario_repositorio.findOne({ where: { id: usuario_id } });
@@ -1209,8 +1204,6 @@ El texto dentro de cada campo debe usar formato Markdown simple (negritas, lista
     reporte.usuario = { id: usuario_id } as any;
 
     await this.reporte_repositorio.save(reporte);
-
-    // Ajustar fecha_creacion a hora local para evitar problemas de zona horaria en el frontend
     const fecha_creacion_local = new Date(reporte.fecha_creacion.getTime() - reporte.fecha_creacion.getTimezoneOffset() * 60000);
 
     return {
@@ -1231,7 +1224,6 @@ El texto dentro de cada campo debe usar formato Markdown simple (negritas, lista
     });
 
     return reportes.map(r => {
-      // Ajustar fecha_creacion a hora local para evitar problemas de zona horaria en el frontend
       const fecha_creacion_local = new Date(r.fecha_creacion.getTime() - r.fecha_creacion.getTimezoneOffset() * 60000);
       
       return {
