@@ -16,9 +16,9 @@ export class TratamientosServicio {
     private readonly material_plantilla_repositorio: Repository<MaterialPlantilla>,
   ) { }
 
-  async crear(crear_tratamiento_dto: CrearTratamientoDto): Promise<Tratamiento> {
+  async crear(usuario_id: number, crear_tratamiento_dto: CrearTratamientoDto): Promise<Tratamiento> {
     const { materiales, consumibles_generales, recursos_por_cita, ...datos_tratamiento } = crear_tratamiento_dto;
-    const nuevo_tratamiento = this.tratamiento_repositorio.create(datos_tratamiento);
+    const nuevo_tratamiento = this.tratamiento_repositorio.create({ ...datos_tratamiento, usuario_id });
     const tratamiento_guardado = await this.tratamiento_repositorio.save(nuevo_tratamiento);
     if (materiales && materiales.length > 0) {
       for (const material_dto of materiales) {
@@ -58,13 +58,13 @@ export class TratamientosServicio {
     return tratamiento_guardado;
   }
 
-  async encontrarTodos(): Promise<Tratamiento[]> {
-    return this.tratamiento_repositorio.find({ where: { activo: true } });
+  async encontrarTodos(usuario_id: number): Promise<Tratamiento[]> {
+    return this.tratamiento_repositorio.find({ where: { activo: true, usuario_id } });
   }
 
-  async encontrarPorId(id: number): Promise<Tratamiento> {
+  async encontrarPorId(usuario_id: number, id: number): Promise<Tratamiento> {
     const tratamiento = await this.tratamiento_repositorio.findOne({
-      where: { id, activo: true }
+      where: { id, activo: true, usuario_id }
     });
     if (!tratamiento) {
       throw new NotFoundException(`Tratamiento con ID "${id}" no encontrado.`);
@@ -72,7 +72,10 @@ export class TratamientosServicio {
     return tratamiento;
   }
 
-  async obtenerMaterialesPlantilla(id: number): Promise<any[]> {
+  async obtenerMaterialesPlantilla(usuario_id: number, id: number): Promise<any[]> {
+    // Verify the tratamiento belongs to the user first
+    await this.encontrarPorId(usuario_id, id);
+
     const materiales = await this.material_plantilla_repositorio.find({
       where: { tratamiento: { id } },
       relations: ['producto', 'producto.inventario', 'producto.materiales', 'producto.activos'],
@@ -104,18 +107,18 @@ export class TratamientosServicio {
     });
   }
 
-  async actualizar(id: number, actualizar_tratamiento_dto: ActualizarTratamientoDto): Promise<Tratamiento> {
+  async actualizar(usuario_id: number, id: number, actualizar_tratamiento_dto: ActualizarTratamientoDto): Promise<Tratamiento> {
     const { materiales, consumibles_generales, recursos_por_cita, ...datos_tratamiento } = actualizar_tratamiento_dto;
 
-    const tratamiento = await this.tratamiento_repositorio.preload({
-      id: id,
-      ...datos_tratamiento,
-    });
-
-    if (!tratamiento) {
+    // Verify the tratamiento belongs to the user
+    const tratamiento_existente = await this.tratamiento_repositorio.findOne({ where: { id, usuario_id } });
+    if (!tratamiento_existente) {
       throw new NotFoundException(`Tratamiento con ID "${id}" no encontrado.`);
     }
-    const tratamiento_actualizado = await this.tratamiento_repositorio.save(tratamiento);
+
+    Object.assign(tratamiento_existente, datos_tratamiento);
+    const tratamiento_actualizado = await this.tratamiento_repositorio.save(tratamiento_existente);
+
     if (consumibles_generales !== undefined) {
       await this.material_plantilla_repositorio.delete({
         tratamiento: { id },
@@ -173,9 +176,9 @@ export class TratamientosServicio {
     return tratamiento_actualizado;
   }
 
-  async eliminar(id: number): Promise<void> {
+  async eliminar(usuario_id: number, id: number): Promise<void> {
     const tratamiento = await this.tratamiento_repositorio.findOne({
-      where: { id, activo: true }
+      where: { id, activo: true, usuario_id }
     });
 
     if (!tratamiento) {
@@ -185,7 +188,10 @@ export class TratamientosServicio {
     await this.tratamiento_repositorio.save(tratamiento);
   }
 
-  async obtenerConsumiblesGenerales(id: number): Promise<any[]> {
+  async obtenerConsumiblesGenerales(usuario_id: number, id: number): Promise<any[]> {
+    // Verify the tratamiento belongs to the user first
+    await this.encontrarPorId(usuario_id, id);
+
     const materiales = await this.material_plantilla_repositorio.find({
       where: {
         tratamiento: { id },
@@ -207,7 +213,10 @@ export class TratamientosServicio {
     }));
   }
 
-  async obtenerRecursosPorCita(id: number): Promise<any[]> {
+  async obtenerRecursosPorCita(usuario_id: number, id: number): Promise<any[]> {
+    // Verify the tratamiento belongs to the user first
+    await this.encontrarPorId(usuario_id, id);
+
     const materiales = await this.material_plantilla_repositorio.find({
       where: {
         tratamiento: { id },

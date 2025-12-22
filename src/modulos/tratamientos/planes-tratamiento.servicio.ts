@@ -45,7 +45,7 @@ export class PlanesTratamientoServicio {
   async asignarPlan(usuario_id: number, asignar_plan_dto: AsignarPlanTratamientoDto): Promise<PlanTratamiento> {
     const { paciente_id, tratamiento_id, fecha_inicio, hora_inicio } = asignar_plan_dto;
     const paciente = await this.pacientes_servicio.encontrarPorId(usuario_id, paciente_id);
-    const tratamiento_plantilla = await this.tratamientos_servicio.encontrarPorId(tratamiento_id);
+    const tratamiento_plantilla = await this.tratamientos_servicio.encontrarPorId(usuario_id, tratamiento_id);
 
     const fecha_actual = this.parsearFechaLocal(fecha_inicio, hora_inicio);
 

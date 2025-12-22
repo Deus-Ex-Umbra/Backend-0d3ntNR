@@ -26,83 +26,83 @@ export class CatalogoControlador {
   constructor(private readonly catalogo_servicio: CatalogoServicio) { }
 
   @Post('alergias')
-  crearAlergia(@Body() dto: CrearAlergiaDto) {
-    return this.catalogo_servicio.crearAlergia(dto);
+  crearAlergia(@Body() dto: CrearAlergiaDto, @Req() req: any) {
+    return this.catalogo_servicio.crearAlergia(req.user.id, dto);
   }
 
   @Get('alergias')
-  obtenerAlergias() {
-    return this.catalogo_servicio.obtenerAlergias();
+  obtenerAlergias(@Req() req: any) {
+    return this.catalogo_servicio.obtenerAlergias(req.user.id);
   }
 
   @Put('alergias/:id')
-  actualizarAlergia(@Param('id') id: string, @Body() dto: ActualizarAlergiaDto) {
-    return this.catalogo_servicio.actualizarAlergia(+id, dto);
+  actualizarAlergia(@Param('id') id: string, @Body() dto: ActualizarAlergiaDto, @Req() req: any) {
+    return this.catalogo_servicio.actualizarAlergia(req.user.id, +id, dto);
   }
 
   @Delete('alergias/:id')
-  eliminarAlergia(@Param('id') id: string) {
-    return this.catalogo_servicio.eliminarAlergia(+id);
+  eliminarAlergia(@Param('id') id: string, @Req() req: any) {
+    return this.catalogo_servicio.eliminarAlergia(req.user.id, +id);
   }
 
   @Post('enfermedades')
-  crearEnfermedad(@Body() dto: CrearEnfermedadDto) {
-    return this.catalogo_servicio.crearEnfermedad(dto);
+  crearEnfermedad(@Body() dto: CrearEnfermedadDto, @Req() req: any) {
+    return this.catalogo_servicio.crearEnfermedad(req.user.id, dto);
   }
 
   @Get('enfermedades')
-  obtenerEnfermedades() {
-    return this.catalogo_servicio.obtenerEnfermedades();
+  obtenerEnfermedades(@Req() req: any) {
+    return this.catalogo_servicio.obtenerEnfermedades(req.user.id);
   }
 
   @Put('enfermedades/:id')
-  actualizarEnfermedad(@Param('id') id: string, @Body() dto: ActualizarEnfermedadDto) {
-    return this.catalogo_servicio.actualizarEnfermedad(+id, dto);
+  actualizarEnfermedad(@Param('id') id: string, @Body() dto: ActualizarEnfermedadDto, @Req() req: any) {
+    return this.catalogo_servicio.actualizarEnfermedad(req.user.id, +id, dto);
   }
 
   @Delete('enfermedades/:id')
-  eliminarEnfermedad(@Param('id') id: string) {
-    return this.catalogo_servicio.eliminarEnfermedad(+id);
+  eliminarEnfermedad(@Param('id') id: string, @Req() req: any) {
+    return this.catalogo_servicio.eliminarEnfermedad(req.user.id, +id);
   }
 
   @Post('medicamentos')
-  crearMedicamento(@Body() dto: CrearMedicamentoDto) {
-    return this.catalogo_servicio.crearMedicamento(dto);
+  crearMedicamento(@Body() dto: CrearMedicamentoDto, @Req() req: any) {
+    return this.catalogo_servicio.crearMedicamento(req.user.id, dto);
   }
 
   @Get('medicamentos')
-  obtenerMedicamentos() {
-    return this.catalogo_servicio.obtenerMedicamentos();
+  obtenerMedicamentos(@Req() req: any) {
+    return this.catalogo_servicio.obtenerMedicamentos(req.user.id);
   }
 
   @Put('medicamentos/:id')
-  actualizarMedicamento(@Param('id') id: string, @Body() dto: ActualizarMedicamentoDto) {
-    return this.catalogo_servicio.actualizarMedicamento(+id, dto);
+  actualizarMedicamento(@Param('id') id: string, @Body() dto: ActualizarMedicamentoDto, @Req() req: any) {
+    return this.catalogo_servicio.actualizarMedicamento(req.user.id, +id, dto);
   }
 
   @Delete('medicamentos/:id')
-  eliminarMedicamento(@Param('id') id: string) {
-    return this.catalogo_servicio.eliminarMedicamento(+id);
+  eliminarMedicamento(@Param('id') id: string, @Req() req: any) {
+    return this.catalogo_servicio.eliminarMedicamento(req.user.id, +id);
   }
 
   @Post('colores')
-  crearColor(@Body() dto: CrearColorCategoriaDto) {
-    return this.catalogo_servicio.crearColor(dto);
+  crearColor(@Body() dto: CrearColorCategoriaDto, @Req() req: any) {
+    return this.catalogo_servicio.crearColor(req.user.id, dto);
   }
 
   @Get('colores')
-  obtenerColores() {
-    return this.catalogo_servicio.obtenerColores();
+  obtenerColores(@Req() req: any) {
+    return this.catalogo_servicio.obtenerColores(req.user.id);
   }
 
   @Put('colores/:id')
-  actualizarColor(@Param('id') id: string, @Body() dto: ActualizarColorCategoriaDto) {
-    return this.catalogo_servicio.actualizarColor(+id, dto);
+  actualizarColor(@Param('id') id: string, @Body() dto: ActualizarColorCategoriaDto, @Req() req: any) {
+    return this.catalogo_servicio.actualizarColor(req.user.id, +id, dto);
   }
 
   @Delete('colores/:id')
-  eliminarColor(@Param('id') id: string) {
-    return this.catalogo_servicio.eliminarColor(+id);
+  eliminarColor(@Param('id') id: string, @Req() req: any) {
+    return this.catalogo_servicio.eliminarColor(req.user.id, +id);
   }
 
   @Post('etiquetas')

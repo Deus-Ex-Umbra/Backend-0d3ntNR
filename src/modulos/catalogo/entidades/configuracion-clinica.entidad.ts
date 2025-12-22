@@ -10,6 +10,9 @@ export class ConfiguracionClinica {
     logo: string;
 
     @Column({ nullable: true })
+    logo_enlace: string;
+
+    @Column({ nullable: true })
     nombre_clinica: string;
 
     @Column({ default: 'Bienvenido,' })

@@ -1,11 +1,12 @@
-import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
+import { Usuario } from '../../usuarios/entidades/usuario.entidad';
 
 @Entity()
 export class Enfermedad {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ unique: true })
+  @Column()
   nombre: string;
 
   @Column({ nullable: true })
@@ -13,4 +14,11 @@ export class Enfermedad {
 
   @Column({ default: true })
   activo: boolean;
+
+  @ManyToOne(() => Usuario, { nullable: true, onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'usuario_id' })
+  usuario: Usuario;
+
+  @Column({ nullable: true })
+  usuario_id: number;
 }

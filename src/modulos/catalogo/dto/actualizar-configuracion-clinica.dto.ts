@@ -7,6 +7,10 @@ export class ActualizarConfiguracionClinicaDto {
 
     @IsOptional()
     @IsString()
+    logo_enlace?: string;
+
+    @IsOptional()
+    @IsString()
     nombre_clinica?: string;
 
     @IsOptional()

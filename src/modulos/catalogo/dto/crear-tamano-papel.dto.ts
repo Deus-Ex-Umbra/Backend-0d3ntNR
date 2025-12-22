@@ -1,4 +1,4 @@
-import { IsInt, IsNotEmpty, IsOptional, Min } from 'class-validator';
+import { IsInt, IsNotEmpty, Min } from 'class-validator';
 
 export class CrearTamanoPapelDto {
   @IsNotEmpty()
@@ -11,7 +11,4 @@ export class CrearTamanoPapelDto {
   @IsInt()
   @Min(1)
   alto: number;
-
-  @IsOptional()
-  descripcion?: string;
 }

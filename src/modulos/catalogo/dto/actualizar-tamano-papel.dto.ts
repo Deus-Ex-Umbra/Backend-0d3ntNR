@@ -13,7 +13,4 @@ export class ActualizarTamanoPapelDto {
   @IsInt()
   @Min(1)
   alto?: number;
-
-  @IsOptional()
-  descripcion?: string;
 }

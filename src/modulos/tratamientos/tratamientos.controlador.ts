@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Put, Delete, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Put, Delete, UseGuards, Req } from '@nestjs/common';
 import { TratamientosServicio } from './tratamientos.servicio';
 import { CrearTratamientoDto } from './dto/crear-tratamiento.dto';
 import { ActualizarTratamientoDto } from './dto/actualizar-tratamiento.dto';
@@ -13,42 +13,42 @@ export class TratamientosControlador {
   constructor(private readonly tratamientos_servicio: TratamientosServicio) { }
 
   @Post()
-  crear(@Body() crear_tratamiento_dto: CrearTratamientoDto) {
-    return this.tratamientos_servicio.crear(crear_tratamiento_dto);
+  crear(@Body() crear_tratamiento_dto: CrearTratamientoDto, @Req() req: any) {
+    return this.tratamientos_servicio.crear(req.user.id, crear_tratamiento_dto);
   }
 
   @Get()
-  encontrarTodos() {
-    return this.tratamientos_servicio.encontrarTodos();
+  encontrarTodos(@Req() req: any) {
+    return this.tratamientos_servicio.encontrarTodos(req.user.id);
   }
 
   @Get(':id')
-  encontrarUno(@Param('id') id: string) {
-    return this.tratamientos_servicio.encontrarPorId(+id);
+  encontrarUno(@Param('id') id: string, @Req() req: any) {
+    return this.tratamientos_servicio.encontrarPorId(req.user.id, +id);
   }
 
   @Get(':id/materiales')
-  obtenerMaterialesPlantilla(@Param('id') id: string) {
-    return this.tratamientos_servicio.obtenerMaterialesPlantilla(+id);
+  obtenerMaterialesPlantilla(@Param('id') id: string, @Req() req: any) {
+    return this.tratamientos_servicio.obtenerMaterialesPlantilla(req.user.id, +id);
   }
 
   @Get(':id/consumibles-generales')
-  obtenerConsumiblesGenerales(@Param('id') id: string) {
-    return this.tratamientos_servicio.obtenerConsumiblesGenerales(+id);
+  obtenerConsumiblesGenerales(@Param('id') id: string, @Req() req: any) {
+    return this.tratamientos_servicio.obtenerConsumiblesGenerales(req.user.id, +id);
   }
 
   @Get(':id/recursos-por-cita')
-  obtenerRecursosPorCita(@Param('id') id: string) {
-    return this.tratamientos_servicio.obtenerRecursosPorCita(+id);
+  obtenerRecursosPorCita(@Param('id') id: string, @Req() req: any) {
+    return this.tratamientos_servicio.obtenerRecursosPorCita(req.user.id, +id);
   }
 
   @Put(':id')
-  actualizar(@Param('id') id: string, @Body() actualizar_tratamiento_dto: ActualizarTratamientoDto) {
-    return this.tratamientos_servicio.actualizar(+id, actualizar_tratamiento_dto);
+  actualizar(@Param('id') id: string, @Body() actualizar_tratamiento_dto: ActualizarTratamientoDto, @Req() req: any) {
+    return this.tratamientos_servicio.actualizar(req.user.id, +id, actualizar_tratamiento_dto);
   }
 
   @Delete(':id')
-  eliminar(@Param('id') id: string) {
-    return this.tratamientos_servicio.eliminar(+id);
+  eliminar(@Param('id') id: string, @Req() req: any) {
+    return this.tratamientos_servicio.eliminar(req.user.id, +id);
   }
 }

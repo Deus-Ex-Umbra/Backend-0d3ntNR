@@ -13,6 +13,7 @@ async function bootstrap() {
   app.enableCors({
         origin: [
                   'http://localhost:5173',
+                  'http://192.168.0.X:3000',
                   'https://demo-0d3nt-nr.vercel.app',
                   'https://backend-0d3nt.ddns.net'
                 ],

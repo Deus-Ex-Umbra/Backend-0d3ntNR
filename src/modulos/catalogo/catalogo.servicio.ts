@@ -88,10 +88,17 @@ export class CatalogoServicio implements OnModuleInit {
     }
   }
 
+  private generarDescripcionTamano(ancho: number, alto: number): string {
+    const anchoPulgadas = (ancho / 25.4).toFixed(2);
+    const altoPulgadas = (alto / 25.4).toFixed(2);
+    return `${ancho} × ${alto} mm (${anchoPulgadas}" × ${altoPulgadas}")`;
+  }
+
   async crearTamanoPapel(dto: CrearTamanoPapelDto): Promise<TamanoPapel> {
     const existe = await this.tamano_papel_repositorio.findOne({ where: { nombre: dto.nombre } });
     if (existe) throw new ConflictException('Este tamaño de papel ya existe');
-    const tamano = this.tamano_papel_repositorio.create({ ...dto, protegido: false, activo: true });
+    const descripcion = this.generarDescripcionTamano(dto.ancho, dto.alto);
+    const tamano = this.tamano_papel_repositorio.create({ ...dto, descripcion, protegido: false, activo: true });
     return this.tamano_papel_repositorio.save(tamano);
   }
 
@@ -104,6 +111,8 @@ export class CatalogoServicio implements OnModuleInit {
     if (!existente) throw new NotFoundException('Tamaño no encontrado');
     if (existente.protegido) throw new ConflictException('Este tamaño está protegido y no puede modificarse');
     Object.assign(existente, dto);
+    // Auto-generate description based on final ancho and alto values
+    existente.descripcion = this.generarDescripcionTamano(existente.ancho, existente.alto);
     return this.tamano_papel_repositorio.save(existente);
   }
 
@@ -115,109 +124,113 @@ export class CatalogoServicio implements OnModuleInit {
     if (resultado.affected === 0) throw new NotFoundException('Tamaño no encontrado');
   }
 
-  async crearAlergia(dto: CrearAlergiaDto): Promise<Alergia> {
-    const existe = await this.alergia_repositorio.findOne({ where: { nombre: dto.nombre } });
+  async crearAlergia(usuario_id: number, dto: CrearAlergiaDto): Promise<Alergia> {
+    const existe = await this.alergia_repositorio.findOne({ where: { nombre: dto.nombre, usuario_id } });
     if (existe) {
       throw new ConflictException('Esta alergia ya existe');
     }
-    const alergia = this.alergia_repositorio.create(dto);
+    const alergia = this.alergia_repositorio.create({ ...dto, usuario_id });
     return this.alergia_repositorio.save(alergia);
   }
 
-  async obtenerAlergias(): Promise<Alergia[]> {
-    return this.alergia_repositorio.find({ where: { activo: true }, order: { nombre: 'ASC' } });
+  async obtenerAlergias(usuario_id: number): Promise<Alergia[]> {
+    return this.alergia_repositorio.find({ where: { activo: true, usuario_id }, order: { nombre: 'ASC' } });
   }
 
-  async actualizarAlergia(id: number, dto: ActualizarAlergiaDto): Promise<Alergia> {
-    const alergia = await this.alergia_repositorio.preload({ id, ...dto });
+  async actualizarAlergia(usuario_id: number, id: number, dto: ActualizarAlergiaDto): Promise<Alergia> {
+    const alergia = await this.alergia_repositorio.findOne({ where: { id, usuario_id } });
     if (!alergia) {
       throw new NotFoundException('Alergia no encontrada');
     }
+    Object.assign(alergia, dto);
     return this.alergia_repositorio.save(alergia);
   }
 
-  async eliminarAlergia(id: number): Promise<void> {
-    const resultado = await this.alergia_repositorio.update(id, { activo: false });
+  async eliminarAlergia(usuario_id: number, id: number): Promise<void> {
+    const resultado = await this.alergia_repositorio.update({ id, usuario_id }, { activo: false });
     if (resultado.affected === 0) {
       throw new NotFoundException('Alergia no encontrada');
     }
   }
 
-  async crearEnfermedad(dto: CrearEnfermedadDto): Promise<Enfermedad> {
-    const existe = await this.enfermedad_repositorio.findOne({ where: { nombre: dto.nombre } });
+  async crearEnfermedad(usuario_id: number, dto: CrearEnfermedadDto): Promise<Enfermedad> {
+    const existe = await this.enfermedad_repositorio.findOne({ where: { nombre: dto.nombre, usuario_id } });
     if (existe) {
       throw new ConflictException('Esta enfermedad ya existe');
     }
-    const enfermedad = this.enfermedad_repositorio.create(dto);
+    const enfermedad = this.enfermedad_repositorio.create({ ...dto, usuario_id });
     return this.enfermedad_repositorio.save(enfermedad);
   }
 
-  async obtenerEnfermedades(): Promise<Enfermedad[]> {
-    return this.enfermedad_repositorio.find({ where: { activo: true }, order: { nombre: 'ASC' } });
+  async obtenerEnfermedades(usuario_id: number): Promise<Enfermedad[]> {
+    return this.enfermedad_repositorio.find({ where: { activo: true, usuario_id }, order: { nombre: 'ASC' } });
   }
 
-  async actualizarEnfermedad(id: number, dto: ActualizarEnfermedadDto): Promise<Enfermedad> {
-    const enfermedad = await this.enfermedad_repositorio.preload({ id, ...dto });
+  async actualizarEnfermedad(usuario_id: number, id: number, dto: ActualizarEnfermedadDto): Promise<Enfermedad> {
+    const enfermedad = await this.enfermedad_repositorio.findOne({ where: { id, usuario_id } });
     if (!enfermedad) {
       throw new NotFoundException('Enfermedad no encontrada');
     }
+    Object.assign(enfermedad, dto);
     return this.enfermedad_repositorio.save(enfermedad);
   }
 
-  async eliminarEnfermedad(id: number): Promise<void> {
-    const resultado = await this.enfermedad_repositorio.update(id, { activo: false });
+  async eliminarEnfermedad(usuario_id: number, id: number): Promise<void> {
+    const resultado = await this.enfermedad_repositorio.update({ id, usuario_id }, { activo: false });
     if (resultado.affected === 0) {
       throw new NotFoundException('Enfermedad no encontrada');
     }
   }
 
-  async crearMedicamento(dto: CrearMedicamentoDto): Promise<Medicamento> {
-    const existe = await this.medicamento_repositorio.findOne({ where: { nombre: dto.nombre } });
+  async crearMedicamento(usuario_id: number, dto: CrearMedicamentoDto): Promise<Medicamento> {
+    const existe = await this.medicamento_repositorio.findOne({ where: { nombre: dto.nombre, usuario_id } });
     if (existe) {
       throw new ConflictException('Este medicamento ya existe');
     }
-    const medicamento = this.medicamento_repositorio.create(dto);
+    const medicamento = this.medicamento_repositorio.create({ ...dto, usuario_id });
     return this.medicamento_repositorio.save(medicamento);
   }
 
-  async obtenerMedicamentos(): Promise<Medicamento[]> {
-    return this.medicamento_repositorio.find({ where: { activo: true }, order: { nombre: 'ASC' } });
+  async obtenerMedicamentos(usuario_id: number): Promise<Medicamento[]> {
+    return this.medicamento_repositorio.find({ where: { activo: true, usuario_id }, order: { nombre: 'ASC' } });
   }
 
-  async actualizarMedicamento(id: number, dto: ActualizarMedicamentoDto): Promise<Medicamento> {
-    const medicamento = await this.medicamento_repositorio.preload({ id, ...dto });
+  async actualizarMedicamento(usuario_id: number, id: number, dto: ActualizarMedicamentoDto): Promise<Medicamento> {
+    const medicamento = await this.medicamento_repositorio.findOne({ where: { id, usuario_id } });
     if (!medicamento) {
       throw new NotFoundException('Medicamento no encontrado');
     }
+    Object.assign(medicamento, dto);
     return this.medicamento_repositorio.save(medicamento);
   }
 
-  async eliminarMedicamento(id: number): Promise<void> {
-    const resultado = await this.medicamento_repositorio.update(id, { activo: false });
+  async eliminarMedicamento(usuario_id: number, id: number): Promise<void> {
+    const resultado = await this.medicamento_repositorio.update({ id, usuario_id }, { activo: false });
     if (resultado.affected === 0) {
       throw new NotFoundException('Medicamento no encontrado');
     }
   }
 
-  async crearColor(dto: CrearColorCategoriaDto): Promise<ColorCategoria> {
-    const color = this.color_repositorio.create(dto);
+  async crearColor(usuario_id: number, dto: CrearColorCategoriaDto): Promise<ColorCategoria> {
+    const color = this.color_repositorio.create({ ...dto, usuario_id });
     return this.color_repositorio.save(color);
   }
 
-  async obtenerColores(): Promise<ColorCategoria[]> {
-    return this.color_repositorio.find({ where: { activo: true }, order: { nombre: 'ASC' } });
+  async obtenerColores(usuario_id: number): Promise<ColorCategoria[]> {
+    return this.color_repositorio.find({ where: { activo: true, usuario_id }, order: { nombre: 'ASC' } });
   }
 
-  async actualizarColor(id: number, dto: ActualizarColorCategoriaDto): Promise<ColorCategoria> {
-    const color = await this.color_repositorio.preload({ id, ...dto });
+  async actualizarColor(usuario_id: number, id: number, dto: ActualizarColorCategoriaDto): Promise<ColorCategoria> {
+    const color = await this.color_repositorio.findOne({ where: { id, usuario_id } });
     if (!color) {
       throw new NotFoundException('Color no encontrado');
     }
+    Object.assign(color, dto);
     return this.color_repositorio.save(color);
   }
 
-  async eliminarColor(id: number): Promise<void> {
-    const resultado = await this.color_repositorio.update(id, { activo: false });
+  async eliminarColor(usuario_id: number, id: number): Promise<void> {
+    const resultado = await this.color_repositorio.update({ id, usuario_id }, { activo: false });
     if (resultado.affected === 0) {
       throw new NotFoundException('Color no encontrado');
     }

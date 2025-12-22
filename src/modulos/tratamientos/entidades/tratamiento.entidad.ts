@@ -1,5 +1,6 @@
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, OneToMany, ManyToOne, JoinColumn } from 'typeorm';
 import { MaterialPlantilla } from './material-plantilla.entidad';
+import { Usuario } from '../../usuarios/entidades/usuario.entidad';
 
 @Entity()
 export class Tratamiento {
@@ -35,4 +36,11 @@ export class Tratamiento {
 
   @OneToMany(() => MaterialPlantilla, (material) => material.tratamiento, { cascade: true })
   materiales: MaterialPlantilla[];
+
+  @ManyToOne(() => Usuario, { nullable: true, onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'usuario_id' })
+  usuario: Usuario;
+
+  @Column({ nullable: true })
+  usuario_id: number;
 }
