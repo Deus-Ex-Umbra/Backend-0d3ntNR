@@ -20,7 +20,6 @@ import { ReservasServicio } from './reservas.servicio';
 import { FinanzasServicio } from '../finanzas/finanzas.servicio';
 import { CrearInventarioDto } from './dto/crear-inventario.dto';
 import { ActualizarInventarioDto } from './dto/actualizar-inventario.dto';
-import { InvitarUsuarioInventarioDto } from './dto/invitar-usuario-inventario.dto';
 import { CrearProductoDto } from './dto/crear-producto.dto';
 import { ActualizarProductoDto } from './dto/actualizar-producto.dto';
 import { RegistrarEntradaMaterialDto, RegistrarEntradaActivoDto } from './dto/registrar-entrada.dto';
@@ -189,49 +188,6 @@ export class InventarioServicio {
     }
 
     await this.inventario_repositorio.softDelete(inventario_id);
-  }
-
-  async invitarUsuario(
-    usuario_id: number,
-    inventario_id: number,
-    dto: InvitarUsuarioInventarioDto,
-  ): Promise<PermisoInventario> {
-    const inventario = await this.inventario_repositorio.findOne({
-      where: { id: inventario_id, propietario: { id: usuario_id } },
-    });
-
-    if (!inventario) {
-      throw new NotFoundException('Inventario no encontrado o no es propietario');
-    }
-
-    const permiso_existente = await this.permiso_repositorio.findOne({
-      where: { inventario: { id: inventario_id }, usuario_invitado: { id: dto.usuario_id } },
-    });
-
-    if (permiso_existente) {
-      permiso_existente.rol = dto.rol;
-      return this.permiso_repositorio.save(permiso_existente);
-    }
-
-    const permiso = this.permiso_repositorio.create({
-      inventario,
-      usuario_invitado: { id: dto.usuario_id } as Usuario,
-      rol: dto.rol,
-    });
-
-    return this.permiso_repositorio.save(permiso);
-  }
-
-  async eliminarPermiso(usuario_id: number, inventario_id: number, permiso_id: number): Promise<void> {
-    const inventario = await this.inventario_repositorio.findOne({
-      where: { id: inventario_id, propietario: { id: usuario_id } },
-    });
-
-    if (!inventario) {
-      throw new NotFoundException('Inventario no encontrado o no es propietario');
-    }
-
-    await this.permiso_repositorio.delete(permiso_id);
   }
 
   async crearProducto(usuario_id: number, dto: CrearProductoDto): Promise<Producto> {

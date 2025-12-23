@@ -14,7 +14,6 @@ import {
 import { InventarioServicio } from './inventario.servicio';
 import { CrearInventarioDto } from './dto/crear-inventario.dto';
 import { ActualizarInventarioDto } from './dto/actualizar-inventario.dto';
-import { InvitarUsuarioInventarioDto } from './dto/invitar-usuario-inventario.dto';
 import { CrearProductoDto } from './dto/crear-producto.dto';
 import { ActualizarProductoDto } from './dto/actualizar-producto.dto';
 import { RegistrarEntradaMaterialDto, RegistrarEntradaActivoDto } from './dto/registrar-entrada.dto';
@@ -69,22 +68,6 @@ export class InventarioControlador {
     @Body() dto: ActualizarInventarioDto,
   ) {
     return this.inventario_servicio.actualizarInventario(req.user.id, +inventario_id, dto);
-  }
-
-  @Post(':inventario_id/invitar')
-  @ApiOperation({ summary: 'Invitar un usuario al inventario' })
-  invitarUsuario(@Request() req, @Param('inventario_id') inventario_id: string, @Body() dto: InvitarUsuarioInventarioDto) {
-    return this.inventario_servicio.invitarUsuario(req.user.id, +inventario_id, dto);
-  }
-
-  @Delete(':inventario_id/permisos/:permiso_id')
-  @ApiOperation({ summary: 'Eliminar permiso de un usuario' })
-  eliminarPermiso(
-    @Request() req,
-    @Param('inventario_id') inventario_id: string,
-    @Param('permiso_id') permiso_id: string,
-  ) {
-    return this.inventario_servicio.eliminarPermiso(req.user.id, +inventario_id, +permiso_id);
   }
 
   @Delete(':inventario_id')

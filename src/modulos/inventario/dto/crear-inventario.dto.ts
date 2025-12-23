@@ -1,6 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, IsEnum, IsOptional, IsBoolean } from 'class-validator';
-import { VisibilidadInventario } from '../entidades/inventario.entidad';
+import { IsString, IsNotEmpty, IsOptional, IsBoolean } from 'class-validator';
 
 export class CrearInventarioDto {
   @ApiProperty({ description: 'Nombre del inventario' })
@@ -8,16 +7,7 @@ export class CrearInventarioDto {
   @IsNotEmpty()
   nombre: string;
 
-  @ApiProperty({ 
-    enum: VisibilidadInventario, 
-    description: 'Visibilidad del inventario',
-    default: VisibilidadInventario.PRIVADO,
-  })
-  @IsOptional()
-  @IsEnum(VisibilidadInventario)
-  visibilidad?: VisibilidadInventario;
-
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Modo estricto: valida stock antes de permitir crear citas con materiales',
     default: false,
   })
