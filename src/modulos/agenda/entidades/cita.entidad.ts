@@ -3,13 +3,12 @@ import { Paciente } from '../../pacientes/entidades/paciente.entidad';
 import { PlanTratamiento } from '../../tratamientos/entidades/plan-tratamiento.entidad';
 import { Usuario } from '../../usuarios/entidades/usuario.entidad';
 import { ReservaMaterial } from '../../inventario/entidades/reserva-material.entidad';
-import { ReservaActivo } from '../../inventario/entidades/reserva-activo.entidad';
 
 @Entity()
 export class Cita {
   @PrimaryGeneratedColumn()
   id: number;
-  
+
   @ManyToOne(() => Usuario, { onDelete: 'CASCADE', onUpdate: 'CASCADE' })
   usuario: Usuario;
 
@@ -43,8 +42,7 @@ export class Cita {
   @OneToMany(() => ReservaMaterial, (reserva) => reserva.cita)
   reservas_materiales: ReservaMaterial[];
 
-  @OneToMany(() => ReservaActivo, (reserva) => reserva.cita)
-  reservas_activos: ReservaActivo[];
+  // reservas_activos relationship removed - fixed assets are no longer reserved
 
   @DeleteDateColumn({ nullable: true })
   eliminado_en?: Date | null;

@@ -238,9 +238,16 @@ export class FinanzasServicio {
   }
 
   async generarReporte(usuario_id: number, fecha_inicio_str?: string, fecha_fin_str?: string) {
-    const fecha_inicio = fecha_inicio_str ? new Date(fecha_inicio_str) : new Date(0);
-    const fecha_fin = fecha_fin_str ? new Date(fecha_fin_str) : new Date();
-    fecha_fin.setHours(23, 59, 59, 999);
+    const hoy = new Date();
+    const fecha_inicio = fecha_inicio_str ? this.parsearFechaLocal(fecha_inicio_str) : new Date(0);
+    const fecha_fin = fecha_fin_str ? this.parsearFechaLocal(fecha_fin_str) : hoy;
+
+    if (!fecha_inicio_str) {
+      fecha_inicio.setHours(0, 0, 0, 0);
+    }
+    if (!fecha_fin_str) {
+      fecha_fin.setHours(23, 59, 59, 999);
+    }
 
     const pagos = await this.pago_repositorio.find({
       where: { fecha: Between(fecha_inicio, fecha_fin), usuario: { id: usuario_id } },

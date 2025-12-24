@@ -10,7 +10,6 @@ import { Kardex } from './entidades/kardex.entidad';
 import { Bitacora } from './entidades/bitacora.entidad';
 import { Auditoria } from './entidades/auditoria.entidad';
 import { ReservaMaterial } from './entidades/reserva-material.entidad';
-import { ReservaActivo } from './entidades/reserva-activo.entidad';
 import { MaterialCita } from './entidades/material-cita.entidad';
 import { MaterialTratamiento } from './entidades/material-tratamiento.entidad';
 import { Cita } from '../agenda/entidades/cita.entidad';
@@ -37,7 +36,6 @@ import { PermisoInventarioGuardia } from './guardias/permiso-inventario.guardia'
       Bitacora,
       Auditoria,
       ReservaMaterial,
-      ReservaActivo,
       MaterialCita,
       MaterialTratamiento,
       Cita,

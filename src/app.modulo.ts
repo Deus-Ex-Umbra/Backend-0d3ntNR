@@ -55,7 +55,6 @@ import { Kardex } from './modulos/inventario/entidades/kardex.entidad';
 import { Bitacora } from './modulos/inventario/entidades/bitacora.entidad';
 import { Auditoria } from './modulos/inventario/entidades/auditoria.entidad';
 import { ReservaMaterial } from './modulos/inventario/entidades/reserva-material.entidad';
-import { ReservaActivo } from './modulos/inventario/entidades/reserva-activo.entidad';
 import { MaterialCita } from './modulos/inventario/entidades/material-cita.entidad';
 import { MaterialTratamiento } from './modulos/inventario/entidades/material-tratamiento.entidad';
 import { Reporte } from './modulos/reportes/entidades/reporte.entidad';
@@ -108,7 +107,6 @@ import { ConfiguracionClinica } from './modulos/catalogo/entidades/configuracion
         Bitacora,
         Auditoria,
         ReservaMaterial,
-        ReservaActivo,
         MaterialCita,
         MaterialTratamiento,
         Reporte,
@@ -146,3 +144,4 @@ import { ConfiguracionClinica } from './modulos/catalogo/entidades/configuracion
   providers: [AppServicio],
 })
 export class AppModule { }
+

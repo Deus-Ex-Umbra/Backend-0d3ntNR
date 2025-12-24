@@ -3,7 +3,6 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Not, LessThan, MoreThan, Between, And, Or, DataSource } from 'typeorm';
 import { ReservaMaterial } from './entidades/reserva-material.entidad';
 import { TipoReservaMaterial, EstadoReserva } from './entidades/enums';
-import { ReservaActivo } from './entidades/reserva-activo.entidad';
 import { Material } from './entidades/material.entidad';
 import { Activo, EstadoActivo } from './entidades/activo.entidad';
 import { Cita } from '../agenda/entidades/cita.entidad';
@@ -18,8 +17,6 @@ export class ReservasServicio {
     constructor(
         @InjectRepository(ReservaMaterial)
         private readonly reserva_material_repositorio: Repository<ReservaMaterial>,
-        @InjectRepository(ReservaActivo)
-        private readonly reserva_activo_repositorio: Repository<ReservaActivo>,
         @InjectRepository(Material)
         private readonly material_repositorio: Repository<Material>,
         @InjectRepository(Activo)
@@ -161,7 +158,6 @@ export class ReservasServicio {
     async actualizarRecursosCita(
         cita: Cita,
         consumibles: { material_id: number; cantidad: number }[] | undefined,
-        activos: { activo_id: number }[] | undefined,
         usuario_id: number,
         modo_estricto: boolean = false
     ): Promise<void> {
@@ -205,209 +201,21 @@ export class ReservasServicio {
                 }
             }
         }
-
-        if (activos !== undefined) {
-            const reservas_activos_actuales = await this.reserva_activo_repositorio.find({
-                where: { cita: { id: cita.id }, estado: EstadoReserva.PENDIENTE },
-                relations: ['activo']
-            });
-            for (const reserva of reservas_activos_actuales) {
-                const sigue_existiendo = activos.find(a => a.activo_id === reserva.activo.id);
-                if (!sigue_existiendo) {
-                    await this.reserva_activo_repositorio.remove(reserva);
-                }
-            }
-            const fecha_inicio = new Date(cita.fecha);
-            const duracion_minutos = (cita.horas_aproximadas * 60) + cita.minutos_aproximados;
-            const fecha_fin = new Date(fecha_inicio.getTime() + duracion_minutos * 60000);
-
-            for (const activo of activos) {
-                const reserva_existente = reservas_activos_actuales.find(r => r.activo.id === activo.activo_id);
-
-                if (!reserva_existente) {
-                    await this.reservarActivoCitaGlobal(
-                        activo.activo_id,
-                        cita,
-                        fecha_inicio,
-                        fecha_fin,
-                        usuario_id
-                    );
-                } else {
-                    if (reserva_existente.fecha_hora_inicio.getTime() !== fecha_inicio.getTime() ||
-                        reserva_existente.fecha_hora_fin.getTime() !== fecha_fin.getTime()) {
-                        const { disponible, conflictos } = await this.verificarDisponibilidadActivoGlobal(
-                            activo.activo_id,
-                            fecha_inicio,
-                            fecha_fin,
-                            cita.id
-                        );
-
-                        if (!disponible && conflictos.length > 0) {
-                            throw new ConflictException(`El activo ya no está disponible en el nuevo horario.`);
-                        }
-
-                        reserva_existente.fecha_hora_inicio = fecha_inicio;
-                        reserva_existente.fecha_hora_fin = fecha_fin;
-                        await this.reserva_activo_repositorio.save(reserva_existente);
-                    }
-                }
-            }
-        }
-    }
-    async verificarDisponibilidadActivo(
-        activo_id: number,
-        fecha_hora_inicio: Date,
-        fecha_hora_fin: Date,
-        cita_id_excluir?: number,
-    ): Promise<{ disponible: boolean; reservas_conflicto: ReservaActivo[] }> {
-        const activo = await this.activo_repositorio.findOne({
-            where: { id: activo_id },
-        });
-
-        if (!activo) {
-            throw new NotFoundException('Activo no encontrado');
-        }
-        if (activo.estado === EstadoActivo.DESECHADO) {
-            return { disponible: false, reservas_conflicto: [] };
-        }
-        const query = this.reserva_activo_repositorio
-            .createQueryBuilder('reserva')
-            .where('reserva.activo = :activo_id', { activo_id })
-            .andWhere('reserva.estado = :estado', { estado: EstadoReserva.PENDIENTE })
-            .andWhere(
-                '(reserva.fecha_hora_inicio < :fecha_fin AND reserva.fecha_hora_fin > :fecha_inicio)',
-                { fecha_inicio: fecha_hora_inicio, fecha_fin: fecha_hora_fin }
-            );
-
-        if (cita_id_excluir) {
-            query.andWhere('reserva.cita != :cita_id_excluir', { cita_id_excluir });
-        }
-
-        const reservas_conflicto = await query.getMany();
-
-        return {
-            disponible: reservas_conflicto.length === 0 && activo.estado === EstadoActivo.DISPONIBLE,
-            reservas_conflicto,
-        };
-    }
-    async reservarActivoCita(
-        activo_id: number,
-        cita: Cita,
-        fecha_hora_inicio: Date,
-        fecha_hora_fin: Date,
-        usuario_id: number,
-    ): Promise<ReservaActivo> {
-        const { disponible, reservas_conflicto } = await this.verificarDisponibilidadActivo(
-            activo_id,
-            fecha_hora_inicio,
-            fecha_hora_fin,
-            cita.id,
-        );
-
-        if (!disponible) {
-            if (reservas_conflicto.length > 0) {
-                throw new ConflictException('El activo ya está reservado en ese horario');
-            } else {
-                throw new BadRequestException('El activo no está disponible');
-            }
-        }
-
-        const activo = await this.activo_repositorio.findOne({ where: { id: activo_id } });
-
-        if (!activo) {
-            throw new NotFoundException('Activo no encontrado');
-        }
-
-        const reserva = this.reserva_activo_repositorio.create({
-            activo,
-            cita,
-            fecha_hora_inicio,
-            fecha_hora_fin,
-            estado: EstadoReserva.PENDIENTE,
-            usuario: { id: usuario_id } as Usuario,
-        });
-
-        return this.reserva_activo_repositorio.save(reserva);
-    }
-    async confirmarReservaActivo(reserva_id: number): Promise<ReservaActivo> {
-        const reserva = await this.reserva_activo_repositorio.findOne({
-            where: { id: reserva_id },
-            relations: ['activo'],
-        });
-
-        if (!reserva) {
-            throw new NotFoundException('Reserva de activo no encontrada');
-        }
-
-        if (reserva.estado === EstadoReserva.CONFIRMADA) {
-            throw new BadRequestException('La reserva ya fue confirmada');
-        }
-        const activo = reserva.activo;
-        activo.estado = EstadoActivo.EN_USO;
-        await this.activo_repositorio.save(activo);
-        reserva.estado = EstadoReserva.CONFIRMADA;
-        return this.reserva_activo_repositorio.save(reserva);
+        // Fixed assets are no longer reserved
     }
 
-    async liberarActivo(activo_id: number): Promise<void> {
-        const activo = await this.activo_repositorio.findOne({
-            where: { id: activo_id },
-        });
-
-        if (!activo) {
-            throw new NotFoundException('Activo no encontrado');
-        }
-
-        if (activo.estado === EstadoActivo.EN_USO) {
-            activo.estado = EstadoActivo.DISPONIBLE;
-            await this.activo_repositorio.save(activo);
-        }
-    }
-
-    async cancelarReservaActivo(reserva_id: number): Promise<void> {
-        const reserva = await this.reserva_activo_repositorio.findOne({
-            where: { id: reserva_id },
-            relations: ['activo'],
-        });
-
-        if (!reserva) {
-            throw new NotFoundException('Reserva no encontrada');
-        }
-
-        if (reserva.estado === EstadoReserva.CONFIRMADA) {
-            await this.liberarActivo(reserva.activo.id);
-        }
-
-        reserva.estado = EstadoReserva.CANCELADA;
-        await this.reserva_activo_repositorio.save(reserva);
-    }
-
-    async cancelarReservasActivosCita(cita_id: number): Promise<void> {
-        const reservas = await this.reserva_activo_repositorio.find({
-            where: { cita: { id: cita_id } },
-            relations: ['activo'],
-        });
-
-        for (const reserva of reservas) {
-            await this.cancelarReservaActivo(reserva.id);
-        }
-    }
+    // Fixed asset reservation methods have been removed - fixed assets now follow lifecycle:
+    // Disponible -> En Mantenimiento <-> Desechado/Vendido
 
     async obtenerReservasCita(cita_id: number): Promise<{
         materiales: ReservaMaterial[];
-        activos: ReservaActivo[];
     }> {
         const materiales = await this.reserva_material_repositorio.find({
             where: { cita: { id: cita_id } },
             relations: ['material', 'material.producto', 'material.producto.inventario'],
         });
 
-        const activos = await this.reserva_activo_repositorio.find({
-            where: { cita: { id: cita_id } },
-            relations: ['activo', 'activo.producto', 'activo.producto.inventario'],
-        });
-
-        return { materiales, activos };
+        return { materiales };
     }
 
     async confirmarMaterialesCita(
@@ -457,33 +265,6 @@ export class ReservasServicio {
                     }
                 );
             }
-            const reservas_activos = await queryRunner.manager.find(ReservaActivo, {
-                where: { cita: { id: cita_id }, estado: EstadoReserva.PENDIENTE },
-                relations: ['activo', 'activo.producto', 'activo.producto.inventario']
-            });
-            for (const reserva_activo of reservas_activos) {
-                const activo = reserva_activo.activo;
-                const inventario = activo.producto.inventario;
-                const estado_anterior = activo.estado;
-                if (activo.estado !== EstadoActivo.EN_USO) {
-                    activo.estado = EstadoActivo.EN_USO;
-                    await queryRunner.manager.save(Activo, activo);
-                    await this.bitacora_servicio.registrarCambioEstado(
-                        inventario,
-                        activo,
-                        estado_anterior,
-                        EstadoActivo.EN_USO,
-                        usuario_id,
-                        {
-                            referencia_tipo: 'cita',
-                            referencia_id: cita_id,
-                            motivo: 'Uso confirmado en cita'
-                        }
-                    );
-                }
-                reserva_activo.estado = EstadoReserva.CONFIRMADA;
-                await queryRunner.manager.save(ReservaActivo, reserva_activo);
-            }
             const cita = await queryRunner.manager.findOne(Cita, { where: { id: cita_id } });
             if (cita) {
                 cita.materiales_confirmados = true;
@@ -500,206 +281,19 @@ export class ReservasServicio {
 
     async obtenerReservasTratamiento(plan_tratamiento_id: number): Promise<{
         materiales: ReservaMaterial[];
-        activos: ReservaActivo[];
     }> {
         const materiales = await this.reserva_material_repositorio.find({
             where: { plan_tratamiento: { id: plan_tratamiento_id } },
             relations: ['material', 'material.producto'],
         });
 
-        const activos = await this.reserva_activo_repositorio.find({
-            where: { plan_tratamiento: { id: plan_tratamiento_id } },
-            relations: ['activo', 'activo.producto'],
-        });
-
-        return { materiales, activos };
+        return { materiales };
     }
 
-    async obtenerActivosDisponibles(
-        producto_id: number,
-        fecha_hora_inicio: Date,
-        fecha_hora_fin: Date,
-        cita_id_excluir?: number,
-    ): Promise<Activo[]> {
-        const activos = await this.activo_repositorio.find({
-            where: {
-                producto: { id: producto_id },
-                estado: EstadoActivo.DISPONIBLE,
-            },
-        });
+    // obtenerActivosDisponibles, verificarDisponibilidadActivoGlobal, reservarActivoCitaGlobal,
+    // procesarIniciosCitas, and procesarFinesCitas have been removed.
+    // Fixed assets now follow lifecycle: Disponible -> En Mantenimiento <-> Desechado/Vendido
 
-        const activos_disponibles: Activo[] = [];
-
-        for (const activo of activos) {
-            const { disponible } = await this.verificarDisponibilidadActivo(
-                activo.id,
-                fecha_hora_inicio,
-                fecha_hora_fin,
-                cita_id_excluir,
-            );
-
-            if (disponible) {
-                activos_disponibles.push(activo);
-            }
-        }
-
-        return activos_disponibles;
-    }
-    async verificarDisponibilidadActivoGlobal(
-        activo_id: number,
-        fecha_hora_inicio: Date,
-        fecha_hora_fin: Date,
-        cita_id_excluir?: number,
-    ): Promise<{ disponible: boolean; conflictos: Array<{ cita_id: number; usuario_nombre: string; hora_inicio: Date; hora_fin: Date }> }> {
-        const activo = await this.activo_repositorio.findOne({
-            where: { id: activo_id },
-        });
-
-        if (!activo) {
-            throw new NotFoundException('Activo no encontrado');
-        }
-        if (activo.estado === EstadoActivo.DESECHADO || activo.estado === EstadoActivo.VENDIDO) {
-            return { disponible: false, conflictos: [] };
-        }
-        const query = this.reserva_activo_repositorio
-            .createQueryBuilder('reserva')
-            .leftJoinAndSelect('reserva.cita', 'cita')
-            .leftJoinAndSelect('cita.usuario', 'usuario')
-            .where('reserva.activo = :activo_id', { activo_id })
-            .andWhere('reserva.estado IN (:...estados)', { estados: [EstadoReserva.PENDIENTE, EstadoReserva.CONFIRMADA] })
-            .andWhere(
-                '(reserva.fecha_hora_inicio < :fecha_fin AND reserva.fecha_hora_fin > :fecha_inicio)',
-                { fecha_inicio: fecha_hora_inicio, fecha_fin: fecha_hora_fin }
-            )
-            .andWhere('(cita.id IS NULL OR cita.eliminado_en IS NULL)');
-
-        if (cita_id_excluir) {
-            query.andWhere('(reserva.cita IS NULL OR reserva.cita != :cita_id_excluir)', { cita_id_excluir });
-        }
-
-        const reservas_conflicto = await query.getMany();
-
-        const conflictos = reservas_conflicto.map(r => ({
-            cita_id: r.cita?.id,
-            usuario_nombre: r.cita?.usuario?.nombre || 'Usuario desconocido',
-            hora_inicio: r.fecha_hora_inicio,
-            hora_fin: r.fecha_hora_fin,
-        }));
-
-        return {
-            disponible: reservas_conflicto.length === 0,
-            conflictos,
-        };
-    }
-    async reservarActivoCitaGlobal(
-        activo_id: number,
-        cita: Cita,
-        fecha_hora_inicio: Date,
-        fecha_hora_fin: Date,
-        usuario_id: number,
-    ): Promise<ReservaActivo> {
-        const { disponible, conflictos } = await this.verificarDisponibilidadActivoGlobal(
-            activo_id,
-            fecha_hora_inicio,
-            fecha_hora_fin,
-            cita.id,
-        );
-
-        if (!disponible) {
-            if (conflictos.length > 0) {
-                const conflicto = conflictos[0];
-                const hora_inicio = new Date(conflicto.hora_inicio).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' });
-                const hora_fin = new Date(conflicto.hora_fin).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' });
-                throw new ConflictException(
-                    `El activo ya está reservado de ${hora_inicio} a ${hora_fin} por ${conflicto.usuario_nombre}`
-                );
-            } else {
-                throw new BadRequestException('El activo no está disponible (desechado o vendido)');
-            }
-        }
-
-        const activo = await this.activo_repositorio.findOne({ where: { id: activo_id } });
-
-        if (!activo) {
-            throw new NotFoundException('Activo no encontrado');
-        }
-
-        const reserva = this.reserva_activo_repositorio.create({
-            activo,
-            cita,
-            fecha_hora_inicio,
-            fecha_hora_fin,
-            estado: EstadoReserva.PENDIENTE,
-            usuario: { id: usuario_id } as Usuario,
-        });
-
-        return this.reserva_activo_repositorio.save(reserva);
-    }
-    async procesarIniciosCitas(): Promise<{ procesados: number }> {
-        const ahora = new Date();
-        const margen = 60000;
-        const inicio_rango = new Date(ahora.getTime() - margen);
-        const fin_rango = new Date(ahora.getTime() + margen);
-        const reservas = await this.reserva_activo_repositorio
-            .createQueryBuilder('reserva')
-            .leftJoinAndSelect('reserva.activo', 'activo')
-            .leftJoinAndSelect('reserva.cita', 'cita')
-            .where('reserva.estado = :estado', { estado: EstadoReserva.PENDIENTE })
-            .andWhere('reserva.fecha_hora_inicio >= :inicio', { inicio: inicio_rango })
-            .andWhere('reserva.fecha_hora_inicio <= :fin', { fin: fin_rango })
-            .andWhere('(cita.id IS NULL OR cita.eliminado_en IS NULL)')
-            .getMany();
-
-        let procesados = 0;
-
-        for (const reserva of reservas) {
-            const activo = reserva.activo;
-            if (activo.estado !== EstadoActivo.DESECHADO && activo.estado !== EstadoActivo.VENDIDO) {
-                activo.estado = EstadoActivo.EN_USO;
-                await this.activo_repositorio.save(activo);
-                reserva.estado = EstadoReserva.CONFIRMADA;
-                await this.reserva_activo_repositorio.save(reserva);
-
-                procesados++;
-            }
-        }
-
-        return { procesados };
-    }
-
-    async procesarFinesCitas(): Promise<{ procesados: number }> {
-        const ahora = new Date();
-        const margen = 60000;
-        const inicio_rango = new Date(ahora.getTime() - margen);
-        const fin_rango = new Date(ahora.getTime() + margen);
-        const reservas = await this.reserva_activo_repositorio
-            .createQueryBuilder('reserva')
-            .leftJoinAndSelect('reserva.activo', 'activo')
-            .where('reserva.estado = :estado', { estado: EstadoReserva.CONFIRMADA })
-            .andWhere('reserva.fecha_hora_fin >= :inicio', { inicio: inicio_rango })
-            .andWhere('reserva.fecha_hora_fin <= :fin', { fin: fin_rango })
-            .getMany();
-
-        let procesados = 0;
-
-        for (const reserva of reservas) {
-            const activo = reserva.activo;
-            const otra_reserva_activa = await this.reserva_activo_repositorio
-                .createQueryBuilder('r')
-                .where('r.activo = :activo_id', { activo_id: activo.id })
-                .andWhere('r.id != :reserva_id', { reserva_id: reserva.id })
-                .andWhere('r.estado = :estado', { estado: EstadoReserva.CONFIRMADA })
-                .andWhere('r.fecha_hora_fin > :ahora', { ahora })
-                .getOne();
-            if (!otra_reserva_activa && activo.estado === EstadoActivo.EN_USO) {
-                activo.estado = EstadoActivo.DISPONIBLE;
-                await this.activo_repositorio.save(activo);
-                procesados++;
-            }
-        }
-
-        return { procesados };
-    }
     async validarDisponibilidadMaterial(
         material_id: number,
         cantidad_requerida: number,

@@ -7,6 +7,5 @@ export * from './kardex.entidad';
 export * from './bitacora.entidad';
 export * from './auditoria.entidad';
 export * from './reserva-material.entidad';
-export * from './reserva-activo.entidad';
 export * from './material-cita.entidad';
 export * from './material-tratamiento.entidad';

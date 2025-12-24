@@ -11,15 +11,8 @@ export class EstadoActivosCron {
     ) { }
     @Cron(CronExpression.EVERY_MINUTE)
     async actualizarEstadosActivos() {
-        try {
-            const { procesados: iniciados } = await this.reservas_servicio.procesarIniciosCitas();
-            const { procesados: finalizados } = await this.reservas_servicio.procesarFinesCitas();
-
-            if (iniciados > 0 || finalizados > 0) {
-                this.logger.log(`Estados actualizados: ${iniciados} activos en uso, ${finalizados} activos liberados`);
-            }
-        } catch (error) {
-            this.logger.error('Error al actualizar estados de activos:', error);
-        }
+        // Fixed assets are no longer reserved - they follow lifecycle:
+        // Disponible -> En Mantenimiento <-> Desechado/Vendido
+        // This cron is now a no-op but kept for future use if needed
     }
 }

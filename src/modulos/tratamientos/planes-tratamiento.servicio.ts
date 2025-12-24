@@ -137,32 +137,49 @@ export class PlanesTratamientoServicio {
       await this.material_tratamiento_repositorio.save(material_tratamiento);
     }
 
-    const citas_promesas: Promise<Cita>[] = [];
+    // Obtener materiales por cita de la plantilla
+    const materiales_por_cita = materiales_plantilla.filter(m => m.tipo === TipoMaterialPlantilla.POR_CITA);
+
+    // Crear las citas secuencialmente para asegurar las reservas de materiales
+    const citas_creadas: Cita[] = [];
 
     for (let i = 0; i < tratamiento_plantilla.numero_citas; i++) {
-      citas_promesas.push(
-        this.agenda_servicio.crear(usuario_id, {
-          paciente_id: paciente.id,
-          plan_tratamiento_id: plan_guardado.id,
-          fecha: fechas_citas[i],
-          descripcion: `${tratamiento_plantilla.nombre} - Cita ${i + 1}`,
-          estado_pago: 'pendiente',
-          horas_aproximadas: horas_citas,
-          minutos_aproximados: minutos_citas,
-        })
-      );
-    }
-    const citas_creadas = await Promise.all(citas_promesas);
-    const materiales_por_cita = materiales_plantilla.filter(m => m.tipo === TipoMaterialPlantilla.POR_CITA);
-    for (const cita of citas_creadas) {
-      for (const material of materiales_por_cita) {
-        const material_cita = this.material_cita_repositorio.create({
-          cita: cita,
-          producto: material.producto,
-          cantidad_planeada: material.cantidad,
+      // Preparar consumibles para esta cita
+      const consumibles_cita: { material_id: number; cantidad: number }[] = [];
+
+      for (const mat_plantilla of materiales_por_cita) {
+        // Buscar material disponible (lote) para el producto de la plantilla
+        const materiales_disponibles = await this.material_repositorio.find({
+          where: {
+            producto: { id: mat_plantilla.producto.id },
+            activo: true
+          },
+          order: { fecha_vencimiento: 'ASC' }
         });
-        await this.material_cita_repositorio.save(material_cita);
+
+        if (materiales_disponibles.length > 0) {
+          // Usar el lote con fecha de vencimiento más próxima (FIFO)
+          consumibles_cita.push({
+            material_id: materiales_disponibles[0].id,
+            cantidad: Number(mat_plantilla.cantidad)
+          });
+        }
       }
+
+      // Crear la cita con los consumibles
+      const cita = await this.agenda_servicio.crear(usuario_id, {
+        paciente_id: paciente.id,
+        plan_tratamiento_id: plan_guardado.id,
+        fecha: fechas_citas[i],
+        descripcion: `${tratamiento_plantilla.nombre} - Cita ${i + 1}`,
+        estado_pago: 'pendiente',
+        horas_aproximadas: horas_citas,
+        minutos_aproximados: minutos_citas,
+        consumibles: consumibles_cita,
+        modo_estricto: false, // No fallar si no hay stock suficiente
+      });
+
+      citas_creadas.push(cita);
     }
 
     return this.encontrarPlanPorId(usuario_id, plan_guardado.id);

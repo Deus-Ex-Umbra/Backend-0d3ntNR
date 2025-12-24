@@ -156,7 +156,7 @@ export class AgendaServicio {
       throw new BadRequestException('Las citas sin paciente no pueden tener estado de pago ni monto esperado');
     }
 
-    if (!paciente_id && ((consumibles && consumibles.length > 0) || (activos_fijos && activos_fijos.length > 0))) {
+    if (!paciente_id && (consumibles && consumibles.length > 0)) {
       throw new BadRequestException('Las citas sin paciente no pueden tener reservas de recursos');
     }
 
@@ -185,28 +185,7 @@ export class AgendaServicio {
         }
       }
     }
-
-    if (activos_fijos && activos_fijos.length > 0) {
-      for (const activo of activos_fijos) {
-        const { disponible, conflictos } = await this.inventario_servicio.reservas.verificarDisponibilidadActivoGlobal(
-          activo.activo_id,
-          fecha_inicio,
-          fecha_fin
-        );
-        if (!disponible) {
-          if (conflictos.length > 0) {
-            const conflicto = conflictos[0];
-            const hora_inicio = new Date(conflicto.hora_inicio).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' });
-            const hora_fin = new Date(conflicto.hora_fin).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' });
-            throw new ConflictException(
-              `El activo ya está reservado de ${hora_inicio} a ${hora_fin} por ${conflicto.usuario_nombre}`
-            );
-          } else {
-            throw new BadRequestException(`El activo ${activo.activo_id} no está disponible`);
-          }
-        }
-      }
-    }
+    // Fixed assets are no longer reserved
 
     const nueva_cita = this.cita_repositorio.create({
       ...cita_data,
@@ -243,18 +222,7 @@ export class AgendaServicio {
         }
       }
     }
-
-    if (activos_fijos && activos_fijos.length > 0) {
-      for (const activo of activos_fijos) {
-        await this.inventario_servicio.reservas.reservarActivoCitaGlobal(
-          activo.activo_id,
-          cita_guardada,
-          fecha_inicio,
-          fecha_fin,
-          usuario_id
-        );
-      }
-    }
+    // Fixed assets are no longer reserved
 
     return cita_guardada;
   }
@@ -382,11 +350,10 @@ export class AgendaServicio {
       throw new NotFoundException(`Cita con ID "${id}" no encontrada.`);
     }
     const cita_guardada = await this.cita_repositorio.save(cita);
-    if (actualizar_cita_dto.consumibles !== undefined || actualizar_cita_dto.activos_fijos !== undefined) {
+    if (actualizar_cita_dto.consumibles !== undefined) {
       await this.inventario_servicio.reservas.actualizarRecursosCita(
         cita_guardada,
         actualizar_cita_dto.consumibles,
-        actualizar_cita_dto.activos_fijos,
         usuario_id,
         actualizar_cita_dto.modo_estricto
       );
@@ -429,7 +396,7 @@ export class AgendaServicio {
       throw new NotFoundException(`Cita con ID "${id}" no encontrada o no le pertenece.`);
     }
     await this.inventario_servicio.reservas.cancelarReservasMaterialesCita(id);
-    await this.inventario_servicio.reservas.cancelarReservasActivosCita(id);
+    // cancelarReservasActivosCita removed - fixed assets are no longer reserved
 
     await this.finanzas_servicio.eliminarPagosPorCita(usuario_id, id);
 
@@ -469,11 +436,7 @@ export class AgendaServicio {
         'reservas_materiales',
         'reservas_materiales.material',
         'reservas_materiales.material.producto',
-        'reservas_materiales.material.producto.inventario',
-        'reservas_activos',
-        'reservas_activos.activo',
-        'reservas_activos.activo.producto',
-        'reservas_activos.activo.producto.inventario'
+        'reservas_materiales.material.producto.inventario'
       ],
     });
 
@@ -494,11 +457,7 @@ export class AgendaServicio {
         'reservas_materiales',
         'reservas_materiales.material',
         'reservas_materiales.material.producto',
-        'reservas_materiales.material.producto.inventario',
-        'reservas_activos',
-        'reservas_activos.activo',
-        'reservas_activos.activo.producto',
-        'reservas_activos.activo.producto.inventario'
+        'reservas_materiales.material.producto.inventario'
       ],
     });
 

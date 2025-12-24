@@ -342,6 +342,20 @@ export class ReportesServicio {
   private async generarTextoConGemini(datos_reporte: any, areas: AreaReporte[], incluir_sugerencias: boolean): Promise<any> {
     const datos_json = JSON.stringify(datos_reporte, null, 2);
 
+    const estructura_base = {
+      resumen: "Un resumen ejecutivo de 2-3 párrafos con el estado general de la clínica.",
+      finanzas: "Análisis específico de finanzas (si aplica), tendencias de ingresos/egresos.",
+      agenda: "Análisis de la agenda, citas, ausentismo, etc.",
+      tratamientos: "Análisis de tratamientos más comunes y rentabilidad.",
+      inventario: "Análisis de estado de inventario, alertas de stock y movimientos.",
+    };
+
+    if (incluir_sugerencias) {
+      estructura_base['conclusiones'] = "Conclusiones finales y recomendaciones prácticas.";
+    }
+
+    const estructura_json = JSON.stringify(estructura_base, null, 2);
+
     const prompt = `
 Eres un asistente experto en análisis de datos para clínicas dentales. 
 A continuación te proporciono datos de un reporte que incluye las siguientes áreas: ${areas.join(', ')}.
@@ -354,14 +368,7 @@ ${datos_json}
 
 Por favor, genera un análisis profesional y coherente.
 IMPORTANTE: Debes responder ÚNICAMENTE con un objeto JSON válido (sin bloques de código markdown) con la siguiente estructura:
-{
-  "resumen": "Un resumen ejecutivo de 2-3 párrafos con el estado general de la clínica.",
-  "finanzas": "Análisis específico de finanzas (si aplica), tendencias de ingresos/egresos.",
-  "agenda": "Análisis de la agenda, citas, ausentismo, etc.",
-  "tratamientos": "Análisis de tratamientos más comunes y rentabilidad.",
-  "inventario": "Análisis de estado de inventario, alertas de stock y movimientos.",
-  "conclusiones": "Conclusiones finales y recomendaciones prácticas."
-}
+${estructura_json}
 
 Si un área no está incluida en los datos, puedes dejar el campo vacío o null.
 El texto dentro de cada campo debe usar formato Markdown simple (negritas, listas).
@@ -373,14 +380,17 @@ El texto dentro de cada campo debe usar formato Markdown simple (negritas, lista
       return JSON.parse(jsonStr);
     } catch (e) {
       console.error('Error al parsear respuesta de Gemini:', e);
-      return {
+      const fallback: any = {
         resumen: respuesta,
         finanzas: '',
         agenda: '',
         tratamientos: '',
         inventario: '',
-        conclusiones: ''
       };
+      if (incluir_sugerencias) {
+        fallback.conclusiones = '';
+      }
+      return fallback;
     }
   }
 
@@ -1225,7 +1235,7 @@ El texto dentro de cada campo debe usar formato Markdown simple (negritas, lista
 
     return reportes.map(r => {
       const fecha_creacion_local = new Date(r.fecha_creacion.getTime() - r.fecha_creacion.getTimezoneOffset() * 60000);
-      
+
       return {
         id: r.id,
         nombre: r.nombre,

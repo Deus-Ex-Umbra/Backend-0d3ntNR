@@ -1,11 +1,9 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, CreateDateColumn, DeleteDateColumn } from 'typeorm';
 import { Producto } from './producto.entidad';
 import { Bitacora } from './bitacora.entidad';
-import { ReservaActivo } from './reserva-activo.entidad';
 
 export enum EstadoActivo {
   DISPONIBLE = 'disponible',
-  EN_USO = 'en_uso',
   EN_MANTENIMIENTO = 'en_mantenimiento',
   DESECHADO = 'desechado',
   VENDIDO = 'vendido',
@@ -46,9 +44,6 @@ export class Activo {
 
   @OneToMany(() => Bitacora, (bitacora) => bitacora.activo)
   historial: Bitacora[];
-
-  @OneToMany(() => ReservaActivo, (reserva) => reserva.activo)
-  reservas: ReservaActivo[];
 
   @DeleteDateColumn({ nullable: true })
   eliminado_en?: Date | null;

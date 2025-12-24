@@ -388,38 +388,8 @@ export class InventarioControlador {
     return this.inventario_servicio.reservas.obtenerReservasTratamiento(+plan_id);
   }
 
-  @Get(':inventario_id/activos-disponibles')
-  @ApiOperation({ summary: 'Obtener activos disponibles para un rango de tiempo' })
-  @UseGuards(PermisoInventarioGuardia)
-  obtenerActivosDisponibles(
-    @Request() req,
-    @Param('inventario_id') inventario_id: string,
-    @Query('producto_id') producto_id: string,
-    @Query('fecha_inicio') fecha_inicio: string,
-    @Query('fecha_fin') fecha_fin: string,
-    @Query('cita_id_excluir') cita_id_excluir?: string,
-  ) {
-    return this.inventario_servicio.reservas.obtenerActivosDisponibles(
-      +producto_id,
-      new Date(fecha_inicio),
-      new Date(fecha_fin),
-      cita_id_excluir ? +cita_id_excluir : undefined,
-    );
-  }
-
-  @Post('verificar-disponibilidad-activo')
-  @ApiOperation({ summary: 'Verificar disponibilidad de un activo' })
-  verificarDisponibilidadActivo(
-    @Request() req,
-    @Body() body: { activo_id: number; fecha_inicio: string; fecha_fin: string; cita_id_excluir?: number },
-  ) {
-    return this.inventario_servicio.reservas.verificarDisponibilidadActivo(
-      body.activo_id,
-      new Date(body.fecha_inicio),
-      new Date(body.fecha_fin),
-      body.cita_id_excluir,
-    );
-  }
+  // Fixed asset reservation endpoints have been removed - obtenerActivosDisponibles, verificarDisponibilidadActivo
+  // Fixed assets now follow lifecycle: Disponible -> En Mantenimiento <-> Desechado/Vendido
 
   @Post('tratamientos/:id/asignar-materiales')
   @ApiOperation({ summary: 'Asignar materiales a un plan de tratamiento' })
