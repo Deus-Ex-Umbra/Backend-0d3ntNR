@@ -111,7 +111,6 @@ export class CatalogoServicio implements OnModuleInit {
     if (!existente) throw new NotFoundException('Tamaño no encontrado');
     if (existente.protegido) throw new ConflictException('Este tamaño está protegido y no puede modificarse');
     Object.assign(existente, dto);
-    // Auto-generate description based on final ancho and alto values
     existente.descripcion = this.generarDescripcionTamano(existente.ancho, existente.alto);
     return this.tamano_papel_repositorio.save(existente);
   }

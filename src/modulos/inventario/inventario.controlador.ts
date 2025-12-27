@@ -388,9 +388,6 @@ export class InventarioControlador {
     return this.inventario_servicio.reservas.obtenerReservasTratamiento(+plan_id);
   }
 
-  // Fixed asset reservation endpoints have been removed - obtenerActivosDisponibles, verificarDisponibilidadActivo
-  // Fixed assets now follow lifecycle: Disponible -> En Mantenimiento <-> Desechado/Vendido
-
   @Post('tratamientos/:id/asignar-materiales')
   @ApiOperation({ summary: 'Asignar materiales a un plan de tratamiento' })
   asignarMaterialesTratamiento(

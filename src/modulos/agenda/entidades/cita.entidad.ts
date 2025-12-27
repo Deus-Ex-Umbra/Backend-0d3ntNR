@@ -42,8 +42,6 @@ export class Cita {
   @OneToMany(() => ReservaMaterial, (reserva) => reserva.cita)
   reservas_materiales: ReservaMaterial[];
 
-  // reservas_activos relationship removed - fixed assets are no longer reserved
-
   @DeleteDateColumn({ nullable: true })
   eliminado_en?: Date | null;
 }

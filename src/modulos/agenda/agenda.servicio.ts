@@ -185,7 +185,6 @@ export class AgendaServicio {
         }
       }
     }
-    // Fixed assets are no longer reserved
 
     const nueva_cita = this.cita_repositorio.create({
       ...cita_data,
@@ -222,7 +221,6 @@ export class AgendaServicio {
         }
       }
     }
-    // Fixed assets are no longer reserved
 
     return cita_guardada;
   }
@@ -396,7 +394,6 @@ export class AgendaServicio {
       throw new NotFoundException(`Cita con ID "${id}" no encontrada o no le pertenece.`);
     }
     await this.inventario_servicio.reservas.cancelarReservasMaterialesCita(id);
-    // cancelarReservasActivosCita removed - fixed assets are no longer reserved
 
     await this.finanzas_servicio.eliminarPagosPorCita(usuario_id, id);
 

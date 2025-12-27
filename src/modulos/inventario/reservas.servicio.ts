@@ -201,11 +201,7 @@ export class ReservasServicio {
                 }
             }
         }
-        // Fixed assets are no longer reserved
     }
-
-    // Fixed asset reservation methods have been removed - fixed assets now follow lifecycle:
-    // Disponible -> En Mantenimiento <-> Desechado/Vendido
 
     async obtenerReservasCita(cita_id: number): Promise<{
         materiales: ReservaMaterial[];
@@ -289,10 +285,6 @@ export class ReservasServicio {
 
         return { materiales };
     }
-
-    // obtenerActivosDisponibles, verificarDisponibilidadActivoGlobal, reservarActivoCitaGlobal,
-    // procesarIniciosCitas, and procesarFinesCitas have been removed.
-    // Fixed assets now follow lifecycle: Disponible -> En Mantenimiento <-> Desechado/Vendido
 
     async validarDisponibilidadMaterial(
         material_id: number,

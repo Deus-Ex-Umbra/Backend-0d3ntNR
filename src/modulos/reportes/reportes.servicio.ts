@@ -1214,7 +1214,6 @@ El texto dentro de cada campo debe usar formato Markdown simple (negritas, lista
     reporte.usuario = { id: usuario_id } as any;
 
     await this.reporte_repositorio.save(reporte);
-    const fecha_creacion_local = new Date(reporte.fecha_creacion.getTime() - reporte.fecha_creacion.getTimezoneOffset() * 60000);
 
     return {
       id: reporte.id,
@@ -1222,7 +1221,7 @@ El texto dentro de cada campo debe usar formato Markdown simple (negritas, lista
       areas: JSON.parse(reporte.areas),
       fecha_inicio: reporte.fecha_inicio,
       fecha_fin: reporte.fecha_fin,
-      fecha_creacion: fecha_creacion_local,
+      fecha_creacion: reporte.fecha_creacion,
       analisis_gemini: reporte.analisis_gemini,
     };
   }
@@ -1234,15 +1233,13 @@ El texto dentro de cada campo debe usar formato Markdown simple (negritas, lista
     });
 
     return reportes.map(r => {
-      const fecha_creacion_local = new Date(r.fecha_creacion.getTime() - r.fecha_creacion.getTimezoneOffset() * 60000);
-
       return {
         id: r.id,
         nombre: r.nombre,
         areas: JSON.parse(r.areas),
         fecha_inicio: r.fecha_inicio,
         fecha_fin: r.fecha_fin,
-        fecha_creacion: fecha_creacion_local,
+        fecha_creacion: r.fecha_creacion,
         analisis_gemini: r.analisis_gemini,
       };
     });

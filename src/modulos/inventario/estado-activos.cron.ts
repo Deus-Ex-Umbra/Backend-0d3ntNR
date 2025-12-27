@@ -11,8 +11,5 @@ export class EstadoActivosCron {
     ) { }
     @Cron(CronExpression.EVERY_MINUTE)
     async actualizarEstadosActivos() {
-        // Fixed assets are no longer reserved - they follow lifecycle:
-        // Disponible -> En Mantenimiento <-> Desechado/Vendido
-        // This cron is now a no-op but kept for future use if needed
     }
 }
