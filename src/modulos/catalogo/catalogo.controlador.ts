@@ -174,4 +174,9 @@ export class CatalogoControlador {
   actualizarConfiguracionClinica(@Body() dto: ActualizarConfiguracionClinicaDto, @Req() req: any) {
     return this.catalogo_servicio.actualizarConfiguracionClinica(req.user.id, dto);
   }
+
+  @Get('hora-servidor')
+  obtenerHoraServidor() {
+    return this.catalogo_servicio.obtenerHoraServidor();
+  }
 }

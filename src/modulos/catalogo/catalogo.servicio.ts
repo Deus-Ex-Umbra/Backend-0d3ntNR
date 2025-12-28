@@ -319,5 +319,9 @@ export class CatalogoServicio implements OnModuleInit {
     }
     return this.configuracion_clinica_repositorio.save(config);
   }
+
+  async obtenerHoraServidor(): Promise<Date> {
+    return new Date();
+  }
 }
 
