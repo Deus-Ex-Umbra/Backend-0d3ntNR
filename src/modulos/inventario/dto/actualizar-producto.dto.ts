@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsInt, Min, IsOptional, IsBoolean, IsEnum } from 'class-validator';
+import { IsString, IsInt, Min, IsOptional, IsBoolean, IsEnum, IsNumber } from 'class-validator';
 import { SubtipoMaterial, SubtipoActivoFijo } from '../entidades/producto.entidad';
 
 export class ActualizarProductoDto {
@@ -20,7 +20,7 @@ export class ActualizarProductoDto {
 
   @ApiPropertyOptional({ description: 'Stock mínimo' })
   @IsOptional()
-  @IsInt()
+  @IsNumber()
   @Min(0)
   stock_minimo?: number;
 

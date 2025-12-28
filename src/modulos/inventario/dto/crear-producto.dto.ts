@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, IsEnum, IsInt, Min, IsOptional, IsBoolean, ValidateIf } from 'class-validator';
+import { IsString, IsNotEmpty, IsEnum, IsInt, Min, IsOptional, IsBoolean, ValidateIf, IsNumber } from 'class-validator';
 import { TipoProducto, SubtipoMaterial, SubtipoActivoFijo } from '../entidades/producto.entidad';
 
 export class CrearProductoDto {
@@ -28,7 +28,7 @@ export class CrearProductoDto {
 
   @ApiPropertyOptional({ description: 'Stock mínimo', default: 0 })
   @IsOptional()
-  @IsInt()
+  @IsNumber()
   @Min(0)
   stock_minimo?: number;
 

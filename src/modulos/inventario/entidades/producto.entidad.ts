@@ -47,7 +47,7 @@ export class Producto {
   })
   subtipo_activo_fijo: SubtipoActivoFijo;
 
-  @Column({ default: 0 })
+  @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
   stock_minimo: number;
 
   @Column({ default: 'unidad' })
