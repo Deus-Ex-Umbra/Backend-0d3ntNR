@@ -78,10 +78,19 @@ export class AgendaServicio {
       condiciones.id = Not(cita_id_excluir);
     }
 
-    const citas_del_dia = await this.cita_repositorio.find({
-      where: condiciones,
-      relations: ['paciente', 'plan_tratamiento'],
-    });
+    const citas_del_dia = await this.cita_repositorio
+      .createQueryBuilder('cita')
+      .leftJoinAndSelect('cita.paciente', 'paciente')
+      .leftJoinAndSelect('cita.plan_tratamiento', 'plan_tratamiento')
+      .where('cita.fecha BETWEEN :fecha_inicio AND :fecha_fin', {
+        fecha_inicio: fecha_inicio_busqueda,
+        fecha_fin: fecha_fin_busqueda
+      })
+      .andWhere('cita.usuario.id = :usuario_id', { usuario_id })
+      .andWhere('cita.eliminado_en IS NULL')
+      .andWhere(cita_id_excluir ? 'cita.id != :cita_id_excluir' : '1=1', { cita_id_excluir })
+      .getMany();
+
 
     const citas_conflicto: Cita[] = [];
     const conflictos_detallados: string[] = [];
@@ -229,39 +238,40 @@ export class AgendaServicio {
     const primer_dia = new Date(ano, mes - 1, 1);
     const ultimo_dia = new Date(ano, mes, 0, 23, 59, 59);
 
-    const where_condition: FindOptionsWhere<Cita> = {
-      fecha: Between(primer_dia, ultimo_dia),
-      usuario: { id: usuario_id }
-    };
-
     if (ligero) {
-      return this.cita_repositorio.find({
-        where: where_condition,
-        relations: ['paciente'],
-        select: {
-          id: true,
-          fecha: true,
-          descripcion: true,
-          estado_pago: true,
-          monto_esperado: true,
-          horas_aproximadas: true,
-          minutos_aproximados: true,
-          materiales_confirmados: true,
-          paciente: {
-            id: true,
-            nombre: true,
-            apellidos: true
-          }
-        },
-        order: { fecha: 'ASC' }
-      });
+      return this.cita_repositorio
+        .createQueryBuilder('cita')
+        .leftJoinAndSelect('cita.paciente', 'paciente')
+        .select([
+          'cita.id',
+          'cita.fecha',
+          'cita.descripcion',
+          'cita.estado_pago',
+          'cita.monto_esperado',
+          'cita.horas_aproximadas',
+          'cita.minutos_aproximados',
+          'cita.materiales_confirmados',
+          'paciente.id',
+          'paciente.nombre',
+          'paciente.apellidos'
+        ])
+        .where('cita.fecha BETWEEN :primer_dia AND :ultimo_dia', { primer_dia, ultimo_dia })
+        .andWhere('cita.usuario.id = :usuario_id', { usuario_id })
+        .andWhere('cita.eliminado_en IS NULL')
+        .orderBy('cita.fecha', 'ASC')
+        .getMany();
     }
 
-    return this.cita_repositorio.find({
-      where: where_condition,
-      relations: ['paciente', 'plan_tratamiento', 'plan_tratamiento.paciente'],
-      order: { fecha: 'ASC' }
-    });
+    return this.cita_repositorio
+      .createQueryBuilder('cita')
+      .leftJoinAndSelect('cita.paciente', 'paciente')
+      .leftJoinAndSelect('cita.plan_tratamiento', 'plan_tratamiento')
+      .leftJoinAndSelect('plan_tratamiento.paciente', 'plan_paciente')
+      .where('cita.fecha BETWEEN :primer_dia AND :ultimo_dia', { primer_dia, ultimo_dia })
+      .andWhere('cita.usuario.id = :usuario_id', { usuario_id })
+      .andWhere('cita.eliminado_en IS NULL')
+      .orderBy('cita.fecha', 'ASC')
+      .getMany();
   }
 
   async actualizar(usuario_id: number, id: number, actualizar_cita_dto: ActualizarCitaDto): Promise<Cita> {
@@ -486,13 +496,13 @@ export class AgendaServicio {
       fecha_inicio_busqueda = primer_dia < ahora ? ahora : primer_dia;
     }
 
-    const citas_mes = await this.cita_repositorio.find({
-      where: {
-        fecha: Between(primer_dia, ultimo_dia),
-        usuario: { id: usuario_id }
-      },
-      order: { fecha: 'ASC' }
-    });
+    const citas_mes = await this.cita_repositorio
+      .createQueryBuilder('cita')
+      .where('cita.fecha BETWEEN :primer_dia AND :ultimo_dia', { primer_dia, ultimo_dia })
+      .andWhere('cita.usuario.id = :usuario_id', { usuario_id })
+      .andWhere('cita.eliminado_en IS NULL')
+      .orderBy('cita.fecha', 'ASC')
+      .getMany();
 
     const espacios_libres: any[] = [];
     let fecha_actual = new Date(fecha_inicio_busqueda);
@@ -612,26 +622,26 @@ export class AgendaServicio {
   }
 
   async filtrarCitas(usuario_id: number, fecha_inicio: Date, fecha_fin: Date): Promise<Cita[]> {
-    const where_condition: FindOptionsWhere<Cita> = {
-      fecha: Between(fecha_inicio, fecha_fin),
-      usuario: { id: usuario_id }
-    };
-
-    return this.cita_repositorio.find({
-      where: where_condition,
-      relations: ['paciente', 'plan_tratamiento', 'plan_tratamiento.paciente'],
-      order: { fecha: 'ASC' }
-    });
+    return this.cita_repositorio
+      .createQueryBuilder('cita')
+      .leftJoinAndSelect('cita.paciente', 'paciente')
+      .leftJoinAndSelect('cita.plan_tratamiento', 'plan_tratamiento')
+      .leftJoinAndSelect('plan_tratamiento.paciente', 'plan_paciente')
+      .where('cita.fecha BETWEEN :fecha_inicio AND :fecha_fin', { fecha_inicio, fecha_fin })
+      .andWhere('cita.usuario.id = :usuario_id', { usuario_id })
+      .andWhere('cita.eliminado_en IS NULL')
+      .orderBy('cita.fecha', 'ASC')
+      .getMany();
   }
 
   async filtrarEspaciosLibres(usuario_id: number, fecha_inicio: Date, fecha_fin: Date): Promise<any[]> {
-    const citas_rango = await this.cita_repositorio.find({
-      where: {
-        fecha: Between(fecha_inicio, fecha_fin),
-        usuario: { id: usuario_id }
-      },
-      order: { fecha: 'ASC' }
-    });
+    const citas_rango = await this.cita_repositorio
+      .createQueryBuilder('cita')
+      .where('cita.fecha BETWEEN :fecha_inicio AND :fecha_fin', { fecha_inicio, fecha_fin })
+      .andWhere('cita.usuario.id = :usuario_id', { usuario_id })
+      .andWhere('cita.eliminado_en IS NULL')
+      .orderBy('cita.fecha', 'ASC')
+      .getMany();
 
     const espacios_libres: any[] = [];
     let fecha_actual = new Date(fecha_inicio);
