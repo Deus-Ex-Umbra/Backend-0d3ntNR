@@ -45,7 +45,6 @@ class ConfiguracionPdfDto {
 export class GenerarPdfDto {
     @ApiProperty({ description: 'Contenido HTML a convertir en PDF' })
     @IsString()
-    @IsNotEmpty()
     contenido_html: string;
 
     @ApiProperty({ description: 'Configuración del documento' })
