@@ -73,7 +73,7 @@ export class FinanzasServicio {
       throw new NotFoundException('El egreso especificado no existe o no le pertenece.');
     }
 
-    await this.egreso_repositorio.remove(egreso);
+    await this.egreso_repositorio.softRemove(egreso);
   }
 
   async registrarPago(usuario_id: number, registrar_pago_dto: RegistrarPagoDto): Promise<Pago> {
@@ -213,7 +213,7 @@ export class FinanzasServicio {
       });
     }
 
-    await this.pago_repositorio.remove(pago);
+    await this.pago_repositorio.softRemove(pago);
   }
 
   async eliminarPagosPorCita(usuario_id: number, cita_id: number): Promise<{ pagos_eliminados: number; monto_total: number }> {
@@ -228,7 +228,7 @@ export class FinanzasServicio {
       if (pago.plan_tratamiento) {
         await this.planes_servicio.descontarAbono(usuario_id, pago.plan_tratamiento.id, Number(pago.monto));
       }
-      await this.pago_repositorio.remove(pago);
+      await this.pago_repositorio.softRemove(pago);
     }
 
     return {

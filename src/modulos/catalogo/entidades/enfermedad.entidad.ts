@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, DeleteDateColumn } from 'typeorm';
 import { Usuario } from '../../usuarios/entidades/usuario.entidad';
 
 @Entity()
@@ -21,4 +21,6 @@ export class Enfermedad {
 
   @Column({ nullable: true })
   usuario_id: number;
+  @DeleteDateColumn({ select: false })
+  eliminado_en: Date;
 }

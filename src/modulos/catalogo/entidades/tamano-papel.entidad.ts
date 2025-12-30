@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, Index } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, Index, DeleteDateColumn } from 'typeorm';
 
 @Entity('tamanos_papel')
 export class TamanoPapel {
@@ -23,4 +23,6 @@ export class TamanoPapel {
 
   @Column({ default: true })
   activo: boolean;
+  @DeleteDateColumn({ select: false })
+  eliminado_en: Date;
 }

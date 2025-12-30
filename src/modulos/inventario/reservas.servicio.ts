@@ -167,6 +167,10 @@ export class ReservasServicio {
                 relations: ['material']
             });
             for (const reserva of reservas_materiales_actuales) {
+                if (!reserva.material) {
+                    await this.cancelarReservaMaterial(reserva.id);
+                    continue;
+                }
                 const sigue_existiendo = consumibles.find(c => c.material_id === reserva.material.id);
                 if (!sigue_existiendo) {
                     await this.cancelarReservaMaterial(reserva.id);
@@ -206,10 +210,13 @@ export class ReservasServicio {
     async obtenerReservasCita(cita_id: number): Promise<{
         materiales: ReservaMaterial[];
     }> {
-        const materiales = await this.reserva_material_repositorio.find({
-            where: { cita: { id: cita_id } },
-            relations: ['material', 'material.producto', 'material.producto.inventario'],
-        });
+        const materiales = await this.reserva_material_repositorio.createQueryBuilder('rm')
+            .leftJoinAndSelect('rm.material', 'material')
+            .leftJoinAndSelect('material.producto', 'producto')
+            .leftJoinAndSelect('producto.inventario', 'inventario')
+            .where('rm.citaId = :cita_id', { cita_id })
+            .withDeleted()
+            .getMany();
 
         return { materiales };
     }
@@ -227,10 +234,12 @@ export class ReservasServicio {
             for (const item of materiales) {
                 const reserva = await queryRunner.manager.findOne(ReservaMaterial, {
                     where: { id: item.material_cita_id },
-                    relations: ['material', 'material.producto', 'material.producto.inventario']
+                    relations: ['material', 'material.producto', 'material.producto.inventario'],
+                    withDeleted: true
                 });
                 if (!reserva) continue;
                 if (reserva.estado === EstadoReserva.CONFIRMADA) continue;
+                if (!reserva.material || !reserva.material.producto) continue;
                 const material = reserva.material;
                 const producto = material.producto;
                 const inventario = producto.inventario;

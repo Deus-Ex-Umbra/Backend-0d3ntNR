@@ -119,7 +119,7 @@ export class CatalogoServicio implements OnModuleInit {
     const existente = await this.tamano_papel_repositorio.findOne({ where: { id } });
     if (!existente) throw new NotFoundException('Tamaño no encontrado');
     if (existente.protegido) throw new ConflictException('Este tamaño está protegido y no puede eliminarse');
-    const resultado = await this.tamano_papel_repositorio.update(id, { activo: false });
+    const resultado = await this.tamano_papel_repositorio.softDelete(id);
     if (resultado.affected === 0) throw new NotFoundException('Tamaño no encontrado');
   }
 
@@ -146,7 +146,7 @@ export class CatalogoServicio implements OnModuleInit {
   }
 
   async eliminarAlergia(usuario_id: number, id: number): Promise<void> {
-    const resultado = await this.alergia_repositorio.update({ id, usuario_id }, { activo: false });
+    const resultado = await this.alergia_repositorio.softDelete({ id, usuario_id });
     if (resultado.affected === 0) {
       throw new NotFoundException('Alergia no encontrada');
     }
@@ -175,7 +175,7 @@ export class CatalogoServicio implements OnModuleInit {
   }
 
   async eliminarEnfermedad(usuario_id: number, id: number): Promise<void> {
-    const resultado = await this.enfermedad_repositorio.update({ id, usuario_id }, { activo: false });
+    const resultado = await this.enfermedad_repositorio.softDelete({ id, usuario_id });
     if (resultado.affected === 0) {
       throw new NotFoundException('Enfermedad no encontrada');
     }
@@ -204,7 +204,7 @@ export class CatalogoServicio implements OnModuleInit {
   }
 
   async eliminarMedicamento(usuario_id: number, id: number): Promise<void> {
-    const resultado = await this.medicamento_repositorio.update({ id, usuario_id }, { activo: false });
+    const resultado = await this.medicamento_repositorio.softDelete({ id, usuario_id });
     if (resultado.affected === 0) {
       throw new NotFoundException('Medicamento no encontrado');
     }
@@ -229,7 +229,7 @@ export class CatalogoServicio implements OnModuleInit {
   }
 
   async eliminarColor(usuario_id: number, id: number): Promise<void> {
-    const resultado = await this.color_repositorio.update({ id, usuario_id }, { activo: false });
+    const resultado = await this.color_repositorio.softDelete({ id, usuario_id });
     if (resultado.affected === 0) {
       throw new NotFoundException('Color no encontrado');
     }
@@ -257,7 +257,7 @@ export class CatalogoServicio implements OnModuleInit {
   }
 
   async eliminarEtiqueta(id: number): Promise<void> {
-    const resultado = await this.etiqueta_repositorio.update(id, { activo: false });
+    const resultado = await this.etiqueta_repositorio.softDelete(id);
     if (resultado.affected === 0) {
       throw new NotFoundException('Etiqueta no encontrada');
     }
@@ -290,7 +290,7 @@ export class CatalogoServicio implements OnModuleInit {
   }
 
   async eliminarEtiquetaPlantilla(id: number, usuario_id: number): Promise<void> {
-    const resultado = await this.etiqueta_plantilla_repositorio.update({ id, usuario: { id: usuario_id } }, { activo: false });
+    const resultado = await this.etiqueta_plantilla_repositorio.softDelete({ id, usuario: { id: usuario_id } });
     if (resultado.affected === 0) throw new NotFoundException('Etiqueta no encontrada');
   }
 

@@ -435,17 +435,18 @@ export class AgendaServicio {
   }
 
   async obtenerPorId(usuario_id: number, id: number): Promise<Cita> {
-    const cita = await this.cita_repositorio.findOne({
-      where: { id, usuario: { id: usuario_id } },
-      relations: [
-        'paciente',
-        'plan_tratamiento',
-        'reservas_materiales',
-        'reservas_materiales.material',
-        'reservas_materiales.material.producto',
-        'reservas_materiales.material.producto.inventario'
-      ],
-    });
+    const cita = await this.cita_repositorio.createQueryBuilder('cita')
+      .leftJoinAndSelect('cita.paciente', 'paciente')
+      .leftJoinAndSelect('cita.plan_tratamiento', 'plan_tratamiento')
+      .leftJoinAndSelect('cita.reservas_materiales', 'reservas_materiales')
+      .leftJoinAndSelect('reservas_materiales.material', 'material')
+      .leftJoinAndSelect('material.producto', 'producto')
+      .leftJoinAndSelect('producto.inventario', 'inventario')
+      .where('cita.id = :id', { id })
+      .andWhere('cita.usuario.id = :usuario_id', { usuario_id })
+      .andWhere('cita.eliminado_en IS NULL')
+      .withDeleted()
+      .getOne();
 
     if (!cita) {
       throw new NotFoundException(`Cita con ID "${id}" no encontrada o no le pertenece.`);
@@ -455,18 +456,19 @@ export class AgendaServicio {
   }
 
   async obtenerPorIdCompleto(usuario_id: number, id: number): Promise<Cita> {
-    const cita = await this.cita_repositorio.findOne({
-      where: { id, usuario: { id: usuario_id } },
-      relations: [
-        'paciente',
-        'plan_tratamiento',
-        'plan_tratamiento.paciente',
-        'reservas_materiales',
-        'reservas_materiales.material',
-        'reservas_materiales.material.producto',
-        'reservas_materiales.material.producto.inventario'
-      ],
-    });
+    const cita = await this.cita_repositorio.createQueryBuilder('cita')
+      .leftJoinAndSelect('cita.paciente', 'paciente')
+      .leftJoinAndSelect('cita.plan_tratamiento', 'plan_tratamiento')
+      .leftJoinAndSelect('plan_tratamiento.paciente', 'plan_paciente')
+      .leftJoinAndSelect('cita.reservas_materiales', 'reservas_materiales')
+      .leftJoinAndSelect('reservas_materiales.material', 'material')
+      .leftJoinAndSelect('material.producto', 'producto')
+      .leftJoinAndSelect('producto.inventario', 'inventario')
+      .where('cita.id = :id', { id })
+      .andWhere('cita.usuario.id = :usuario_id', { usuario_id })
+      .andWhere('cita.eliminado_en IS NULL')
+      .withDeleted()
+      .getOne();
 
     if (!cita) {
       throw new NotFoundException(`Cita con ID "${id}" no encontrada o no le pertenece.`);

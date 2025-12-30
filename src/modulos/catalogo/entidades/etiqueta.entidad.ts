@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, DeleteDateColumn } from 'typeorm';
 
 @Entity('etiquetas')
 export class Etiqueta {
@@ -19,4 +19,7 @@ export class Etiqueta {
 
   @UpdateDateColumn()
   fecha_actualizacion: Date;
+
+  @DeleteDateColumn({ select: false })
+  eliminado_en: Date;
 }

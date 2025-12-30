@@ -124,7 +124,11 @@ export class PlanesTratamientoServicio {
       where: { tratamiento: { id: tratamiento_id } },
       relations: ['producto'],
     });
-    const materiales_generales = materiales_plantilla.filter(m => m.tipo === TipoMaterialPlantilla.GENERAL);
+
+    // Filtramos materiales cuyo producto haya sido eliminado físicamente o sea nulo
+    const materiales_validos = materiales_plantilla.filter(m => m.producto);
+    const materiales_generales = materiales_validos.filter(m => m.tipo === TipoMaterialPlantilla.GENERAL);
+
     for (const material of materiales_generales) {
       const material_tratamiento = this.material_tratamiento_repositorio.create({
         plan_tratamiento: plan_guardado,
@@ -136,7 +140,7 @@ export class PlanesTratamientoServicio {
       });
       await this.material_tratamiento_repositorio.save(material_tratamiento);
     }
-    const materiales_por_cita = materiales_plantilla.filter(m => m.tipo === TipoMaterialPlantilla.POR_CITA);
+    const materiales_por_cita = materiales_validos.filter(m => m.tipo === TipoMaterialPlantilla.POR_CITA);
     const citas_creadas: Cita[] = [];
     for (let i = 0; i < tratamiento_plantilla.numero_citas; i++) {
       const consumibles_cita: { material_id: number; cantidad: number }[] = [];
@@ -239,18 +243,20 @@ export class PlanesTratamientoServicio {
   async obtenerMaterialesPlanTratamiento(usuario_id: number, plan_id: number): Promise<any> {
     const plan = await this.encontrarPlanPorId(usuario_id, plan_id);
 
-    const materiales = await this.material_tratamiento_repositorio.find({
-      where: { plan_tratamiento: { id: plan_id } },
-      relations: ['producto', 'producto.inventario'],
-    });
+    const materiales = await this.material_tratamiento_repositorio.createQueryBuilder('mt')
+      .leftJoinAndSelect('mt.producto', 'producto')
+      .leftJoinAndSelect('producto.inventario', 'inventario')
+      .where('mt.plan_tratamientoId = :plan_id', { plan_id })
+      .withDeleted()
+      .getMany();
 
     return {
       materiales: materiales.map(material => ({
         id: material.id,
-        producto_id: material.producto.id,
-        inventario_id: material.producto.inventario.id,
-        inventario_nombre: material.producto.inventario.nombre,
-        producto_nombre: material.producto.nombre,
+        producto_id: material.producto?.id,
+        inventario_id: material.producto?.inventario?.id,
+        inventario_nombre: material.producto?.inventario?.nombre || 'Inventario Eliminado',
+        producto_nombre: material.producto?.nombre || 'Producto Eliminado',
         cantidad_planeada: material.cantidad_planeada,
         cantidad_usada: material.cantidad_usada,
         confirmado: material.confirmado,
@@ -271,6 +277,7 @@ export class PlanesTratamientoServicio {
     });
 
     for (const material_tratamiento of materiales) {
+      if (!material_tratamiento.producto) continue;
       const cantidad_requerida = Number(material_tratamiento.cantidad_planeada);
       const materiales_fisicos = (material_tratamiento.producto.materiales || [])
         .filter((m: Material) => m.activo && Number(m.cantidad_actual) > 0)

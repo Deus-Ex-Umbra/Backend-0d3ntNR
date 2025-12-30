@@ -1,5 +1,5 @@
 import { NotaDiaria } from '../../notas/entidades/nota-diaria.entidad';
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, OneToMany, DeleteDateColumn } from 'typeorm';
 
 @Entity()
 export class Usuario {
@@ -20,4 +20,7 @@ export class Usuario {
 
   @OneToMany(() => NotaDiaria, (nota) => nota.usuario)
   notas: NotaDiaria[];
+
+  @DeleteDateColumn({ select: false })
+  eliminado_en: Date;
 }

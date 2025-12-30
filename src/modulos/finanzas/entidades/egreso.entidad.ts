@@ -1,11 +1,11 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, DeleteDateColumn } from 'typeorm';
 import { Usuario } from '../../usuarios/entidades/usuario.entidad';
 
 @Entity()
 export class Egreso {
   @PrimaryGeneratedColumn()
   id: number;
-  
+
   @ManyToOne(() => Usuario, { onDelete: 'CASCADE', onUpdate: 'CASCADE' })
   usuario: Usuario;
 
@@ -17,4 +17,7 @@ export class Egreso {
 
   @Column('decimal', { precision: 10, scale: 2 })
   monto: number;
+
+  @DeleteDateColumn({ select: false })
+  eliminado_en: Date;
 }
