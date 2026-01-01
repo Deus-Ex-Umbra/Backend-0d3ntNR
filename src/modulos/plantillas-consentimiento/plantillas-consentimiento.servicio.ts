@@ -79,7 +79,11 @@ export class PlantillasConsentimientoServicio {
     contenido_procesado = contenido_procesado.replace(/\[PACIENTE_CORREO\]/g, paciente.correo || '');
     contenido_procesado = contenido_procesado.replace(/\[PACIENTE_DIRECCION\]/g, paciente.direccion || '');
     
-    const fecha_actual = new Date().toLocaleDateString('es-BO');
+    const fecha_actual_obj = new Date();
+    const dia = String(fecha_actual_obj.getDate()).padStart(2, '0');
+    const mes = String(fecha_actual_obj.getMonth() + 1).padStart(2, '0');
+    const anio = fecha_actual_obj.getFullYear();
+    const fecha_actual = `${dia}/${mes}/${anio}`;
     contenido_procesado = contenido_procesado.replace(/\[FECHA_ACTUAL\]/g, fecha_actual);
     
     const archivo_guardado = await this.archivos_servicio.subir(usuario_id, {

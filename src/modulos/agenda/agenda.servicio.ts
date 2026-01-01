@@ -10,6 +10,8 @@ import { FinanzasServicio } from '../finanzas/finanzas.servicio';
 import { InventarioServicio } from '../inventario/inventario.servicio';
 import { Usuario } from '../usuarios/entidades/usuario.entidad';
 
+const MESES_LARGOS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+
 @Injectable()
 export class AgendaServicio {
   constructor(
@@ -26,19 +28,16 @@ export class AgendaServicio {
   }
 
   private formatearHora(fecha: Date): string {
-    return fecha.toLocaleTimeString('es-BO', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false
-    });
+    const horas = String(fecha.getHours()).padStart(2, '0');
+    const minutos = String(fecha.getMinutes()).padStart(2, '0');
+    return `${horas}:${minutos}`;
   }
 
   private formatearFecha(fecha: Date): string {
-    return fecha.toLocaleDateString('es-BO', {
-      day: '2-digit',
-      month: 'long',
-      year: 'numeric'
-    });
+    const dia = String(fecha.getDate()).padStart(2, '0');
+    const mes = MESES_LARGOS[fecha.getMonth()] ?? '';
+    const anio = fecha.getFullYear();
+    return `${dia} ${mes} ${anio}`.trim();
   }
 
   async validarDisponibilidad(

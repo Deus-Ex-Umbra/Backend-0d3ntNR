@@ -87,13 +87,14 @@ export class PlanesTratamientoServicio {
           return conflicto.mensaje_detallado;
         }
 
-        const fecha_formateada = conflicto.fecha.toLocaleString('es-BO', {
-          day: '2-digit',
-          month: 'long',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit'
-        });
+        const fecha_conflicto = new Date(conflicto.fecha);
+        const dia = String(fecha_conflicto.getDate()).padStart(2, '0');
+        const meses_largos = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+        const mes = meses_largos[fecha_conflicto.getMonth()] ?? '';
+        const anio = fecha_conflicto.getFullYear();
+        const horas = String(fecha_conflicto.getHours()).padStart(2, '0');
+        const minutos = String(fecha_conflicto.getMinutes()).padStart(2, '0');
+        const fecha_formateada = `${dia} ${mes} ${anio} ${horas}:${minutos}`.trim();
 
         const citas_str = conflicto.citas_conflicto.map(cita => {
           const descripcion = cita.paciente
