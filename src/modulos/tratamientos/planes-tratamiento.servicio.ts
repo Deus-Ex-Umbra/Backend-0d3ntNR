@@ -173,7 +173,6 @@ export class PlanesTratamientoServicio {
         horas_aproximadas: horas_citas,
         minutos_aproximados: minutos_citas,
         consumibles: consumibles_cita,
-        modo_estricto: false,
       });
 
       citas_creadas.push(cita);

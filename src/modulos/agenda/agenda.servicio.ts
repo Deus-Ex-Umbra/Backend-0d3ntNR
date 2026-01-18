@@ -156,7 +156,6 @@ export class AgendaServicio {
       minutos_aproximados,
       consumibles,
       activos_fijos,
-      modo_estricto,
       ...cita_data
     } = crear_cita_dto;
 
@@ -181,18 +180,7 @@ export class AgendaServicio {
     const fecha_fin = new Date(fecha_inicio);
     fecha_fin.setHours(fecha_fin.getHours() + horas);
     fecha_fin.setMinutes(fecha_fin.getMinutes() + minutos);
-    if (consumibles && consumibles.length > 0 && modo_estricto) {
-      for (const consumible of consumibles) {
-        const { disponible, stock_disponible, mensaje } = await this.inventario_servicio.reservas.validarDisponibilidadMaterial(
-          consumible.material_id,
-          consumible.cantidad,
-          true
-        );
-        if (!disponible) {
-          throw new BadRequestException(mensaje || `Stock insuficiente para material ${consumible.material_id}. Disponible: ${stock_disponible}`);
-        }
-      }
-    }
+
 
     const nueva_cita = this.cita_repositorio.create({
       ...cita_data,
@@ -222,9 +210,6 @@ export class AgendaServicio {
             usuario_id
           );
         } catch (error) {
-          if (modo_estricto) {
-            throw error;
-          }
           console.warn(`No se pudo reservar material ${consumible.material_id}:`, error.message);
         }
       }
@@ -361,8 +346,7 @@ export class AgendaServicio {
       await this.inventario_servicio.reservas.actualizarRecursosCita(
         cita_guardada,
         actualizar_cita_dto.consumibles,
-        usuario_id,
-        actualizar_cita_dto.modo_estricto
+        usuario_id
       );
     }
 

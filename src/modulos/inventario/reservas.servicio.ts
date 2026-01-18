@@ -158,8 +158,7 @@ export class ReservasServicio {
     async actualizarRecursosCita(
         cita: Cita,
         consumibles: { material_id: number; cantidad: number }[] | undefined,
-        usuario_id: number,
-        modo_estricto: boolean = false
+        usuario_id: number
     ): Promise<void> {
         if (consumibles !== undefined) {
             const reservas_materiales_actuales = await this.reserva_material_repositorio.find({
@@ -183,7 +182,7 @@ export class ReservasServicio {
                     const diferencia = consumible.cantidad - Number(reserva_existente.cantidad_reservada);
                     if (diferencia !== 0) {
                         if (diferencia > 0) {
-                            const { disponible, mensaje } = await this.validarDisponibilidadMaterial(consumible.material_id, diferencia, modo_estricto);
+                            const { disponible, mensaje } = await this.validarDisponibilidadMaterial(consumible.material_id, diferencia);
                             if (!disponible) {
                                 throw new BadRequestException(mensaje);
                             }
@@ -199,7 +198,6 @@ export class ReservasServicio {
                     try {
                         await this.reservarMaterialCita(consumible.material_id, cita, consumible.cantidad, usuario_id);
                     } catch (error) {
-                        if (modo_estricto) throw error;
                         console.warn(`No se pudo reservar material ${consumible.material_id}:`, error.message);
                     }
                 }
@@ -298,7 +296,6 @@ export class ReservasServicio {
     async validarDisponibilidadMaterial(
         material_id: number,
         cantidad_requerida: number,
-        modo_estricto: boolean = false,
     ): Promise<{ disponible: boolean; stock_disponible: number; mensaje?: string }> {
         const material = await this.material_repositorio.findOne({
             where: { id: material_id },
@@ -311,7 +308,7 @@ export class ReservasServicio {
         const stock_disponible = Number(material.cantidad_actual) - Number(material.cantidad_reservada);
         const disponible = stock_disponible >= cantidad_requerida;
 
-        if (!disponible && modo_estricto) {
+        if (!disponible) {
             return {
                 disponible: false,
                 stock_disponible,

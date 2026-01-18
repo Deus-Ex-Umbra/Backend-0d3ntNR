@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsDate, IsInt, IsOptional, IsString, IsNumber, IsIn, ValidateIf, Min, IsArray, ValidateNested, IsBoolean } from 'class-validator';
+import { IsDate, IsInt, IsOptional, IsString, IsNumber, IsIn, ValidateIf, Min, IsArray, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class ReservaConsumibleDto {
@@ -73,8 +73,4 @@ export class CrearCitaDto {
   @ValidateNested({ each: true })
   @Type(() => ReservaActivoDto)
   activos_fijos?: ReservaActivoDto[];
-  @ApiProperty({ required: false, description: 'Si true, bloquea guardado si el stock es insuficiente', default: false })
-  @IsOptional()
-  @IsBoolean()
-  modo_estricto?: boolean;
 }
