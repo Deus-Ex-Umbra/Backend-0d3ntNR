@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, ILike, In, LessThan } from 'typeorm';
+import { Readable } from 'stream';
 import { Paciente } from './entidades/paciente.entidad';
 import { PacienteAlergia } from './entidades/paciente-alergia.entidad';
 import { PacienteEnfermedad } from './entidades/paciente-enfermedad.entidad';
@@ -547,7 +548,7 @@ export class PacientesServicio {
     });
   }
 
-  async obtenerArchivoConsentimiento(usuario_id: number, id: number): Promise<string> {
+  async obtenerArchivoConsentimiento(usuario_id: number, id: number): Promise<Readable> {
     const consentimiento = await this.consentimiento_repositorio.findOne({
       where: { id, usuario: { id: usuario_id } },
     });
@@ -556,7 +557,7 @@ export class PacientesServicio {
       throw new NotFoundException(`Consentimiento con ID ${id} no encontrado o no le pertenece.`);
     }
 
-    return this.almacenamiento_servicio.obtenerRutaArchivo(
+    return this.almacenamiento_servicio.obtenerStreamArchivo(
       consentimiento.ruta_archivo,
       TipoDocumento.PLANTILLA_CONSENTIMIENTO
     );

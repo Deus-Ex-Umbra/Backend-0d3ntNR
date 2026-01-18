@@ -1,8 +1,11 @@
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as fs from 'fs';
 import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { Readable } from 'stream';
 
 export enum TipoDocumento {
   ARCHIVO_ADJUNTO = 'archivos-adjuntos',
@@ -15,13 +18,34 @@ export enum TipoDocumento {
 @Injectable()
 export class AlmacenamientoServicio {
   private readonly ruta_base: string;
+  private readonly is_cloud: boolean;
+  private readonly s3_client: S3Client;
+  private readonly bucket_name: string;
+  private readonly logger = new Logger(AlmacenamientoServicio.name);
 
   constructor(private readonly config_servicio: ConfigService) {
-    this.ruta_base = this.config_servicio.get<string>('DOCS_PATH', './docs-0d3nt');
-    this.inicializarDirectorios();
+    this.is_cloud = this.config_servicio.get<string>('CLOUD') === 'true';
+    
+    if (this.is_cloud) {
+      this.bucket_name = this.config_servicio.get<string>('AWS_S3_BUCKET_NAME')!;
+      this.s3_client = new S3Client({
+        region: this.config_servicio.get<string>('AWS_REGION')!,
+        credentials: {
+          accessKeyId: this.config_servicio.get<string>('AWS_ACCESS_KEY_ID')!,
+          secretAccessKey: this.config_servicio.get<string>('AWS_SECRET_ACCESS_KEY')!,
+        },
+      });
+      this.logger.log(`Modo almacenamiento: CLOUD (S3 Bucket: ${this.bucket_name})`);
+    } else {
+      this.ruta_base = './docs-0d3nt';
+      this.inicializarDirectorios();
+      this.logger.log(`Modo almacenamiento: LOCAL (Ruta: ${this.ruta_base})`);
+    }
   }
 
   private inicializarDirectorios(): void {
+    if (this.is_cloud) return; 
+
     if (!fs.existsSync(this.ruta_base)) {
       fs.mkdirSync(this.ruta_base, { recursive: true });
     }
@@ -34,13 +58,15 @@ export class AlmacenamientoServicio {
   }
 
   private asegurarDirectorio(ruta: string): void {
+    if (this.is_cloud) return;
+
     if (!fs.existsSync(ruta)) {
       fs.mkdirSync(ruta, { recursive: true });
     }
   }
 
   private obtenerRutaTipo(tipo: TipoDocumento): string {
-    return path.join(this.ruta_base, tipo);
+    return this.is_cloud ? tipo : path.join(this.ruta_base, tipo);
   }
 
   async guardarArchivo(
@@ -54,17 +80,26 @@ export class AlmacenamientoServicio {
         ? `${nombre_personalizado}.${extension}` 
         : `${uuidv4()}.${extension}`;
       
-      const ruta_directorio = this.obtenerRutaTipo(tipo);
-      this.asegurarDirectorio(ruta_directorio);
-      
-      const ruta_completa = path.join(ruta_directorio, nombre_archivo);
-      
       const buffer = Buffer.from(contenido_base64, 'base64');
-      fs.writeFileSync(ruta_completa, buffer);
+      
+      if (this.is_cloud) {
+        const key = `${tipo}/${nombre_archivo}`;
+        const command = new PutObjectCommand({
+          Bucket: this.bucket_name,
+          Key: key,
+          Body: buffer,
+        });
+        await this.s3_client.send(command);
+      } else {
+        const ruta_directorio = this.obtenerRutaTipo(tipo);
+        this.asegurarDirectorio(ruta_directorio);
+        const ruta_completa = path.join(ruta_directorio, nombre_archivo);
+        fs.writeFileSync(ruta_completa, buffer);
+      }
       
       return nombre_archivo;
     } catch (error) {
-      console.error('Error al guardar archivo:', error);
+      this.logger.error('Error al guardar archivo:', error);
       throw new InternalServerErrorException('Error al guardar el archivo');
     }
   }
@@ -80,15 +115,24 @@ export class AlmacenamientoServicio {
         ? `${nombre_personalizado}.${extension}` 
         : `${uuidv4()}.${extension}`;
       
-      const ruta_directorio = this.obtenerRutaTipo(tipo);
-      this.asegurarDirectorio(ruta_directorio);
-      
-      const ruta_completa = path.join(ruta_directorio, nombre_archivo);
-      fs.writeFileSync(ruta_completa, buffer);
+      if (this.is_cloud) {
+        const key = `${tipo}/${nombre_archivo}`;
+        const command = new PutObjectCommand({
+          Bucket: this.bucket_name,
+          Key: key,
+          Body: buffer,
+        });
+        await this.s3_client.send(command);
+      } else {
+        const ruta_directorio = this.obtenerRutaTipo(tipo);
+        this.asegurarDirectorio(ruta_directorio);
+        const ruta_completa = path.join(ruta_directorio, nombre_archivo);
+        fs.writeFileSync(ruta_completa, buffer);
+      }
       
       return nombre_archivo;
     } catch (error) {
-      console.error('Error al guardar archivo desde buffer:', error);
+      this.logger.error('Error al guardar archivo desde buffer:', error);
       throw new InternalServerErrorException('Error al guardar el archivo');
     }
   }
@@ -98,17 +142,22 @@ export class AlmacenamientoServicio {
     tipo: TipoDocumento = TipoDocumento.ARCHIVO_ADJUNTO
   ): Promise<string> {
     try {
-      const ruta_completa = path.join(this.obtenerRutaTipo(tipo), nombre_archivo);
-      
-      if (!fs.existsSync(ruta_completa)) {
-        throw new InternalServerErrorException('Archivo no encontrado');
+      if (this.is_cloud) {
+         const buffer = await this.leerArchivoComoBuffer(nombre_archivo, tipo);
+         return buffer.toString('base64');
+      } else {
+        const ruta_completa = path.join(this.obtenerRutaTipo(tipo), nombre_archivo);
+        
+        if (!fs.existsSync(ruta_completa)) {
+          throw new InternalServerErrorException('Archivo no encontrado');
+        }
+        
+        const buffer = fs.readFileSync(ruta_completa);
+        return buffer.toString('base64');
       }
-      
-      const buffer = fs.readFileSync(ruta_completa);
-      return buffer.toString('base64');
     } catch (error) {
-      console.error('Error al leer archivo:', error);
-      throw new InternalServerErrorException('Error al leer el archivo');
+       this.logger.error('Error al leer archivo:', error);
+       throw new InternalServerErrorException('Error al leer el archivo');
     }
   }
 
@@ -117,15 +166,59 @@ export class AlmacenamientoServicio {
     tipo: TipoDocumento = TipoDocumento.ARCHIVO_ADJUNTO
   ): Promise<Buffer> {
     try {
-      const ruta_completa = path.join(this.obtenerRutaTipo(tipo), nombre_archivo);
-      
-      if (!fs.existsSync(ruta_completa)) {
-        throw new InternalServerErrorException('Archivo no encontrado');
+      if (this.is_cloud) {
+        const key = `${tipo}/${nombre_archivo}`;
+        const command = new GetObjectCommand({
+          Bucket: this.bucket_name,
+          Key: key,
+        });
+        const response = await this.s3_client.send(command);
+        const stream = response.Body as Readable;
+        
+        return new Promise((resolve, reject) => {
+          const chunks: Buffer[] = [];
+          stream.on('data', (chunk) => chunks.push(Buffer.from(chunk)));
+          stream.on('error', (err) => reject(err));
+          stream.on('end', () => resolve(Buffer.concat(chunks)));
+        });
+
+      } else {
+        const ruta_completa = path.join(this.obtenerRutaTipo(tipo), nombre_archivo);
+        
+        if (!fs.existsSync(ruta_completa)) {
+          throw new InternalServerErrorException('Archivo no encontrado');
+        }
+        
+        return fs.readFileSync(ruta_completa);
       }
-      
-      return fs.readFileSync(ruta_completa);
     } catch (error) {
-      console.error('Error al leer archivo como buffer:', error);
+      this.logger.error('Error al leer archivo como buffer:', error);
+      throw new InternalServerErrorException('Error al leer el archivo');
+    }
+  }
+
+  async obtenerStreamArchivo(
+    nombre_archivo: string,
+    tipo: TipoDocumento
+  ): Promise<Readable> {
+    try {
+      if (this.is_cloud) {
+        const key = `${tipo}/${nombre_archivo}`;
+        const command = new GetObjectCommand({
+          Bucket: this.bucket_name,
+          Key: key,
+        });
+        const response = await this.s3_client.send(command);
+        return response.Body as Readable;
+      } else {
+        const ruta_completa = path.join(this.obtenerRutaTipo(tipo), nombre_archivo);
+        if (!fs.existsSync(ruta_completa)) {
+           throw new InternalServerErrorException('Archivo no encontrado');
+        }
+        return fs.createReadStream(ruta_completa);
+      }
+    } catch (error) {
+      this.logger.error('Error al obtener stream de archivo:', error);
       throw new InternalServerErrorException('Error al leer el archivo');
     }
   }
@@ -135,14 +228,50 @@ export class AlmacenamientoServicio {
     tipo: TipoDocumento = TipoDocumento.ARCHIVO_ADJUNTO
   ): Promise<void> {
     try {
-      const ruta_completa = path.join(this.obtenerRutaTipo(tipo), nombre_archivo);
-      
-      if (fs.existsSync(ruta_completa)) {
-        fs.unlinkSync(ruta_completa);
+      if (this.is_cloud) {
+        const key = `${tipo}/${nombre_archivo}`;
+        const command = new DeleteObjectCommand({
+            Bucket: this.bucket_name,
+            Key: key
+        });
+        await this.s3_client.send(command);
+      } else {
+        const ruta_completa = path.join(this.obtenerRutaTipo(tipo), nombre_archivo);
+        if (fs.existsSync(ruta_completa)) {
+          fs.unlinkSync(ruta_completa);
+        }
       }
     } catch (error) {
-      console.error('Error al eliminar archivo:', error);
+      this.logger.error('Error al eliminar archivo:', error);
       throw new InternalServerErrorException('Error al eliminar el archivo');
+    }
+  }
+
+  async obtenerUrlAcceso(
+    nombre_archivo: string, 
+    tipo: TipoDocumento = TipoDocumento.ARCHIVO_ADJUNTO
+  ): Promise<string> {
+    try {
+      if (this.is_cloud) {
+        const cdn = this.config_servicio.get<string>('AWS_S3_CDN');
+        if (cdn && cdn.trim() !== '') {
+          return `${cdn}/${tipo}/${nombre_archivo}`;
+        }
+        
+        const key = `${tipo}/${nombre_archivo}`;
+        const command = new GetObjectCommand({
+          Bucket: this.bucket_name,
+          Key: key,
+        });
+        
+        return await getSignedUrl(this.s3_client, command, { expiresIn: 3600 });
+      } else {
+        const base_url = this.config_servicio.get<string>('BASE_URL', 'http://localhost:3000');
+        return `${base_url}/docs-0d3nt/${tipo}/${nombre_archivo}`;
+      }
+    } catch (error) {
+      this.logger.error('Error al generar URL de acceso:', error);
+      return '';
     }
   }
 
@@ -150,31 +279,54 @@ export class AlmacenamientoServicio {
     nombre_archivo: string, 
     tipo: TipoDocumento = TipoDocumento.ARCHIVO_ADJUNTO
   ): string {
+    if (this.is_cloud) {
+        return `${tipo}/${nombre_archivo}`;
+    }
     return path.join(this.obtenerRutaTipo(tipo), nombre_archivo);
   }
 
-  existeArchivo(
+  async existeArchivo(
     nombre_archivo: string, 
     tipo: TipoDocumento = TipoDocumento.ARCHIVO_ADJUNTO
-  ): boolean {
-    const ruta_completa = path.join(this.obtenerRutaTipo(tipo), nombre_archivo);
-    return fs.existsSync(ruta_completa);
+  ): Promise<boolean> {
+     if (this.is_cloud) {
+         try {
+             const key = `${tipo}/${nombre_archivo}`;
+              const command = new GetObjectCommand({
+                Bucket: this.bucket_name,
+                Key: key,
+                Range: 'bytes=0-0'
+              });
+              await this.s3_client.send(command);
+              return true;
+         } catch (e) {
+             return false;
+         }
+     } else {
+        const ruta_completa = path.join(this.obtenerRutaTipo(tipo), nombre_archivo);
+        return fs.existsSync(ruta_completa);
+     }
   }
 
-  listarArchivos(tipo: TipoDocumento): string[] {
+  async listarArchivos(tipo: TipoDocumento): Promise<string[]> {
     try {
-      const ruta_directorio = this.obtenerRutaTipo(tipo);
-      if (!fs.existsSync(ruta_directorio)) {
-        return [];
+      if (this.is_cloud) {
+          this.logger.warn('Listar archivos no implementado completamente para S3');
+          return [];
+      } else {
+        const ruta_directorio = this.obtenerRutaTipo(tipo);
+        if (!fs.existsSync(ruta_directorio)) {
+          return [];
+        }
+        return fs.readdirSync(ruta_directorio);
       }
-      return fs.readdirSync(ruta_directorio);
     } catch (error) {
-      console.error('Error al listar archivos:', error);
+      this.logger.error('Error al listar archivos:', error);
       return [];
     }
   }
 
   obtenerRutaBase(): string {
-    return this.ruta_base;
+    return this.ruta_base || '';
   }
 }

@@ -210,15 +210,14 @@ export class PacientesControlador {
     @Param('id') id: string,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const ruta_archivo = await this.pacientes_servicio.obtenerArchivoConsentimiento(req.user.id, +id);
-    const archivo = fs.createReadStream(ruta_archivo);
+    const archivo = await this.pacientes_servicio.obtenerArchivoConsentimiento(req.user.id, +id);
     
     res.set({
       'Content-Type': 'application/pdf',
       'Content-Disposition': `attachment; filename="consentimiento_${id}.pdf"`,
     });
 
-    return new StreamableFile(archivo);
+    return new StreamableFile(archivo as any); // Cast to any or StreamableFile compatible type if needed, but Readable is compatible
   }
 
   @Delete('consentimientos/:id')

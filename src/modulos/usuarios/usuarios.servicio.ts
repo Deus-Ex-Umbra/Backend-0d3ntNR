@@ -51,6 +51,14 @@ export class UsuariosServicio {
       throw new NotFoundException(`Usuario con ID "${id}" no encontrado`);
     }
     const { contrasena, ...resultado } = usuario;
+
+    if (resultado.avatar_ruta) {
+        (resultado as any).avatar_url = await this.almacenamiento_servicio.obtenerUrlAcceso(
+            resultado.avatar_ruta,
+            TipoDocumento.ARCHIVO_ADJUNTO
+        );
+    }
+
     return resultado;
   }
   
@@ -86,6 +94,14 @@ export class UsuariosServicio {
 
     const usuario_actualizado = await this.usuario_repositorio.save(usuario);
     const { contrasena, ...resultado } = usuario_actualizado;
+    
+    if (resultado.avatar_ruta) {
+        (resultado as any).avatar_url = await this.almacenamiento_servicio.obtenerUrlAcceso(
+            resultado.avatar_ruta,
+            TipoDocumento.ARCHIVO_ADJUNTO
+        );
+    }
+
     return resultado;
   }
   

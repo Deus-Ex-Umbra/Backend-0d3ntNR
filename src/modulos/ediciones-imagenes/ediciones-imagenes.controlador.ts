@@ -4,36 +4,50 @@ import { CrearEdicionDto } from './dto/crear-edicion.dto';
 import { ActualizarEdicionDto } from './dto/actualizar-edicion.dto';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../autenticacion/guardias/jwt-auth.guardia';
+import { AlmacenamientoServicio, TipoDocumento } from '../almacenamiento/almacenamiento.servicio';
 
 @ApiTags('Ediciones de Imágenes')
 @ApiBearerAuth('JWT-auth')
 @UseGuards(JwtAuthGuard)
 @Controller('ediciones-imagenes')
 export class EdicionesImagenesControlador {
-  constructor(private readonly ediciones_servicio: EdicionesImagenesServicio) { }
+  constructor(
+    private readonly ediciones_servicio: EdicionesImagenesServicio,
+    private readonly almacenamiento_servicio: AlmacenamientoServicio,
+  ) { }
 
   @Post()
   @ApiOperation({ summary: 'Crear nueva edición/versión de imagen' })
-  crear(@Request() req, @Body() dto: CrearEdicionDto) {
-    return this.ediciones_servicio.crear(req.user.id, dto);
+  async crear(@Request() req, @Body() dto: CrearEdicionDto) {
+    const edicion = await this.ediciones_servicio.crear(req.user.id, dto);
+    const url = await this.almacenamiento_servicio.obtenerUrlAcceso(edicion.ruta_imagen_resultado, TipoDocumento.EDICION_IMAGEN);
+    return { ...edicion, url };
   }
 
   @Get('archivo/:archivo_id')
   @ApiOperation({ summary: 'Obtener todas las ediciones de un archivo' })
-  obtenerPorArchivo(@Request() req, @Param('archivo_id') archivo_id: string) {
-    return this.ediciones_servicio.obtenerPorArchivo(req.user.id, +archivo_id);
+  async obtenerPorArchivo(@Request() req, @Param('archivo_id') archivo_id: string) {
+    const ediciones = await this.ediciones_servicio.obtenerPorArchivo(req.user.id, +archivo_id);
+    return Promise.all(ediciones.map(async e => ({
+       ...e,
+       url: await this.almacenamiento_servicio.obtenerUrlAcceso(e.ruta_imagen_resultado, TipoDocumento.EDICION_IMAGEN)
+    })));
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Obtener edición por ID' })
-  obtenerPorId(@Request() req, @Param('id') id: string) {
-    return this.ediciones_servicio.obtenerPorId(req.user.id, +id);
+  async obtenerPorId(@Request() req, @Param('id') id: string) {
+    const edicion = await this.ediciones_servicio.obtenerPorId(req.user.id, +id);
+    const url = await this.almacenamiento_servicio.obtenerUrlAcceso(edicion.ruta_imagen_resultado, TipoDocumento.EDICION_IMAGEN);
+    return { ...edicion, url };
   }
 
   @Put(':id')
   @ApiOperation({ summary: 'Actualizar edición' })
-  actualizar(@Param('id') id: string, @Request() req, @Body() dto: ActualizarEdicionDto) {
-    return this.ediciones_servicio.actualizar(+id, req.user.id, dto);
+  async actualizar(@Param('id') id: string, @Request() req, @Body() dto: ActualizarEdicionDto) {
+    const edicion = await this.ediciones_servicio.actualizar(+id, req.user.id, dto);
+    const url = await this.almacenamiento_servicio.obtenerUrlAcceso(edicion.ruta_imagen_resultado, TipoDocumento.EDICION_IMAGEN);
+    return { ...edicion, url };
   }
 
   @Delete(':id')
@@ -44,8 +58,10 @@ export class EdicionesImagenesControlador {
 
   @Post(':id/duplicar')
   @ApiOperation({ summary: 'Duplicar edición como nueva versión' })
-  duplicar(@Param('id') id: string, @Request() req) {
-    return this.ediciones_servicio.duplicar(+id, req.user.id);
+  async duplicar(@Param('id') id: string, @Request() req) {
+    const edicion = await this.ediciones_servicio.duplicar(+id, req.user.id);
+    const url = await this.almacenamiento_servicio.obtenerUrlAcceso(edicion.ruta_imagen_resultado, TipoDocumento.EDICION_IMAGEN);
+    return { ...edicion, url };
   }
 
   @Post(':edicion_id/comentarios')

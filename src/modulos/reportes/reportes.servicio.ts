@@ -1254,11 +1254,10 @@ El texto dentro de cada campo debe usar formato Markdown simple (negritas, lista
       throw new NotFoundException('Reporte no encontrado');
     }
 
-    const ruta_completa = this.almacenamiento_servicio.obtenerRutaArchivo(
+    const archivo = await this.almacenamiento_servicio.obtenerStreamArchivo(
       reporte.ruta_archivo,
       TipoDocumento.REPORTE
     );
-    const archivo = createReadStream(ruta_completa);
     return { archivo, nombre: reporte.nombre };
   }
 
