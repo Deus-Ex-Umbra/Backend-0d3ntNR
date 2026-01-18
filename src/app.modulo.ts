@@ -116,9 +116,7 @@ import { ConfiguracionClinica } from './modulos/catalogo/entidades/configuracion
         ConfiguracionClinica,
       ],
       synchronize: true,
-      ssl: {
-        rejectUnauthorized: false,
-      },
+      ssl: process.env.SSL_ENABLED === 'true' ? { rejectUnauthorized: false } : false,
     }),
     PacientesModule,
     TratamientosModule,
