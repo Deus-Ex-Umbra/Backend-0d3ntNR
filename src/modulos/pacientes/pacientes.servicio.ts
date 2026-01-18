@@ -53,7 +53,7 @@ export class PacientesServicio {
     @InjectRepository(PlanTratamiento)
     private readonly plan_tratamiento_repositorio: Repository<PlanTratamiento>,
     private readonly almacenamiento_servicio: AlmacenamientoServicio,
-  ) {}
+  ) { }
 
   private async obtenerPacientePropietario(usuario_id: number, paciente_id: number): Promise<Paciente> {
     const paciente = await this.paciente_repositorio.findOne({ where: { id: paciente_id, usuario: { id: usuario_id } } });
@@ -96,7 +96,7 @@ export class PacientesServicio {
 
   async encontrarTodos(usuario_id: number, termino_busqueda?: string): Promise<Paciente[]> {
     const base_where = { usuario: { id: usuario_id } };
-    
+
     if (termino_busqueda) {
       const id_busqueda = parseInt(termino_busqueda, 10);
       const where_conditions: any[] = [
@@ -126,7 +126,7 @@ export class PacientesServicio {
         'paciente_medicamentos.medicamento',
       ],
     });
-    
+
     if (!paciente) {
       throw new NotFoundException(`Paciente con ID "${id}" no encontrado o no le pertenece.`);
     }
@@ -325,8 +325,10 @@ export class PacientesServicio {
       return null;
     }
     let estado = 'pendiente';
-    if (ultimo_tratamiento.finalizado) {
+    if (ultimo_tratamiento.estado === 'completado') {
       estado = 'completado';
+    } else if (ultimo_tratamiento.estado === 'cancelado') {
+      estado = 'cancelado';
     } else if (ultimo_tratamiento.citas && ultimo_tratamiento.citas.length > 0) {
       estado = 'en_progreso';
     }
@@ -504,15 +506,15 @@ export class PacientesServicio {
     if (!plantilla) {
       throw new NotFoundException(`Plantilla con ID ${plantilla_id} no encontrada`);
     }
-    
+
     const contenido_procesado = this.reemplazarVariablesPaciente(plantilla.contenido, paciente);
     const timestamp = Date.now();
     const nombre_archivo_base = `consentimiento_${timestamp}_${paciente_id}`;
-    
+
     const configPdf = {
       tamano: (plantilla as any).tamano_papel || 'LETTER',
       margenes: {
-        top: ((plantilla as any).margen_superior || 20) * 2.83465, 
+        top: ((plantilla as any).margen_superior || 20) * 2.83465,
         bottom: ((plantilla as any).margen_inferior || 20) * 2.83465,
         left: ((plantilla as any).margen_izquierdo || 20) * 2.83465,
         right: ((plantilla as any).margen_derecho || 20) * 2.83465,
@@ -520,27 +522,27 @@ export class PacientesServicio {
     };
 
     const pdf_buffer = await this.generarPDFConsentimientoEnMemoria(contenido_procesado, nombre, configPdf);
-    
+
     const nombre_archivo = await this.almacenamiento_servicio.guardarArchivoDesdeBuffer(
       pdf_buffer,
       'pdf',
       TipoDocumento.PLANTILLA_CONSENTIMIENTO,
       nombre_archivo_base
     );
-    
+
     const consentimiento = new ConsentimientoInformado();
     consentimiento.paciente = paciente;
     consentimiento.usuario = { id: usuario_id } as Usuario;
     consentimiento.nombre = nombre;
     consentimiento.contenido_html = contenido_procesado;
     consentimiento.ruta_archivo = nombre_archivo;
-    
+
     return await this.consentimiento_repositorio.save(consentimiento);
   }
 
   async obtenerConsentimientosPaciente(usuario_id: number, paciente_id: number): Promise<ConsentimientoInformado[]> {
     return await this.consentimiento_repositorio.find({
-      where: { 
+      where: {
         paciente: { id: paciente_id },
         usuario: { id: usuario_id }
       },
@@ -600,7 +602,7 @@ export class PacientesServicio {
     return new Promise((resolve, reject) => {
       const doc = new PDFDocument({
         size: config.tamano ? config.tamano.toUpperCase() : 'LETTER',
-        margins: config.margenes || { top: 56, bottom: 56, left: 56, right: 56 }, 
+        margins: config.margenes || { top: 56, bottom: 56, left: 56, right: 56 },
       });
 
       const buffers: Buffer[] = [];
@@ -637,27 +639,27 @@ export class PacientesServicio {
           else if (lowerToken === '<u>') estado.underline = true;
           else if (lowerToken === '</u>') estado.underline = false;
           else if (lowerToken === '<br>' || lowerToken === '<br/>') {
-             doc.text('', { continued: false });
+            doc.text('', { continued: false });
           }
           else if (lowerToken === '<p>' || lowerToken.startsWith('<p ')) {
-             doc.moveDown(0.5);
-             if (lowerToken.includes('text-align: center')) estado.align = 'center';
-             else if (lowerToken.includes('text-align: right')) estado.align = 'right';
-             else estado.align = 'left';
+            doc.moveDown(0.5);
+            if (lowerToken.includes('text-align: center')) estado.align = 'center';
+            else if (lowerToken.includes('text-align: right')) estado.align = 'right';
+            else estado.align = 'left';
           }
-          else if (lowerToken === '</p>') { 
+          else if (lowerToken === '</p>') {
             doc.text('', { continued: false });
-            doc.moveDown(0.5); 
+            doc.moveDown(0.5);
             estado.align = 'left';
           }
           else if (lowerToken.startsWith('<h')) {
-             doc.moveDown(1);
-             doc.font('Times-Bold').fontSize(14);
+            doc.moveDown(1);
+            doc.font('Times-Bold').fontSize(14);
           }
           else if (lowerToken.startsWith('</h')) {
-             doc.text('', { continued: false });
-             doc.font('Times-Roman').fontSize(11);
-             doc.moveDown(0.5);
+            doc.text('', { continued: false });
+            doc.font('Times-Roman').fontSize(11);
+            doc.moveDown(0.5);
           }
           else if (lowerToken === '<ul>') estado.list = true;
           else if (lowerToken === '</ul>') estado.list = false;
@@ -667,7 +669,7 @@ export class PacientesServicio {
             doc.text('• ', { continued: true, indent: 10 });
           }
           else if (lowerToken === '</li>') {
-             doc.text('', { continued: false });
+            doc.text('', { continued: false });
           }
         } else {
           let texto = token
@@ -682,7 +684,7 @@ export class PacientesServicio {
           else if (estado.italic) font = 'Times-Italic';
 
           doc.font(font);
-          
+
           doc.text(texto, {
             continued: true,
             underline: estado.underline,
@@ -690,7 +692,7 @@ export class PacientesServicio {
           });
         }
       });
-      
+
       doc.text('', { continued: false });
 
       doc.end();

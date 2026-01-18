@@ -6,6 +6,7 @@ import { MaterialPlantilla } from './entidades/material-plantilla.entidad';
 import { MaterialTratamiento } from '../inventario/entidades/material-tratamiento.entidad';
 import { MaterialCita } from '../inventario/entidades/material-cita.entidad';
 import { Material } from '../inventario/entidades/material.entidad';
+import { Cita } from '../agenda/entidades/cita.entidad';
 import { TratamientosControlador } from './tratamientos.controlador';
 import { TratamientosServicio } from './tratamientos.servicio';
 import { PlanesTratamientoControlador } from './planes-tratamiento.controlador';
@@ -16,7 +17,7 @@ import { InventarioModule } from '../inventario/inventario.modulo';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Tratamiento, PlanTratamiento, MaterialPlantilla, MaterialTratamiento, MaterialCita, Material]),
+    TypeOrmModule.forFeature([Tratamiento, PlanTratamiento, MaterialPlantilla, MaterialTratamiento, MaterialCita, Material, Cita]),
     forwardRef(() => PacientesModule),
     forwardRef(() => AgendaModule),
     forwardRef(() => InventarioModule),

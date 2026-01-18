@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, ConflictException, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { PlanTratamiento } from './entidades/plan-tratamiento.entidad';
+import { PlanTratamiento, EstadoPlanTratamiento } from './entidades/plan-tratamiento.entidad';
 import { MaterialPlantilla, TipoMaterialPlantilla } from './entidades/material-plantilla.entidad';
 import { AsignarPlanTratamientoDto } from './dto/asignar-plan-tratamiento.dto';
 import { PacientesServicio } from '../pacientes/pacientes.servicio';
@@ -28,6 +28,8 @@ export class PlanesTratamientoServicio {
     private readonly material_cita_repositorio: Repository<MaterialCita>,
     @InjectRepository(Material)
     private readonly material_repositorio: Repository<Material>,
+    @InjectRepository(Cita)
+    private readonly cita_repositorio: Repository<Cita>,
     private readonly pacientes_servicio: PacientesServicio,
     private readonly tratamientos_servicio: TratamientosServicio,
     @Inject(forwardRef(() => AgendaServicio))
@@ -210,6 +212,12 @@ export class PlanesTratamientoServicio {
   async registrarAbono(usuario_id: number, plan_id: number, monto: number): Promise<PlanTratamiento> {
     const plan = await this.encontrarPlanPorId(usuario_id, plan_id);
     plan.total_abonado = Number(plan.total_abonado) + Number(monto);
+
+    // Auto-completar si alcanza 100% y está en estado pendiente
+    if (plan.total_abonado >= plan.costo_total && plan.estado === EstadoPlanTratamiento.PENDIENTE) {
+      plan.estado = EstadoPlanTratamiento.COMPLETADO;
+    }
+
     return this.plan_repositorio.save(plan);
   }
 
@@ -336,5 +344,52 @@ export class PlanesTratamientoServicio {
       .andWhere('cita.eliminado_en IS NULL')
       .getOne();
     return !citas || citas.citas.length === 0;
+  }
+
+  async cambiarEstadoPlan(
+    usuario_id: number,
+    plan_id: number,
+    nuevo_estado: EstadoPlanTratamiento
+  ): Promise<PlanTratamiento> {
+    const plan = await this.encontrarPlanPorId(usuario_id, plan_id);
+    const estado_anterior = plan.estado;
+
+    // Si no hay cambio, retornar el plan sin modificar
+    if (estado_anterior === nuevo_estado) {
+      return plan;
+    }
+
+    // Si cambia a CANCELADO: soft-delete todas las citas pendientes
+    if (nuevo_estado === EstadoPlanTratamiento.CANCELADO) {
+      for (const cita of plan.citas) {
+        if (cita.estado_pago === 'pendiente' && !cita.eliminado_en) {
+          try {
+            await this.agenda_servicio.eliminar(usuario_id, cita.id);
+          } catch (error) {
+            console.warn(`Error al cancelar cita ${cita.id}:`, error.message);
+          }
+        }
+      }
+    }
+
+    // Si cambia de CANCELADO a PENDIENTE: restaurar citas canceladas
+    if (nuevo_estado === EstadoPlanTratamiento.PENDIENTE && estado_anterior === EstadoPlanTratamiento.CANCELADO) {
+      const citas_eliminadas = await this.cita_repositorio
+        .createQueryBuilder('cita')
+        .withDeleted()
+        .where('"cita"."planTratamientoId" = :plan_id', { plan_id })
+        .andWhere('cita.eliminado_en IS NOT NULL')
+        .getMany();
+
+      for (const cita of citas_eliminadas) {
+        await this.cita_repositorio.restore(cita.id);
+      }
+    }
+
+    plan.estado = nuevo_estado;
+    const plan_actualizado = await this.plan_repositorio.save(plan);
+
+    // Recargar con relaciones
+    return this.encontrarPlanPorId(usuario_id, plan_id);
   }
 }

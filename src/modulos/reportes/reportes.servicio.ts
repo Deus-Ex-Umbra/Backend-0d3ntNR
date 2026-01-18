@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between } from 'typeorm';
 import { Paciente } from '../pacientes/entidades/paciente.entidad';
 import { Cita } from '../agenda/entidades/cita.entidad';
-import { PlanTratamiento } from '../tratamientos/entidades/plan-tratamiento.entidad';
+import { PlanTratamiento, EstadoPlanTratamiento } from '../tratamientos/entidades/plan-tratamiento.entidad';
 import { Pago } from '../finanzas/entidades/pago.entidad';
 import { Egreso } from '../finanzas/entidades/egreso.entidad';
 import { Inventario } from '../inventario/entidades/inventario.entidad';
@@ -205,8 +205,8 @@ export class ReportesServicio {
       relations: ['paciente', 'tratamiento', 'citas'],
     });
 
-    const planes_activos = planes.filter(p => !p.finalizado);
-    const planes_finalizados = planes.filter(p => p.finalizado);
+    const planes_activos = planes.filter(p => !p.estado || p.estado === EstadoPlanTratamiento.PENDIENTE);
+    const planes_finalizados = planes.filter(p => p.estado === EstadoPlanTratamiento.COMPLETADO || p.estado === EstadoPlanTratamiento.CANCELADO);
 
     const total_por_cobrar = planes_activos.reduce((sum, p) => {
       return sum + (Number(p.costo_total) - Number(p.total_abonado));
@@ -224,7 +224,7 @@ export class ReportesServicio {
         costo_total: Number(p.costo_total),
         abonado: Number(p.total_abonado),
         pendiente: Number(p.costo_total) - Number(p.total_abonado),
-        finalizado: p.finalizado,
+        estado: p.estado || 'pendiente',
       })),
     };
   }

@@ -6,11 +6,17 @@ import { Pago } from '../../finanzas/entidades/pago.entidad';
 import { ArchivoAdjunto } from '../../archivos-adjuntos/entidades/archivo-adjunto.entidad';
 import { Usuario } from '../../usuarios/entidades/usuario.entidad';
 
+export enum EstadoPlanTratamiento {
+  PENDIENTE = 'pendiente',
+  COMPLETADO = 'completado',
+  CANCELADO = 'cancelado'
+}
+
 @Entity()
 export class PlanTratamiento {
   @PrimaryGeneratedColumn()
   id: number;
-  
+
   @ManyToOne(() => Usuario, { onDelete: 'CASCADE', onUpdate: 'CASCADE' })
   usuario: Usuario;
 
@@ -32,12 +38,12 @@ export class PlanTratamiento {
   @Column({ default: false })
   materiales_finales_confirmados: boolean;
 
-  @Column({ default: false })
-  finalizado: boolean;
+  @Column({ type: 'varchar', default: EstadoPlanTratamiento.PENDIENTE })
+  estado: EstadoPlanTratamiento;
 
   @OneToMany(() => Cita, (cita) => cita.plan_tratamiento)
   citas: Cita[];
-  
+
   @OneToMany(() => Pago, (pago) => pago.plan_tratamiento)
   pagos: Pago[];
 
